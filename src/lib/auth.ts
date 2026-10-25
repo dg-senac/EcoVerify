@@ -44,10 +44,13 @@ export async function destroySession() {
   cookieStore.delete(SESSION_COOKIE);
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
+  // Avoid a database error (invalid uuid) when the cookie was tampered with.
+  if (!token || !UUID_PATTERN.test(token)) return null;
 
   const rows = await db
     .select({ user: users, expiresAt: sessions.expiresAt })
@@ -62,6 +65,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     await db.delete(sessions).where(eq(sessions.token, token));
     return null;
   }
+  // Banned users lose access to every page and server action immediately.
+  if (row.user.isBanned) return null;
 
   return row.user;
 }

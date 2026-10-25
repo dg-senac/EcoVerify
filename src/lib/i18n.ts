@@ -45,9 +45,9 @@ const dict = {
   register_has_account: { pt: "Já tem conta?", en: "Already have an account?", es: "¿Ya tienes cuenta?" },
   register_login: { pt: "Entrar", en: "Sign in", es: "Iniciar sesión" },
   register_password_hint: {
-    pt: "Mínimo de 6 caracteres.",
-    en: "Minimum 6 characters.",
-    es: "Mínimo 6 caracteres.",
+    pt: "Mínimo de 8 caracteres.",
+    en: "Minimum 8 characters.",
+    es: "Mínimo 8 caracteres.",
   },
   register_email_exists: {
     pt: "Este e-mail já está cadastrado.",
@@ -189,6 +189,46 @@ const dict = {
     pt: "Esta missão ainda não tem um local configurado.",
     en: "This mission does not have a location configured yet.",
     es: "Esta misión aún no tiene una ubicación configurada.",
+  },
+  error_location_inaccurate: {
+    pt: "A precisão do GPS está baixa. Vá para um local aberto e toque em usar localização novamente.",
+    en: "GPS accuracy is too low. Move to an open area and tap use location again.",
+    es: "La precisión del GPS es baja. Ve a un lugar abierto y toca usar ubicación de nuevo.",
+  },
+  error_already_submitted: {
+    pt: "Você já enviou uma comprovação para esta missão.",
+    en: "You have already submitted proof for this mission.",
+    es: "Ya enviaste un comprobante para esta misión.",
+  },
+  error_invalid_photo: {
+    pt: "Formato de foto inválido. Envie uma imagem JPG, PNG ou WebP.",
+    en: "Invalid photo format. Please upload a JPG, PNG or WebP image.",
+    es: "Formato de foto inválido. Envía una imagen JPG, PNG o WebP.",
+  },
+  error_photo_too_large: {
+    pt: "A foto é muito grande (máximo 10 MB).",
+    en: "The photo is too large (max 10 MB).",
+    es: "La foto es demasiado grande (máximo 10 MB).",
+  },
+  error_banned: {
+    pt: "Sua conta está suspensa e não pode enviar comprovações.",
+    en: "Your account is suspended and cannot submit proof.",
+    es: "Tu cuenta está suspendida y no puede enviar comprobantes.",
+  },
+  error_too_many_attempts: {
+    pt: "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+    en: "Too many attempts. Please wait a few minutes and try again.",
+    es: "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
+  },
+  wallet_error_invalid: {
+    pt: "Endereço inválido, verifique e tente novamente.",
+    en: "Invalid address, please check and try again.",
+    es: "Dirección inválida, verifica e inténtalo de nuevo.",
+  },
+  wallet_error_in_use: {
+    pt: "Esta carteira já está vinculada a outra conta.",
+    en: "This wallet is already linked to another account.",
+    es: "Esta billetera ya está vinculada a otra cuenta.",
   },
   error_generic: {
     pt: "Algo deu errado. Tente novamente.",

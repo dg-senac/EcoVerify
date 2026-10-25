@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { updateRewardAction, type AdminActionState } from "@/lib/actions/admin";
 
 const initialState: AdminActionState = {};
-const networks = ["EcoChain", "Polygon", "BNB Chain", "Solana"];
+// FONE runs on its own mobile blockchain and has a BEP-20 bridge on BNB Smart Chain.
+const networks = ["FONE", "BNB Smart Chain (BEP-20)"];
 
 export function RewardRow({
   reward,
@@ -18,16 +19,18 @@ export function RewardRow({
     txHash: string | null;
   };
 }) {
-  const [state, formAction, pending] = useActionState(updateRewardAction, initialState);
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    if (state.success) {
-      setSaved(true);
-      const timeout = setTimeout(() => setSaved(false), 2000);
-      return () => clearTimeout(timeout);
-    }
-  }, [state.success]);
+  const [state, formAction, pending] = useActionState(
+    async (prev: AdminActionState, formData: FormData) => {
+      const result = await updateRewardAction(prev, formData);
+      if (result.success) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
+      return result;
+    },
+    initialState,
+  );
 
   return (
     <form action={formAction} className="grid grid-cols-1 items-center gap-3 rounded-xl border border-black/5 p-4 lg:grid-cols-6">
@@ -48,7 +51,7 @@ export function RewardRow({
       </select>
       <select
         name="network"
-        defaultValue={reward.network ?? "EcoChain"}
+        defaultValue={reward.network && networks.includes(reward.network) ? reward.network : "FONE"}
         className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-semibold text-slate-600"
       >
         {networks.map((n) => (
@@ -72,6 +75,13 @@ export function RewardRow({
         {pending && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
         {saved ? "Salvo ✓" : "Salvar"}
       </button>
+      {state.error && (
+        <p className="text-xs font-medium text-red-500 lg:col-span-6">
+          {state.error === "tx_hash_required"
+            ? "Informe o hash da transação para marcar como pago."
+            : "Não foi possível salvar. Verifique os dados."}
+        </p>
+      )}
     </form>
   );
 }

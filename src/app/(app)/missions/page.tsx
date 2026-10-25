@@ -14,7 +14,8 @@ export default async function MissionsPage() {
   const userSubmissions = await db
     .select({ missionId: submissions.missionId })
     .from(submissions)
-    .where(eq(submissions.userId, user.id));
+    // Rejected submissions don't block the mission: the user can try again.
+    .where(and(eq(submissions.userId, user.id), inArray(submissions.status, ["pending", "approved"])));
 
   const completedMissionIds = userSubmissions.map((s) => s.missionId);
 

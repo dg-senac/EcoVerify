@@ -1,4 +1,4 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -7,18 +7,19 @@ import { t } from "@/lib/i18n";
 import { initials } from "@/lib/utils";
 import { Trophy, Medal } from "@/components/ui/icons";
 
-const medals = [<Medal className="h-6 w-6 text-amber-400" />, <Medal className="h-6 w-6 text-slate-400" />, <Medal className="h-6 w-6 text-amber-600" />];
+const medalColors = ["text-amber-400", "text-slate-400", "text-amber-600"];
+const RANKING_LIMIT = 100;
 
 export default async function RankingPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const ranked = await db
-    .select({ id: users.id, name: users.name, totalPoints: users.totalPoints, isBanned: users.isBanned })
+  const visible = await db
+    .select({ id: users.id, name: users.name, totalPoints: users.totalPoints })
     .from(users)
-    .orderBy(desc(users.totalPoints));
-
-  const visible = ranked.filter((r) => !r.isBanned);
+    .where(eq(users.isBanned, false))
+    .orderBy(desc(users.totalPoints), users.createdAt)
+    .limit(RANKING_LIMIT);
 
   return (
     <div>
@@ -44,7 +45,7 @@ export default async function RankingPage() {
               } ${isMe ? "ring-2 ring-emerald-400" : ""}`}
             >
               <div className="grid h-10 w-10 shrink-0 place-items-center text-xl font-bold text-slate-500">
-                {isPodium ? medals[index] : index + 1}
+                {isPodium ? <Medal className={`h-6 w-6 ${medalColors[index]}`} /> : index + 1}
               </div>
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-bold text-white">
                 {initials(row.name)}

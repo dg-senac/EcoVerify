@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import {
   banUserAction,
   contactUserAction,
@@ -34,16 +34,22 @@ export function UserRow({
   const [banOpen, setBanOpen] = useState(false);
   const isSelf = user.id === currentUserId;
 
-  const [contactState, contactFormAction, contactPending] = useActionState(contactUserAction, initialState);
-  const [banState, banFormAction, banPending] = useActionState(banUserAction, initialState);
-
-  useEffect(() => {
-    if (contactState.success) setContactOpen(false);
-  }, [contactState.success]);
-
-  useEffect(() => {
-    if (banState.success) setBanOpen(false);
-  }, [banState.success]);
+  const [contactState, contactFormAction, contactPending] = useActionState(
+    async (prev: AdminActionState, formData: FormData) => {
+      const result = await contactUserAction(prev, formData);
+      if (result.success) setContactOpen(false);
+      return result;
+    },
+    initialState,
+  );
+  const [banState, banFormAction, banPending] = useActionState(
+    async (prev: AdminActionState, formData: FormData) => {
+      const result = await banUserAction(prev, formData);
+      if (result.success) setBanOpen(false);
+      return result;
+    },
+    initialState,
+  );
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-black/5 p-4 sm:flex-row sm:items-center">

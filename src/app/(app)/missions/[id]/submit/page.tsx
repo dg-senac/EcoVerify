@@ -10,6 +10,7 @@ export default async function SubmitMissionPage({ params }: { params: Promise<{ 
   if (!user) redirect("/login");
 
   const { id } = await params;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) notFound();
   const missionList = await db.select().from(missions).where(eq(missions.id, id));
   const mission = missionList[0];
 

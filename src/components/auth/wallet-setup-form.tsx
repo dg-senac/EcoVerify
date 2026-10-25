@@ -53,7 +53,7 @@ export function WalletSetupForm({ lang }: { lang: Lang }) {
           />
           {importState?.error && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600">
-              Endereço inválido, verifique e tente novamente.
+              {t(lang, importState.error === "wallet_in_use" ? "wallet_error_in_use" : "wallet_error_invalid")}
             </p>
           )}
           <div className="flex gap-3">

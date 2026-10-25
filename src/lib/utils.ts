@@ -69,3 +69,15 @@ export function startOfTodayUTC() {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
+
+/** True when a database error is a Postgres unique-constraint violation (code 23505). */
+export function isUniqueViolation(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; current && depth < 5; depth++) {
+    if (typeof current === "object" && "code" in current && (current as { code?: unknown }).code === "23505") {
+      return true;
+    }
+    current = typeof current === "object" && "cause" in current ? (current as { cause?: unknown }).cause : null;
+  }
+  return false;
+}

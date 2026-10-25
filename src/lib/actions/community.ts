@@ -2,57 +2,94 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { communityChat, messageFavorites, messageReports, notifications, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { isAllowedMediaUrl } from "@/lib/community";
+import { rateLimit } from "@/lib/rate-limit";
 export type ActionState = { error?: string };
+
+const MESSAGE_TYPES = ["text", "image", "audio", "video", "gif"] as const;
+type MessageType = (typeof MESSAGE_TYPES)[number];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const COMMUNITY_NOTIFICATION_TITLE = "Nova mensagem na comunidade";
 
 export async function sendMessageAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "citizen") return { error: "not_citizen" };
 
+  if (!rateLimit(`chat:${user.id}`, 20, 60 * 1000)) {
+    return { error: "too_many_messages" };
+  }
+
   const message = String(formData.get("message") ?? "").trim();
-  const messageType = String(formData.get("messageType") ?? "text") as "text" | "image" | "audio" | "video" | "gif";
-  const mediaUrl = String(formData.get("mediaUrl") ?? "") || null;
-  const replyToId = String(formData.get("replyToId") ?? "") || null;
-  const replyToMessage = String(formData.get("replyToMessage") ?? "") || null;
+  const messageType = String(formData.get("messageType") ?? "text") as MessageType;
+  const mediaUrl = String(formData.get("mediaUrl") ?? "").trim() || null;
+  const replyToIdRaw = String(formData.get("replyToId") ?? "").trim();
+
+  if (!MESSAGE_TYPES.includes(messageType)) {
+    return { error: "invalid" };
+  }
 
   // Para mensagens de mídia, não requer texto
   if (messageType === "text" && !message) {
     return { error: "empty_message" };
+  }
+  if (messageType !== "text" && (!mediaUrl || !isAllowedMediaUrl(messageType, mediaUrl))) {
+    return { error: "invalid" };
   }
 
   if (message && message.length > 1000) {
     return { error: "message_too_long" };
   }
 
+  // The quoted text is read from the database instead of trusting the client,
+  // so nobody can fake a reply quoting something another user never said.
+  let replyToId: string | null = null;
+  let replyToMessage: string | null = null;
+  if (replyToIdRaw && UUID_PATTERN.test(replyToIdRaw)) {
+    const [original] = await db
+      .select({
+        id: communityChat.id,
+        message: communityChat.message,
+        messageType: communityChat.messageType,
+        deleteForEveryone: communityChat.deleteForEveryone,
+      })
+      .from(communityChat)
+      .where(eq(communityChat.id, replyToIdRaw))
+      .limit(1);
+    if (original && !original.deleteForEveryone) {
+      replyToId = original.id;
+      replyToMessage = (original.message ?? `[${original.messageType}]`).slice(0, 200);
+    }
+  }
+
   await db.insert(communityChat).values({
     message: message || null,
     messageType,
-    mediaUrl,
+    mediaUrl: messageType === "text" ? null : mediaUrl,
     replyToId,
     replyToMessage,
     userId: user.id,
   });
 
-  // Notificar todos os usuários cidadãos sobre nova mensagem
-  const allCitizens = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.role, "citizen"));
-
-  for (const citizen of allCitizens) {
-    if (citizen.id !== user.id) {
-      await db.insert(notifications).values({
-        userId: citizen.id,
-        type: "system",
-        title: "Nova mensagem na comunidade",
-        message: `Há uma nova mensagem no chat da comunidade.`,
-      });
-    }
-  }
+  // Notify other citizens with a single query (previously one INSERT per user per message).
+  // Users that already have an unread community notification don't get another one.
+  await db.execute(sql`
+    insert into ${notifications} (user_id, type, title, message)
+    select u.id, 'system', ${COMMUNITY_NOTIFICATION_TITLE}, 'Há novas mensagens no chat da comunidade.'
+    from ${users} u
+    where u.role = 'citizen'
+      and u.is_banned = false
+      and u.notifications_enabled = true
+      and u.id <> ${user.id}
+      and not exists (
+        select 1 from ${notifications} n
+        where n.user_id = u.id and n.is_read = false and n.title = ${COMMUNITY_NOTIFICATION_TITLE}
+      )
+  `);
 
   revalidatePath("/community");
   revalidatePath("/notifications");
@@ -201,7 +238,7 @@ export async function reportMessageAction(_prev: ActionState, formData: FormData
   const messageId = String(formData.get("messageId") ?? "");
   const reason = String(formData.get("reason") ?? "").trim();
 
-  if (!messageId || !reason) {
+  if (!messageId || !reason || reason.length > 200) {
     return { error: "invalid" };
   }
 
@@ -229,22 +266,4 @@ export async function reportMessageAction(_prev: ActionState, formData: FormData
 
   revalidatePath("/community");
   return {};
-}
-
-export async function getCommunityMessages(limit: number = 50) {
-  const messages = await db
-    .select({
-      id: communityChat.id,
-      message: communityChat.message,
-      userId: communityChat.userId,
-      createdAt: communityChat.createdAt,
-      editedAt: communityChat.editedAt,
-      deletedAt: communityChat.deletedAt,
-      deleteForEveryone: communityChat.deleteForEveryone,
-    })
-    .from(communityChat)
-    .orderBy(communityChat.createdAt)
-    .limit(limit);
-
-  return messages;
 }
