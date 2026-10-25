@@ -35,6 +35,8 @@ export function RegisterForm({ lang }: { lang: Lang }) {
       ? t(currentLang, "register_email_exists")
       : state?.error === "weak_password"
         ? t(currentLang, "register_password_hint")
+        : state?.error === "too_many_attempts"
+          ? t(currentLang, "error_too_many_attempts")
         : state?.error
           ? t(currentLang, "login_error")
           : null;
@@ -96,13 +98,13 @@ export function RegisterForm({ lang }: { lang: Lang }) {
             type="password"
             name="password"
             required
-            minLength={6}
+            minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
           />
-          <p className={`mt-1 text-xs ${password.length > 0 && password.length < 6 ? "text-red-500" : "text-slate-400"}`}>
+          <p className={`mt-1 text-xs ${password.length > 0 && password.length < 8 ? "text-red-500" : "text-slate-400"}`}>
             {t(currentLang, "register_password_hint")}
           </p>
         </div>

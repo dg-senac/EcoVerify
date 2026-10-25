@@ -39,3 +39,7 @@ android/capacitor-cordova-android-plugins/
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local uploads (development storage)
+/storage/
+/public/uploads/

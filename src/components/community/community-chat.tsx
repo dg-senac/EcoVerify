@@ -322,6 +322,16 @@ export function CommunityChat({
               {t(lang, "chat_error_long")}
             </p>
           )}
+          {state.error === "too_many_messages" && (
+            <p className="mt-2 text-xs font-medium text-red-500">
+              {t(lang, "error_too_many_attempts")}
+            </p>
+          )}
+          {state.error === "invalid" && (
+            <p className="mt-2 text-xs font-medium text-red-500">
+              {t(lang, "error_generic")}
+            </p>
+          )}
         </form>
       </div>
     </div>

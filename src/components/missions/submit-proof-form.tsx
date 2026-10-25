@@ -14,6 +14,11 @@ const errorKeyMap: Record<string, string> = {
   duplicate_photo: "error_duplicate_photo",
   outside_mission_area: "error_outside_mission_area",
   mission_location_not_configured: "error_mission_location_not_configured",
+  location_inaccurate: "error_location_inaccurate",
+  already_submitted: "error_already_submitted",
+  invalid_photo: "error_invalid_photo",
+  photo_too_large: "error_photo_too_large",
+  banned: "error_banned",
 };
 
 export function SubmitProofForm({
@@ -39,7 +44,7 @@ export function SubmitProofForm({
   const [state, formAction, pending] = useActionState(createSubmissionAction, initialState);
   const [preview, setPreview] = useState<string | null>(null);
   const [report, setReport] = useState("");
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -75,14 +80,14 @@ export function SubmitProofForm({
     setLocationError(false);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
         setLocating(false);
       },
       () => {
         setLocationError(true);
         setLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }
 
@@ -118,6 +123,7 @@ export function SubmitProofForm({
           <input type="hidden" name="missionId" value={mission.id} />
           <input type="hidden" name="latitude" value={coords?.lat ?? ""} readOnly />
           <input type="hidden" name="longitude" value={coords?.lng ?? ""} readOnly />
+          <input type="hidden" name="accuracy" value={coords?.accuracy ?? ""} readOnly />
 
           {(mission.context || mission.impact) && (
             <div className="space-y-3 rounded-2xl bg-emerald-50 p-4 text-sm text-slate-700">
@@ -144,7 +150,7 @@ export function SubmitProofForm({
               <input
                 type="file"
                 name="photo"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 capture="environment"
                 className="hidden"
                 onChange={handleFile}
@@ -196,7 +202,7 @@ export function SubmitProofForm({
               ) : (
                 <span>📍</span>
               )}
-              {coords ? `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}` : t(lang, "use_current_location")}
+              {coords ? `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)} (±${Math.round(coords.accuracy)} m)` : t(lang, "use_current_location")}
             </button>
             {locationError && (
               <p className="mt-1 text-xs font-medium text-red-500">

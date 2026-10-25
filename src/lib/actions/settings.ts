@@ -13,8 +13,10 @@ export async function updateSettingsAction(_prev: ActionState, formData: FormDat
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const language = String(formData.get("language") ?? "pt") as "pt" | "en" | "es";
-  const fontSize = String(formData.get("fontSize") ?? "medium") as "small" | "medium" | "large";
+  const languageInput = String(formData.get("language") ?? "pt");
+  const fontSizeInput = String(formData.get("fontSize") ?? "medium");
+  const language = (["pt", "en", "es"] as const).find((value) => value === languageInput) ?? "pt";
+  const fontSize = (["small", "medium", "large"] as const).find((value) => value === fontSizeInput) ?? "medium";
   const highContrast = formData.get("highContrast") === "on";
   const reducedMotion = formData.get("reducedMotion") === "on";
   const notificationsEnabled = formData.get("notificationsEnabled") === "on";
@@ -29,6 +31,7 @@ export async function updateSettingsAction(_prev: ActionState, formData: FormDat
   // Get the current path to redirect back to the same page
   const headersList = await headers();
   const referer = headersList.get("referer") || "/settings";
-  const url = new URL(referer);
-  redirect(url.pathname);
+  // Only the path is kept, so this can never redirect to another site.
+  const url = new URL(referer, "http://localhost");
+  redirect(url.pathname.startsWith("/") ? url.pathname : "/settings");
 }

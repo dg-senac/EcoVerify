@@ -59,7 +59,11 @@ export function WalletEditor({ walletAddress }: { walletAddress: string | null }
         >
           Cancelar
         </button>
-        {state.error && <p className="w-full text-xs font-medium text-red-500">Endereço inválido.</p>}
+        {state.error && (
+          <p className="w-full text-xs font-medium text-red-500">
+            {state.error === "wallet_in_use" ? "Esta carteira já está vinculada a outra conta." : "Endereço inválido."}
+          </p>
+        )}
       </form>
     );
   }

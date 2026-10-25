@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { missions, notifications, pointsLedger, rewardQueue, submissions, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
@@ -22,6 +22,7 @@ export async function approveSubmissionAction(
 ): Promise<ModerationActionState> {
   const moderator = await assertModerator();
   const submissionId = String(formData.get("submissionId") ?? "");
+  if (!submissionId) return { error: "not_found" };
 
   const [submission] = await db
     .select()
@@ -36,43 +37,60 @@ export async function approveSubmissionAction(
   const [mission] = await db.select().from(missions).where(eq(missions.id, submission.missionId)).limit(1);
   if (!mission) return { error: "mission_not_found" };
 
-  await db
-    .update(submissions)
-    .set({
-      status: "approved",
-      reviewedBy: moderator.id,
-      reviewedAt: new Date(),
-      rejectionReason: null,
-    })
-    .where(eq(submissions.id, submissionId));
+  // Everything below happens atomically. The status update only matches while the
+  // submission is still pending, so two moderators (or a double click) approving at
+  // the same time can never award points or FONE twice. The unique indexes on
+  // points_ledger/reward_queue (submission_id) are a second safety net.
+  const approved = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(submissions)
+      .set({
+        status: "approved",
+        reviewedBy: moderator.id,
+        reviewedAt: new Date(),
+        rejectionReason: null,
+      })
+      .where(and(eq(submissions.id, submissionId), eq(submissions.status, "pending")))
+      .returning({ id: submissions.id });
 
-  await db.insert(pointsLedger).values({
-    userId: submission.userId,
-    submissionId: submission.id,
-    points: mission.pointsReward,
-  });
+    if (updated.length === 0) return false;
 
-  await db
-    .update(users)
-    .set({ totalPoints: sql`${users.totalPoints} + ${mission.pointsReward}` })
-    .where(eq(users.id, submission.userId));
-
-  await db.insert(rewardQueue).values({
-    userId: submission.userId,
-    submissionId: submission.id,
-    foneAmount: mission.foneReward,
-    status: "pending",
-  });
-
-  const [submitter] = await db.select().from(users).where(eq(users.id, submission.userId)).limit(1);
-  if (submitter?.notificationsEnabled) {
-    await db.insert(notifications).values({
+    await tx.insert(pointsLedger).values({
       userId: submission.userId,
-      type: "system",
-      title: "Comprovação aprovada! 🎉",
-      message: `Sua comprovação para "${mission.title}" foi aprovada. Você ganhou ${mission.pointsReward} pontos e ${mission.foneReward} FONE entrou na fila de pagamento.`,
+      submissionId: submission.id,
+      points: mission.pointsReward,
     });
-  }
+
+    await tx
+      .update(users)
+      .set({ totalPoints: sql`${users.totalPoints} + ${mission.pointsReward}` })
+      .where(eq(users.id, submission.userId));
+
+    await tx.insert(rewardQueue).values({
+      userId: submission.userId,
+      submissionId: submission.id,
+      foneAmount: mission.foneReward,
+      status: "pending",
+    });
+
+    const [submitter] = await tx
+      .select({ notificationsEnabled: users.notificationsEnabled })
+      .from(users)
+      .where(eq(users.id, submission.userId))
+      .limit(1);
+    if (submitter?.notificationsEnabled) {
+      await tx.insert(notifications).values({
+        userId: submission.userId,
+        type: "system",
+        title: "Comprovação aprovada! 🎉",
+        message: `Sua comprovação para "${mission.title}" foi aprovada. Você ganhou ${mission.pointsReward} pontos e ${mission.foneReward} FONE entrou na fila de pagamento.`,
+      });
+    }
+
+    return true;
+  });
+
+  if (!approved) return { error: "already_reviewed" };
 
   revalidatePath("/moderation");
   revalidatePath("/submissions");
@@ -95,6 +113,7 @@ export async function rejectSubmissionAction(
   if (reason.length < 5) {
     return { error: "reason_too_short" };
   }
+  if (!submissionId) return { error: "not_found" };
 
   const [submission] = await db
     .select()
@@ -108,29 +127,42 @@ export async function rejectSubmissionAction(
 
   const [mission] = await db.select().from(missions).where(eq(missions.id, submission.missionId)).limit(1);
 
-  await db
-    .update(submissions)
-    .set({
-      status: "rejected",
-      reviewedBy: moderator.id,
-      reviewedAt: new Date(),
-      rejectionReason: reason,
-    })
-    .where(eq(submissions.id, submissionId));
+  const rejected = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(submissions)
+      .set({
+        status: "rejected",
+        reviewedBy: moderator.id,
+        reviewedAt: new Date(),
+        rejectionReason: reason,
+      })
+      .where(and(eq(submissions.id, submissionId), eq(submissions.status, "pending")))
+      .returning({ id: submissions.id });
 
-  const [submitter] = await db.select().from(users).where(eq(users.id, submission.userId)).limit(1);
-  if (submitter?.notificationsEnabled) {
-    await db.insert(notifications).values({
-      userId: submission.userId,
-      type: "alert",
-      title: "Comprovação rejeitada",
-      message: `Sua comprovação para "${mission?.title ?? "missão"}" foi rejeitada. Motivo: ${reason}`,
-    });
-  }
+    if (updated.length === 0) return false;
+
+    const [submitter] = await tx
+      .select({ notificationsEnabled: users.notificationsEnabled })
+      .from(users)
+      .where(eq(users.id, submission.userId))
+      .limit(1);
+    if (submitter?.notificationsEnabled) {
+      await tx.insert(notifications).values({
+        userId: submission.userId,
+        type: "alert",
+        title: "Comprovação rejeitada",
+        message: `Sua comprovação para "${mission?.title ?? "missão"}" foi rejeitada. Motivo: ${reason}. Você pode enviar uma nova comprovação para esta missão.`,
+      });
+    }
+    return true;
+  });
+
+  if (!rejected) return { error: "already_reviewed" };
 
   revalidatePath("/moderation");
   revalidatePath("/submissions");
   revalidatePath("/notifications");
+  revalidatePath("/missions");
 
   return { success: true };
 }

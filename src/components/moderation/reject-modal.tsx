@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { rejectSubmissionAction, type ModerationActionState } from "@/lib/actions/moderation";
 import { t, type Lang } from "@/lib/i18n";
 
@@ -17,15 +17,17 @@ export function RejectModal({
 }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const [state, formAction, pending] = useActionState(rejectSubmissionAction, initialState);
-
-  useEffect(() => {
-    if (state.success) {
-      setOpen(false);
-      onDone();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.success]);
+  const [state, formAction, pending] = useActionState(
+    async (prev: ModerationActionState, formData: FormData) => {
+      const result = await rejectSubmissionAction(prev, formData);
+      if (result.success) {
+        setOpen(false);
+        onDone();
+      }
+      return result;
+    },
+    initialState,
+  );
 
   const tooShort = reason.length > 0 && reason.length < 5;
 

@@ -8,6 +8,9 @@ import {
   timestamp,
   pgEnum,
   uuid,
+  index,
+  uniqueIndex,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("role", ["citizen", "moderator", "admin"]);
@@ -53,7 +56,10 @@ export const users = pgTable("users", {
   reducedMotion: boolean("reduced_motion").notNull().default(false),
   notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  // One wallet per account: prevents several accounts funnelling rewards to the same wallet.
+  uniqueIndex("users_wallet_address_unique").on(table.walletAddress),
+]);
 
 export const sessions = pgTable("sessions", {
   token: uuid("token").defaultRandom().primaryKey(),
@@ -102,7 +108,11 @@ export const submissions = pgTable("submissions", {
   rejectionReason: text("rejection_reason"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-});
+}, (table) => [
+  uniqueIndex("submissions_photo_hash_unique").on(table.photoHash),
+  index("submissions_user_submitted_idx").on(table.userId, table.submittedAt),
+  index("submissions_status_idx").on(table.status),
+]);
 
 export const pointsLedger = pgTable("points_ledger", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -114,7 +124,10 @@ export const pointsLedger = pgTable("points_ledger", {
     .references(() => submissions.id, { onDelete: "cascade" }),
   points: integer("points").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  // A submission can only ever award points once.
+  uniqueIndex("points_ledger_submission_unique").on(table.submissionId),
+]);
 
 export const rewardQueue = pgTable("reward_queue", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -126,11 +139,15 @@ export const rewardQueue = pgTable("reward_queue", {
     .references(() => submissions.id, { onDelete: "cascade" }),
   foneAmount: numeric("fone_amount", { precision: 12, scale: 2 }).notNull(),
   status: rewardStatusEnum("status").notNull().default("pending"),
-  network: varchar("network", { length: 50 }).default("EcoChain"),
+  network: varchar("network", { length: 50 }).default("FONE"),
   txHash: text("tx_hash"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  // A submission can only ever generate one FONE payout.
+  uniqueIndex("reward_queue_submission_unique").on(table.submissionId),
+  index("reward_queue_status_idx").on(table.status),
+]);
 
 export const notifications = pgTable("notifications", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -142,7 +159,9 @@ export const notifications = pgTable("notifications", {
   message: text("message").notNull(),
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("notifications_user_unread_idx").on(table.userId, table.isRead),
+]);
 
 export const messageTypeEnum = pgEnum("message_type", ["text", "image", "audio", "video", "gif"]);
 
@@ -151,7 +170,7 @@ export const communityChat = pgTable("community_chat", {
   message: text("message"),
   messageType: messageTypeEnum("message_type").default("text").notNull(),
   mediaUrl: text("media_url"),
-  replyToId: uuid("reply_to_id").references(() => communityChat.id),
+  replyToId: uuid("reply_to_id").references((): AnyPgColumn => communityChat.id),
   replyToMessage: text("reply_to_message"),
   userId: uuid("user_id")
     .notNull()
@@ -161,7 +180,9 @@ export const communityChat = pgTable("community_chat", {
   deletedBy: uuid("deleted_by").references(() => users.id),
   deleteForEveryone: boolean("delete_for_everyone").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("community_chat_created_idx").on(table.createdAt),
+]);
 
 export const messageFavorites = pgTable("message_favorites", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -172,7 +193,9 @@ export const messageFavorites = pgTable("message_favorites", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("message_favorites_unique").on(table.messageId, table.userId),
+]);
 
 export const messageReports = pgTable("message_reports", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -185,4 +208,6 @@ export const messageReports = pgTable("message_reports", {
   reason: varchar("reason", { length: 200 }).notNull(),
   status: varchar("status", { length: 20 }).default("pending").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("message_reports_unique").on(table.messageId, table.reporterId),
+]);

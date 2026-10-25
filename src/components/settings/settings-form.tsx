@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { updateSettingsAction } from "@/lib/actions/settings";
 import type { ActionState } from "@/lib/actions/auth";
 import { LANGS, t, type Lang } from "@/lib/i18n";
@@ -20,18 +20,19 @@ export function SettingsForm({
   reducedMotion: boolean;
   notificationsEnabled: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(updateSettingsAction, initialState);
   const [lang, setLang] = useState<Lang>(language);
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    if (state && !pending) {
-      setSaved(true);
-      const timeout = setTimeout(() => setSaved(false), 2200);
-      return () => clearTimeout(timeout);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pending]);
+  const [, formAction, pending] = useActionState(
+    async (prev: ActionState, formData: FormData) => {
+      const result = await updateSettingsAction(prev, formData);
+      if (!result?.error) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2200);
+      }
+      return result;
+    },
+    initialState,
+  );
 
   const handleLanguageChange = (newLang: Lang) => {
     setLang(newLang);

@@ -83,7 +83,7 @@ export function LoginForm({ lang }: { lang: Lang }) {
 
         {state?.error && (
           <p className="animate-fade-in rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600">
-            {t(currentLang, state.error === "banned" ? "banned_error" : "login_error")}
+            {t(currentLang, state.error === "banned" ? "banned_error" : state.error === "too_many_attempts" ? "error_too_many_attempts" : "login_error")}
           </p>
         )}
 
