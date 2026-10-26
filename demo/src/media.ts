@@ -105,8 +105,3 @@ export function fakeTxHash(): string {
   const hex = Array.from({ length: 56 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
   return `demo-${hex}`;
 }
-
-export function fakeWalletAddress(): string {
-  const hex = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-  return `0xFONE${hex}`;
-}

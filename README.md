@@ -11,7 +11,7 @@ O EcoVerify conecta ações sustentáveis do mundo real (reciclagem, plantio de 
 
 ## Como funciona
 
-1. **Cadastro + carteira FONE**: o usuário cria a conta e vincula sua carteira FONE.
+1. **Cadastro + carteira FONE**: o usuário cria a conta (aceitando os [Termos e a Política de Privacidade](#conta-privacidade-e-lgpd) e confirmando o e-mail) e vincula a carteira do app oficial **Fone Wallet**, provando que é dono dela (veja [Carteira e pagamentos FONE](#carteira-e-pagamentos-fone)). Só maiores de 18 anos recebem FONE; menores participam com pontos e ranking.
 2. **Missões**: o admin cadastra missões com local no mapa, pontos e recompensa em FONE.
 3. **Comprovação no local**: o usuário vai até o ponto da missão (raio de 150 m, com checagem da precisão do GPS), tira uma foto e escreve um relato.
 4. **Moderação**: moderadores aprovam ou rejeitam. A aprovação credita os pontos e coloca o FONE na fila de pagamento, sempre uma única vez por comprovação.
@@ -62,6 +62,9 @@ Veja [`.env.example`](.env.example). As principais:
 - `DATABASE_URL`: conexão Postgres.
 - `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (+ `SUPABASE_STORAGE_BUCKET`, padrão `uploads`): armazenamento das fotos em produção. Crie o bucket como **privado**. Os arquivos são servidos por `/api/files/...` apenas para usuários logados.
 - `SERVER_ACTIONS_ALLOWED_ORIGINS`: domínio de produção (ex.: `ecoverify.app`).
+- `FONE_TREASURY_ADDRESS`: endereço FONE nativo da carteira do EcoVerify que recebe as transferências de verificação. Sem ela, a verificação de carteiras fica fechada. `FONE_EXPLORER_URL` (padrão `https://fone.dev`) define os links do explorer.
+- `RESEND_API_KEY` + `EMAIL_FROM` + `APP_URL`: e-mails de confirmação de conta e de "Esqueci minha senha". Sem eles, em produção, nada é enviado e a confirmação de e-mail não é exigida (o admin vê um aviso). Em desenvolvimento, os e-mails aparecem no log do servidor.
+- `LEGAL_CONTROLLER_NAME` + `LEGAL_CONTACT_EMAIL`: quem responde pelos dados e o contato de privacidade, exibidos nos Termos e na Política.
 - `CAPACITOR_SERVER_URL`: URL HTTPS do app web, usada no build Android. **Opcional**: sem ela, o APK é gerado com a demo offline.
 
 ## Atualizando um banco já existente
@@ -72,14 +75,58 @@ Esta versão adiciona **índices únicos** que impedem pagamento em dobro, carte
 2. Corrija o que aparecer (há exemplos no próprio arquivo).
 3. Rode `npm run db:push`.
 
+### Atualizando para a 1.2 (carteira verificada)
+
+Depois do `npm run db:push`, rode [`scripts/wallet-verification-cleanup.sql`](scripts/wallet-verification-cleanup.sql). Ele lista e remove os endereços antigos não verificados (os `0xFONE…` falsos gerados pelo app, endereços BEP-20 e textos inválidos). O app já ignora esses endereços mesmo sem o script, e o FONE na fila continua guardado até a pessoa verificar uma carteira.
+
+### Atualizando para a 1.3 (conta, LGPD e marca Fone)
+
+O `npm run db:push` cria a tabela `auth_tokens` (enum `auth_token_purpose`) e as colunas `email_verified_at`, `terms_accepted_at`, `terms_version` e `deleted_at` em `users`. Não há dados a corrigir. Depois do deploy:
+
+- Usuários existentes verão a tela **"Atualizamos nossos termos"** uma vez.
+- Configure `RESEND_API_KEY`, `EMAIL_FROM` e `APP_URL`. Quando o envio estiver ativo, usuários antigos verão o banner para confirmar o e-mail e precisarão confirmá-lo para vincular uma carteira nova (carteiras já verificadas continuam recebendo).
+
+## Carteira e pagamentos FONE
+
+O EcoVerify **não guarda chaves nem cria carteiras**: o usuário usa o app oficial **Fone Wallet** ([Android](https://play.google.com/store/apps/details?id=com.cloud.earning) · [iPhone](https://apps.apple.com/us/app/fone-network/id1665915235)) e só informa o endereço.
+
+**Vincular (prova de posse)**
+
+1. O usuário declara ter 18 anos ou mais e cola o endereço FONE nativo (64 caracteres começando com `f`, o formato do [explorer](https://fone.dev/explorer)). Endereços `0x…` (BEP-20) não são aceitos.
+2. O app sorteia um **valor exato e único**, por exemplo `1.37 FONE`, válido por 7 dias.
+3. O usuário envia esse valor **da carteira dele** para o endereço de verificação (`FONE_TREASURY_ADDRESS`) e, se quiser, cola o hash da transação. Só o dono consegue enviar FONE de um endereço, então isso prova a posse sem depender de assinatura de mensagem.
+4. Em **Admin → Carteiras**, o admin abre o endereço no explorer, confere a transferência (origem, destino, valor e data) e confirma com o hash. A partir daí, a carteira passa a receber os pagamentos.
+
+Um pedido pendente **não ocupa** o endereço, para ninguém "reservar" a carteira de outra pessoa: vale quem provar a posse primeiro. Ao trocar de carteira, a antiga continua recebendo até a nova ser verificada. Cada hash só pode ser usado uma vez.
+
+**Pagar**
+
+Em **Admin → Recompensas**, as recompensas aprovadas aparecem **agrupadas por pessoa**, com o total e a carteira verificada. O admin envia o total da carteira de recompensas pela Fone Wallet e cola o hash: todas as recompensas listadas ficam pagas, com destino, data e responsável registrados. O usuário recebe uma notificação e vê o histórico, com links para o explorer, no perfil. Quem ainda não verificou a carteira fica em "Aguardando carteira verificada".
+
+**Limitações atuais**: a conferência no explorer é manual, porque a Fone ainda não publicou o SDK nem uma API pública do explorer. Toda a lógica específica da rede fica em [`src/lib/fone.ts`](src/lib/fone.ts), pronta para automatizar a verificação e os envios quando o SDK sair. O formato do endereço foi observado no explorer: confirme com a Fone antes de abrir para o público.
+
+## Conta, privacidade e LGPD
+
+- **Termos de Uso** (`/termos`) e **Política de Privacidade** (`/privacidade`) públicos, escritos a partir dos fluxos reais do app: bases legais, operadores (Supabase, Vercel, Resend), blockchain pública e irreversível, regras para menores e direitos do titular.
+- Cadastro com aceite obrigatório (data e versão gravadas) e declaração de idade: **13+ para usar, 18+ para receber FONE**. Ao mudar `TERMS_VERSION`, todos aceitam a nova versão no próximo acesso.
+- Confirmação de e-mail, "Esqueci minha senha" e troca de senha, com tokens de uso único (só o hash fica no banco).
+- Em **Configurações → Privacidade e dados**: baixar todos os dados em JSON e **excluir a conta** (anonimização: apaga dados pessoais, fotos e mensagens; mantém sem identificação o que é necessário contra fraude e os pagamentos já feitos).
+
+Detalhes, tabela do que é apagado e pendências: [`docs/LGPD.md`](docs/LGPD.md). ⚖️ Os textos legais são uma base: revise com um advogado antes de abrir ao público.
+
+## Marca Fone
+
+Valores em FONE aparecem com o ícone oficial da Fone, e o selo "Recompensas na rede Fone Protocol" fica no login, no menu e na carteira, no app e na demo. A arte é a publicada em fone.dev; a autorização de uso está **pendente**. Regras de uso e como trocar pelo kit oficial: [`docs/MARCA_FONE.md`](docs/MARCA_FONE.md). O EcoVerify é um projeto independente construído sobre a rede Fone.
+
 ## Segurança e antifraude
 
 - Aprovação **atômica** (transação + update condicional) e índices únicos: uma comprovação nunca gera pontos ou FONE duas vezes, nem com cliques ou moderadores simultâneos.
 - Fotos validadas pelo **conteúdo real do arquivo** (magic bytes), hash SHA‑256 contra reuso, limite de 5 envios por dia, raio de 150 m e precisão mínima do GPS.
 - Uploads só para usuários logados, armazenados fora de `public/` e servidos com `nosniff` e CSP restritiva.
 - Limite de tentativas no login, no cadastro, no chat e no upload. Senha mínima de 8 caracteres.
-- Banimento derruba todas as sessões na hora.
-- Uma carteira por conta. Pagamento só pode ser marcado como "pago" com o hash da transação.
+- Banimento, redefinição de senha e exclusão de conta derrubam as sessões na hora.
+- Vincular carteira exige e-mail confirmado (quando o envio de e-mails está ativo).
+- Carteira só recebe depois de **verificada** (prova de posse), uma por conta e só para maiores de 18. Pagamento exige hash válido (64 hex), nunca reaproveitado entre pessoas ou verificações, e registra a carteira de destino.
 
 Detalhes e próximos passos: [`docs/RECOMENDACOES.md`](docs/RECOMENDACOES.md).
 
@@ -101,8 +148,10 @@ Veja [`BUILD_ANDROID.md`](BUILD_ANDROID.md). O app declara as permissões de **l
 
 ## Roadmap
 
-- [ ] Integração direta com o SDK FONE (criar/importar carteira, saldo, envio automático dos pagamentos)
-- [ ] Prova de posse da carteira (assinatura)
+- [x] Prova de posse da carteira (transferência de valor exato) e pagamento só para carteira verificada
+- [x] Termos, Política de Privacidade, confirmação de e-mail, recuperação de senha, exportação e exclusão de conta (LGPD)
+- [x] Marca Fone nos valores em FONE e na carteira (autorização pendente)
+- [ ] Integração direta com o SDK FONE (verificação e envio automáticos, saldo)
 - [ ] Hash da comprovação registrado on‑chain (rastreabilidade pública)
 - [ ] Antifraude avançado: hash perceptual, EXIF, foto só pela câmera do app, pré‑triagem com IA
 - [ ] Validação comunitária com reputação

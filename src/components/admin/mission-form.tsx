@@ -3,7 +3,8 @@
 import { useActionState, useEffect, useRef } from "react";
 import { createMissionAction, type AdminActionState } from "@/lib/actions/admin";
 import { categoryEmoji, categoryLabels } from "@/lib/i18n";
-import { Star, Sprout, Utensils } from "@/components/ui/icons";
+import { Star, Utensils } from "@/components/ui/icons";
+import { FoneAmount, FoneMark } from "@/components/brand/fone";
 
 const initialState: AdminActionState = {};
 const categories = Object.keys(categoryLabels);
@@ -114,7 +115,7 @@ export function MissionForm() {
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700 flex items-center gap-1">
-              <Sprout className="h-4 w-4" /> FONE
+              <FoneMark size={16} /> FONE
             </label>
             <input
               type="number"

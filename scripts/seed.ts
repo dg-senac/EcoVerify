@@ -36,7 +36,11 @@ async function main() {
       console.log(`• usuário já existe: ${demo.email}`);
       continue;
     }
-    const [created] = await db.insert(users).values({ ...demo, passwordHash }).returning({ id: users.id });
+    const { TERMS_VERSION } = await import("../src/lib/legal");
+    const now = new Date();
+    const [created] = await db
+      .insert(users)
+      .values({ ...demo, passwordHash, emailVerifiedAt: now, termsAcceptedAt: now, termsVersion: TERMS_VERSION }).returning({ id: users.id });
     if (demo.role === "admin") adminId = created.id;
     console.log(`✓ usuário criado: ${demo.email} (${demo.role})`);
   }

@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from "react";
-import { ArrowLeft, Camera, Crosshair, Loader2, MapPin, Navigation, Star, Sprout, Target, Lightbulb } from "lucide-react";
+import { ArrowLeft, Camera, Crosshair, Loader2, MapPin, Navigation, Star, Target, Lightbulb } from "lucide-react";
 import { categoryEmoji, t } from "@/lib/i18n";
 import { goBack, navigate } from "../router";
 import { dt, errorText } from "../i18n";
@@ -18,6 +18,7 @@ import {
 } from "../media";
 import { categoryStyles } from "../components/MissionCard";
 import { btnPrimary, btnSecondary, card, EmptyState, label, toast } from "../components/ui";
+import { FoneAmount } from "@/components/brand/fone";
 
 type Location = Coords & { simulated: boolean };
 
@@ -114,7 +115,7 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
             <h1 className="text-xl font-extrabold leading-tight">{localizedTitle(mission, lang)}</h1>
             <div className="mt-2 flex gap-2 text-xs font-bold">
               <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5"><Star className="h-3.5 w-3.5" /> {mission.pointsReward} {t(lang, "points")}</span>
-              <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5"><Sprout className="h-3.5 w-3.5" /> {mission.foneReward} FONE</span>
+              <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5"><FoneAmount amount={mission.foneReward} size={14} /></span>
             </div>
           </div>
         </div>

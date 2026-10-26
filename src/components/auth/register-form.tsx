@@ -4,6 +4,26 @@ import Link from "next/link";
 import { useActionState, useState, useEffect, useRef } from "react";
 import { registerAction, type ActionState } from "@/lib/actions/auth";
 import { t, type Lang, LANGS } from "@/lib/i18n";
+import { actionErrorMessage } from "@/lib/action-errors";
+
+function withLinks(text: string, lang: Lang) {
+  // "{terms}" / "{privacy}" placeholders become links that open in a new tab (keeps the typed form intact).
+  return text.split(/(\{terms\}|\{privacy\})/).map((part, i) =>
+    part === "{terms}" || part === "{privacy}" ? (
+      <a
+        key={i}
+        href={part === "{terms}" ? "/termos" : "/privacidade"}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-semibold text-emerald-700 underline"
+      >
+        {t(lang, part === "{terms}" ? "terms_of_use" : "privacy_policy")}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
 
 const initialState: ActionState = {};
 
@@ -30,16 +50,7 @@ export function RegisterForm({ lang }: { lang: Lang }) {
     };
   }, [showLangMenu]);
 
-  const errorMessage =
-    state?.error === "email_exists"
-      ? t(currentLang, "register_email_exists")
-      : state?.error === "weak_password"
-        ? t(currentLang, "register_password_hint")
-        : state?.error === "too_many_attempts"
-          ? t(currentLang, "error_too_many_attempts")
-        : state?.error
-          ? t(currentLang, "login_error")
-          : null;
+  const errorMessage = actionErrorMessage(currentLang, state?.error);
 
   return (
     <div className="rounded-3xl bg-white p-8 shadow-[0_20px_50px_rgba(16,24,40,0.08)] card-surface border border-black/5">
@@ -108,6 +119,16 @@ export function RegisterForm({ lang }: { lang: Lang }) {
             {t(currentLang, "register_password_hint")}
           </p>
         </div>
+
+        <input type="hidden" name="language" value={currentLang} />
+        <label className="flex items-start gap-2.5 text-sm text-slate-600">
+          <input type="checkbox" name="acceptTerms" required className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-600" />
+          <span>{withLinks(t(currentLang, "register_accept_terms"), currentLang)}</span>
+        </label>
+        <label className="flex items-start gap-2.5 text-sm text-slate-600">
+          <input type="checkbox" name="ageConfirm" required className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-600" />
+          <span>{t(currentLang, "register_age_confirm")}</span>
+        </label>
 
         {errorMessage && (
           <p className="animate-fade-in rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600">

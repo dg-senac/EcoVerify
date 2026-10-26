@@ -47,9 +47,29 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: roleEnum("role").notNull().default("citizen"),
   totalPoints: integer("total_points").notNull().default(0),
+  /** Verified FONE wallet: the only address that receives payouts. */
   walletAddress: text("wallet_address"),
+  walletVerifiedAt: timestamp("wallet_verified_at", { withTimezone: true }),
+  walletVerifiedBy: uuid("wallet_verified_by").references((): AnyPgColumn => users.id),
+  /** Transaction that proved ownership (sent from the wallet to the EcoVerify verification address). */
+  walletVerificationTx: text("wallet_verification_tx"),
+  /** In-progress link request: the user must send exactly `walletChallengeAmount` FONE from this address. */
+  pendingWalletAddress: text("pending_wallet_address"),
+  walletChallengeAmount: numeric("wallet_challenge_amount", { precision: 12, scale: 2 }),
+  walletChallengeCreatedAt: timestamp("wallet_challenge_created_at", { withTimezone: true }),
+  /** Transaction hash reported by the user (optional, speeds up the review). */
+  walletChallengeTx: text("wallet_challenge_tx"),
+  /** Self-declared 18+ (required to link a wallet and receive FONE). */
+  adultDeclaredAt: timestamp("adult_declared_at", { withTimezone: true }),
   isBanned: boolean("is_banned").notNull().default(false),
   banReason: text("ban_reason"),
+  /** E-mail ownership confirmed through the link sent by e-mail. */
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  /** LGPD: when and which version of the Terms of Use / Privacy Policy was accepted. */
+  termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
+  termsVersion: varchar("terms_version", { length: 20 }),
+  /** Account deleted by its owner: personal data was anonymised (see actions/account.ts). */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   language: languageEnum("language").notNull().default("pt"),
   fontSize: fontSizeEnum("font_size").notNull().default("medium"),
   highContrast: boolean("high_contrast").notNull().default(false),
@@ -59,6 +79,27 @@ export const users = pgTable("users", {
 }, (table) => [
   // One wallet per account: prevents several accounts funnelling rewards to the same wallet.
   uniqueIndex("users_wallet_address_unique").on(table.walletAddress),
+  // A transfer can prove ownership of only one account.
+  uniqueIndex("users_wallet_verification_tx_unique").on(table.walletVerificationTx),
+  index("users_pending_wallet_idx").on(table.pendingWalletAddress),
+]);
+
+export const authTokenPurposeEnum = pgEnum("auth_token_purpose", ["verify_email", "reset_password"]);
+
+/** One-time tokens sent by e-mail. Only the SHA-256 of the token is stored. */
+export const authTokens = pgTable("auth_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  purpose: authTokenPurposeEnum("purpose").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("auth_tokens_hash_unique").on(table.tokenHash),
+  index("auth_tokens_user_idx").on(table.userId, table.purpose),
 ]);
 
 export const sessions = pgTable("sessions", {
@@ -141,12 +182,17 @@ export const rewardQueue = pgTable("reward_queue", {
   status: rewardStatusEnum("status").notNull().default("pending"),
   network: varchar("network", { length: 50 }).default("FONE"),
   txHash: text("tx_hash"),
+  /** Destination wallet at payment time (kept even if the user changes wallet later). */
+  walletAddress: text("wallet_address"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  paidBy: uuid("paid_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   // A submission can only ever generate one FONE payout.
   uniqueIndex("reward_queue_submission_unique").on(table.submissionId),
   index("reward_queue_status_idx").on(table.status),
+  index("reward_queue_tx_hash_idx").on(table.txHash),
 ]);
 
 export const notifications = pgTable("notifications", {

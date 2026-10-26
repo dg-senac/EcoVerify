@@ -1,6 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { contentTypeFromExtension } from "@/lib/file-type";
 
@@ -97,5 +97,32 @@ export async function readStoredFile(
     return { body: new Uint8Array(body), contentType: contentTypeFromExtension(fileName) };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Deletes a file previously returned by saveFile (e.g. when an account is deleted).
+ * Ignores URLs that are not ours (GIFs from Giphy) and files that no longer exist.
+ */
+export async function deleteStoredFile(url: string | null | undefined): Promise<void> {
+  if (!url?.startsWith(FILES_ROUTE_PREFIX)) return;
+  const [folder, fileName, ...rest] = url.slice(FILES_ROUTE_PREFIX.length).split("/");
+  if (rest.length || !folder || !fileName || !isValidStoragePath(folder, fileName)) return;
+  const supabase = supabaseConfig();
+
+  if (supabase) {
+    const response = await fetch(`${supabase.url}/storage/v1/object/${supabase.bucket}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${supabase.key}`, apikey: supabase.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ prefixes: [`${folder}/${fileName}`] }),
+    });
+    if (!response.ok) console.error(`[storage] delete failed (${response.status}) for ${folder}/${fileName}`);
+    return;
+  }
+
+  try {
+    await unlink(path.join(/*turbopackIgnore: true*/ localDir(), folder, fileName));
+  } catch {
+    // Already gone.
   }
 }

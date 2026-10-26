@@ -4,7 +4,8 @@ import { placeholderPhoto } from "./media";
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: older saved data is replaced by a fresh seed. */
-export const STATE_VERSION = 1;
+/** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
+export const STATE_VERSION = 2;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -20,6 +21,8 @@ function person(partial: Partial<User> & Pick<User, "id" | "name" | "email">): U
     role: "citizen",
     totalPoints: 0,
     walletAddress: null,
+    pendingWallet: null,
+    adultDeclaredAt: null,
     isBanned: false,
     banReason: null,
     createdAt: ago(30 * DAY),
@@ -29,6 +32,7 @@ function person(partial: Partial<User> & Pick<User, "id" | "name" | "email">): U
     reducedMotion: false,
     notificationsEnabled: true,
     ...partial,
+    termsAcceptedAt: partial.termsAcceptedAt ?? partial.createdAt ?? ago(30 * DAY),
   };
 }
 
@@ -39,16 +43,16 @@ export function createSeed(): State {
       name: "Maria Cidadã",
       email: "cidada@ecoverify.dev",
       totalPoints: 70,
-      walletAddress: "0xFONEdemo4f2a9c1e7b3d5a8f0c6e2b9d1a7c3e5f",
+      walletAddress: "f30877432d1026706d7e805da846a32c3bb81e3c29b62179273c8eb5bb682575",
       isDemoProfile: true,
       createdAt: ago(20 * DAY),
     }),
     person({ id: DEMO_IDS.moderator, name: "Carlos Moderador", email: "moderador@ecoverify.dev", role: "moderator", isDemoProfile: true }),
     person({ id: DEMO_IDS.admin, name: "Ana Admin", email: "admin@ecoverify.dev", role: "admin", isDemoProfile: true, createdAt: ago(60 * DAY) }),
-    person({ id: "u-bot-1", name: "João Silva", email: "joao@exemplo.dev", totalPoints: 340, walletAddress: "0xFONEdemo1b2c3d4e5f60718293a4b5c6d7e8f901", isBot: true }),
-    person({ id: "u-bot-2", name: "Luana Costa", email: "luana@exemplo.dev", totalPoints: 260, walletAddress: "0xFONEdemo9a8b7c6d5e4f30210fedcba987654321", isBot: true }),
-    person({ id: "u-bot-3", name: "Pedro Albuquerque", email: "pedro@exemplo.dev", totalPoints: 180, walletAddress: "0xFONEdemo0f1e2d3c4b5a69788796a5b4c3d2e1f0", isBot: true }),
-    person({ id: "u-bot-4", name: "Beatriz Lima", email: "beatriz@exemplo.dev", totalPoints: 95, walletAddress: "0xFONEdemo55aa66bb77cc88dd99ee00ff11223344", isBot: true }),
+    person({ id: "u-bot-1", name: "João Silva", email: "joao@exemplo.dev", totalPoints: 340, walletAddress: "fec87a171ac826a6fce48478dcb74f21345d2cce8038a39d5e0853964b50af03", isBot: true }),
+    person({ id: "u-bot-2", name: "Luana Costa", email: "luana@exemplo.dev", totalPoints: 260, walletAddress: "fb971722f244f58d669cbee3772a077021721a278f64f7fd633dbdde131ca376", isBot: true }),
+    person({ id: "u-bot-3", name: "Pedro Albuquerque", email: "pedro@exemplo.dev", totalPoints: 180, walletAddress: "f6e4d58e72e310275dff6c15c0c8e9df469611a11f5125227c3712da86a78c49", isBot: true }),
+    person({ id: "u-bot-4", name: "Beatriz Lima", email: "beatriz@exemplo.dev", totalPoints: 95, walletAddress: "fea20e32684b27b95e909348334896a68f812d810a485ed03241b4d419b1b673", isBot: true }),
     person({ id: "u-bot-5", name: "Rafael Souza", email: "rafael@exemplo.dev", totalPoints: 45, isBot: true }),
   ];
 

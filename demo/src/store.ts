@@ -3,7 +3,9 @@ import type { Lang } from "@/lib/i18n";
 import type { Role } from "@/lib/nav";
 import { dt, botReplies } from "./i18n";
 import { createSeed, STATE_VERSION } from "./seed";
-import { distanceMeters, fakeTxHash, fakeWalletAddress, MAX_DISTANCE_METERS, MAX_GPS_ACCURACY_METERS, uid } from "./media";
+import { centsToFone, foneToCents, isValidFoneAddress, normalizeHex, pickChallengeCents } from "@/lib/fone";
+import { TERMS_VERSION } from "@/lib/legal";
+import { distanceMeters, fakeTxHash, MAX_DISTANCE_METERS, MAX_GPS_ACCURACY_METERS, uid } from "./media";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -17,10 +19,19 @@ export type User = {
   email: string;
   role: Role;
   totalPoints: number;
+  /** Verified FONE wallet (only this one receives payouts), like users.wallet_address. */
   walletAddress: string | null;
+  /** In-progress link request: send exactly `amount` FONE from `address` to prove ownership. */
+  pendingWallet: { address: string; amount: string; createdAt: string } | null;
+  /** Self-declared 18+ (required to receive FONE). */
+  adultDeclaredAt: string | null;
   isBanned: boolean;
   banReason: string | null;
   createdAt: string;
+  /** LGPD: when the Terms of Use / Privacy Policy were accepted (like users.terms_accepted_at). */
+  termsAcceptedAt?: string | null;
+  /** Account deleted by its owner: personal data anonymised (like users.deleted_at). */
+  deletedAt?: string | null;
   /** Fictional community member (fills ranking and chat). */
   isBot?: boolean;
   /** Ready-made demo profile shown on the login screen. */
@@ -80,6 +91,8 @@ export type Reward = {
   foneAmount: string;
   status: "pending" | "paid";
   txHash: string | null;
+  /** Destination wallet at payment time. */
+  walletAddress?: string | null;
   createdAt: string;
   paidAt: string | null;
 };
@@ -255,7 +268,14 @@ export function setGuestLanguage(lang: Lang) {
   commit((s) => ({ ...s, guestLanguage: lang }));
 }
 
-export function register(name: string, email: string, password: string): Result {
+export function register(
+  name: string,
+  email: string,
+  password: string,
+  consent: { terms: boolean; age: boolean } = { terms: false, age: false },
+): Result {
+  if (!consent.terms) return { error: "terms_required" };
+  if (!consent.age) return { error: "age_required" };
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
   if (cleanName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return { error: "invalid" };
@@ -269,9 +289,12 @@ export function register(name: string, email: string, password: string): Result 
     role: "citizen",
     totalPoints: 0,
     walletAddress: null,
+    pendingWallet: null,
+    adultDeclaredAt: null,
     isBanned: false,
     banReason: null,
     createdAt: now(),
+    termsAcceptedAt: now(),
     language: state.guestLanguage,
     fontSize: "medium",
     highContrast: false,
@@ -289,22 +312,58 @@ export function register(name: string, email: string, password: string): Result 
 /* Wallet & settings                                                   */
 /* ------------------------------------------------------------------ */
 
-const WALLET_PATTERN = /^[A-Za-z0-9]{20,128}$/;
+/* Same rules as src/lib/actions/wallet.ts; the admin confirmation is simulated by a button. */
 
-export function createDemoWallet(): Result {
+export function requestWalletLink(address: string, adult: boolean): Result {
   const user = me();
   if (!user) return { error: "generic" };
-  commit((s) => ({ ...s, users: s.users.map((u) => (u.id === user.id ? { ...u, walletAddress: fakeWalletAddress() } : u)) }));
+  const clean = normalizeHex(address);
+  if (!user.adultDeclaredAt && !adult) return { error: "wallet_error_adult" };
+  if (!isValidFoneAddress(clean)) return { error: "wallet_error_invalid" };
+  if (user.walletAddress === clean) return { error: "wallet_error_already" };
+  if (state.users.some((u) => u.id !== user.id && u.walletAddress === clean)) return { error: "wallet_error_in_use" };
+  const taken = new Set(
+    state.users.filter((u) => u.id !== user.id && u.pendingWallet).map((u) => foneToCents(u.pendingWallet!.amount)),
+  );
+  const cents = pickChallengeCents(taken);
+  if (cents === null) return { error: "wallet_error_later" };
+  commit((s) => ({
+    ...s,
+    users: s.users.map((u) =>
+      u.id === user.id
+        ? {
+            ...u,
+            pendingWallet: { address: clean, amount: centsToFone(cents), createdAt: now() },
+            adultDeclaredAt: u.adultDeclaredAt ?? now(),
+          }
+        : u,
+    ),
+  }));
   return {};
 }
 
-export function importWallet(address: string): Result {
+export function cancelWalletRequest() {
   const user = me();
-  if (!user) return { error: "generic" };
-  const clean = address.trim();
-  if (!WALLET_PATTERN.test(clean)) return { error: "wallet_error_invalid" };
-  if (state.users.some((u) => u.id !== user.id && u.walletAddress === clean)) return { error: "wallet_error_in_use" };
-  commit((s) => ({ ...s, users: s.users.map((u) => (u.id === user.id ? { ...u, walletAddress: clean } : u)) }));
+  if (!user) return;
+  commit((s) => ({ ...s, users: s.users.map((u) => (u.id === user.id ? { ...u, pendingWallet: null } : u)) }));
+}
+
+/** In the real app an admin checks the transfer on the explorer; here a button does it. */
+export function simulateWalletVerification(): Result {
+  const user = me();
+  if (!user?.pendingWallet) return { error: "generic" };
+  const address = user.pendingWallet.address;
+  if (state.users.some((u) => u.id !== user.id && u.walletAddress === address)) return { error: "wallet_error_in_use" };
+  commit((s) => {
+    const next: State = {
+      ...s,
+      users: s.users.map((u) => (u.id === user.id ? { ...u, walletAddress: address, pendingWallet: null } : u)),
+    };
+    return {
+      ...next,
+      notifications: notify(next, user.id, (l) => ({ title: dt(l, "notif_wallet_title"), message: dt(l, "notif_wallet_msg") })),
+    };
+  });
   return {};
 }
 
@@ -513,7 +572,9 @@ export function simulatePayout(rewardId: string): Result {
   commit((s) => {
     const next: State = {
       ...s,
-      rewards: s.rewards.map((r) => (r.id === rewardId ? { ...r, status: "paid", txHash: fakeTxHash(), paidAt: now() } : r)),
+      rewards: s.rewards.map((r) =>
+        r.id === rewardId ? { ...r, status: "paid", txHash: fakeTxHash(), walletAddress: owner.walletAddress, paidAt: now() } : r,
+      ),
     };
     return {
       ...next,
@@ -575,4 +636,101 @@ export function deleteChatMessage(id: string) {
   const user = me();
   if (!user) return;
   commit((s) => ({ ...s, chat: s.chat.map((m) => (m.id === id && m.userId === user.id ? { ...m, deleted: true, message: "" } : m)) }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Account & LGPD (mirrors src/lib/actions/account.ts)                  */
+/* ------------------------------------------------------------------ */
+
+/** LGPD art. 18: everything the demo keeps about the current user, as a JSON string. */
+export function exportMyData(): string | null {
+  const user = me();
+  if (!user) return null;
+  const mySubmissions = state.submissions.filter((x) => x.userId === user.id);
+  const payload = {
+    format: "ecoverify-data-export",
+    version: 1,
+    demo: true,
+    exportedAt: now(),
+    profile: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      totalPoints: user.totalPoints,
+      language: user.language,
+      preferences: {
+        fontSize: user.fontSize,
+        highContrast: user.highContrast,
+        reducedMotion: user.reducedMotion,
+        notificationsEnabled: user.notificationsEnabled,
+      },
+      adultDeclaredAt: user.adultDeclaredAt,
+      wallet: { verifiedAddress: user.walletAddress, pending: user.pendingWallet },
+      terms: { acceptedAt: user.termsAcceptedAt ?? null, version: TERMS_VERSION },
+      createdAt: user.createdAt,
+    },
+    submissions: mySubmissions.map((x) => ({
+      id: x.id,
+      mission: state.missions.find((m) => m.id === x.missionId)?.title ?? x.missionId,
+      status: x.status,
+      report: x.report,
+      photoHash: x.photoHash,
+      latitude: x.latitude,
+      longitude: x.longitude,
+      rejectionReason: x.rejectionReason,
+      submittedAt: x.submittedAt,
+      reviewedAt: x.reviewedAt,
+    })),
+    foneRewards: state.rewards.filter((r) => r.userId === user.id),
+    notifications: state.notifications.filter((n) => n.userId === user.id),
+    communityMessages: state.chat.filter((c) => c.userId === user.id && !c.deleted),
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+/**
+ * Same rules as the server: blocks the last admin, removes personal data, pending proofs,
+ * unpaid FONE and chat messages, and keeps an anonymous record of reviewed proofs and paid rewards.
+ */
+export function deleteMyAccount(confirmed: boolean): Result {
+  const user = me();
+  if (!user) return { error: "generic" };
+  if (!confirmed) return { error: "confirm_required" };
+  if (user.role === "admin" && !state.users.some((u) => u.id !== user.id && u.role === "admin" && !u.isBanned && !u.deletedAt)) {
+    return { error: "last_admin" };
+  }
+  const lang = user.language;
+  const ok = commit((s) => {
+    const pendingIds = new Set(s.submissions.filter((x) => x.userId === user.id && x.status === "pending").map((x) => x.id));
+    return {
+      ...s,
+      currentUserId: null,
+      guestLanguage: lang,
+      submissions: s.submissions
+        .filter((x) => !pendingIds.has(x.id))
+        .map((x) => (x.userId === user.id ? { ...x, photo: "", report: "", latitude: 0, longitude: 0 } : x)),
+      rewards: s.rewards.filter((r) => !(r.userId === user.id && r.status !== "paid")),
+      notifications: s.notifications.filter((n) => n.userId !== user.id),
+      chat: s.chat.map((c) => (c.userId === user.id ? { ...c, message: "", deleted: true } : c)),
+      users: s.users.map((u) =>
+        u.id === user.id
+          ? {
+              ...u,
+              name: dt(lang, "deleted_account_name"),
+              email: `deleted-${u.id}@deleted.invalid`,
+              walletAddress: null,
+              pendingWallet: null,
+              adultDeclaredAt: null,
+              totalPoints: 0,
+              isBanned: true,
+              banReason: null,
+              isDemoProfile: false,
+              deletedAt: now(),
+            }
+          : u,
+      ),
+    };
+  });
+  return ok ? {} : { error: "storage" };
 }

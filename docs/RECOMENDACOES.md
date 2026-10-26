@@ -12,21 +12,27 @@
 | Item | Status | Onde |
 |---|---|---|
 | C1: build quebrado | ✅ Corrigido (`npm run build`, lint e typecheck limpos) | `icons.tsx`, `schema.ts` |
-| C2: carteira | 🟡 Parcial: validação de formato + 1 carteira por conta. **Falta** integrar o SDK FONE e a prova de posse | `actions/wallet.ts` |
-| C3: pagamento manual | 🟡 Parcial: "pago" exige hash da transação, rede padrão `FONE`. **Falta** o worker automático via SDK | `actions/admin.ts` |
+| C2: carteira | ✅ Carteira falsa removida. Só endereço FONE nativo da Fone Wallet, com **prova de posse** (transferência de valor exato para a carteira de verificação, conferida pelo admin) e declaração 18+. **Falta** automatizar a conferência quando sair o SDK/API | `actions/wallet.ts`, `lib/fone.ts`, Admin → Carteiras |
+| C3: pagamento manual | 🟡 Parcial: só para carteira verificada, em lote por pessoa, hash de 64 hex único por pessoa, destino/data/admin registrados, notificação e histórico com explorer. **Falta** o envio automático via SDK | `actions/admin.ts`, Admin → Recompensas |
 | C4: aprovação duplicada | ✅ Transação + update condicional + índices únicos | `actions/moderation.ts`, `schema.ts` |
 | C5: upload inseguro | ✅ Exige login, valida magic bytes, extensão pelo conteúdo, rate limit | `api/upload`, `lib/file-type.ts` |
 | C6: arquivos em `public/` | ✅ Supabase Storage (prod) ou disco local, servidos por `/api/files` com login | `lib/storage.ts` |
 | C7: Next.js vulnerável | ✅ Next 16.4.3, `npm audit --omit=dev` = 0 vulnerabilidades | `package.json` |
 | C8: permissões Android | ✅ Localização, câmera, microfone | `AndroidManifest.xml` |
 | A1: GPS falsificável | 🟡 Parcial: rejeita leituras com precisão pior que 150 m | `actions/submissions.ts` |
-| A3: contas múltiplas | 🟡 Parcial: limite de cadastros por IP, senha de 8+ caracteres, carteira única | `actions/auth.ts` |
+| A3: contas múltiplas | 🟡 Parcial: limite de cadastros por IP, senha de 8+ caracteres, carteira única verificada, **e-mail confirmado para vincular carteira** (v1.3). **Falta** telefone/dispositivo e reputação mínima | `actions/auth.ts`, `actions/wallet.ts` |
+| LGPD | ✅ Termos e Política públicos, aceite versionado, 13+/18+, confirmação de e-mail, recuperação e troca de senha, exportação JSON e exclusão (anonimização) de conta. **Falta** revisão por advogado e remoção de EXIF | `lib/actions/account.ts`, `/termos`, `/privacidade`, `docs/LGPD.md` |
+| Marca Fone | 🟡 Ícone oficial nos valores FONE e selo "Recompensas na rede Fone Protocol". **Falta** autorização formal e kit oficial | `components/brand/fone.tsx`, `docs/MARCA_FONE.md` |
 | A4: ban não derruba sessão | ✅ Sessões apagadas + `getCurrentUser` bloqueia banidos | `lib/auth.ts`, `actions/admin.ts` |
 | A5: força bruta | ✅ Limite por e‑mail e IP | `lib/rate-limit.ts` |
 | Chat | ✅ Mensagens mais recentes, conteúdo apagado não vaza, notificação em 1 query sem spam, mídia só do app/Giphy, citação vinda do banco, polling pausa em segundo plano | `lib/community.ts`, `actions/community.ts` |
 | Missões | ✅ Rejeitada pode ser reenviada; pendente/aprovada não | `missions/page.tsx`, `actions/submissions.ts` |
 | Admin | ✅ Valida categoria, cargo, status, teto de pontos/FONE | `actions/admin.ts` |
 | Infra | ✅ CI (lint, typecheck, audit, build), `.env.example`, `drizzle.config.ts` via env, seed com missões em Recife, script de checagem pré‑migração, README, headers de segurança | vários |
+
+**Fase 1 / Partes 2 e 3 (marca Fone e conta/LGPD, v1.3):** ícone oficial da Fone em todos os valores em FONE (o broto 🌱 ficou só para as categorias ecológicas), selo da rede no login, menu e carteira; Termos de Uso e Política de Privacidade escritos a partir dos fluxos reais de dados, aceite obrigatório e versionado, confirmação de e-mail, "Esqueci minha senha", troca de senha, exportação dos dados e exclusão de conta. A demo offline tem as mesmas telas.
+
+**Fase 1 / Parte 1 (carteira de verdade, v1.2):** pagamentos só para carteira verificada, agrupados por pessoa com um hash por envio (validado e nunca reaproveitado), destino registrado e histórico com links do explorer. Testado ponta a ponta contra Postgres com **60 cenários** de carteira e pagamento, incluindo migração de dados antigos.
 
 Testado ponta a ponta contra Postgres + build de produção: **52 cenários** (cadastro, carteira, upload, comprovação, aprovação concorrente, chat, admin, banimento, força bruta) e renderização de todas as páginas nos 3 perfis.
 
@@ -107,8 +113,8 @@ Para a Fone, isso gera **utilidade real para o token**, **usuários novos fora d
 
 ### ⚖️ Legal e conformidade (Brasil)
 
-- **LGPD**: o app coleta **localização precisa e fotos** (às vezes de pessoas). Precisa de política de privacidade, consentimento explícito, remoção de EXIF antes de exibir fotos e exclusão de conta (o Google Play também exige exclusão de conta).
-- **Menores de idade**: se o público inclui estudantes do Mediotec, é preciso consentimento dos responsáveis, especialmente com cripto envolvida.
+- **LGPD**: o app coleta **localização precisa e fotos** (às vezes de pessoas). ✅ Política de privacidade, aceite explícito, exportação e exclusão de conta (exigida também pelo Google Play) feitos na v1.3 (veja `docs/LGPD.md`). Falta: remoção de EXIF antes de exibir fotos e revisão por advogado.
+- **Menores de idade**: ✅ 13+ com autorização do responsável; FONE só para 18+. Como o público inclui estudantes do Mediotec, vale confirmar com advogado se a autodeclaração basta ou se é preciso consentimento verificável do responsável.
 - **Cripto**: distribuir tokens como recompensa no Brasil entra no tema de ativos virtuais (Lei 14.478/2022 e regulamentação do Banco Central). Vale uma consulta jurídica antes de escalar, e o contrato com a Fone deve deixar claro quem é o emissor e quem custodia o FONE.
 
 ---
@@ -127,7 +133,7 @@ Para a Fone, isso gera **utilidade real para o token**, **usuários novos fora d
 
 ### Fase 1: "Integração FONE de verdade" (até dez/2026, janela do vesting)
 - [ ] Camada `src/lib/fone/` (adapter) com: criar/importar carteira, saldo, enviar FONE, histórico. Isolada para trocar fácil quando sair o SDK do Node 2.0
-- [ ] Prova de posse da carteira e carteira única por conta (C2)
+- [x] Prova de posse da carteira e carteira única por conta (C2)
 - [ ] Worker de pagamento automático com carteira‑tesouro e teto diário (C3)
 - [ ] **Hash da prova (foto + missão + data) nos metadados da transação FONE**, o que entrega a "rastreabilidade transparente" prometida no pitch
 - [ ] Tela "Meu saldo / Extrato" e link da transação no explorer

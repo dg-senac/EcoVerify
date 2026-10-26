@@ -7,7 +7,15 @@ import { t, type Lang, LANGS } from "@/lib/i18n";
 
 const initialState: ActionState = {};
 
-export function LoginForm({ lang }: { lang: Lang }) {
+export function LoginForm({
+  lang,
+  notice,
+  showDemoAccounts = false,
+}: {
+  lang: Lang;
+  notice?: "reset" | "deleted";
+  showDemoAccounts?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
   const [currentLang, setCurrentLang] = useState<Lang>(lang);
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -59,6 +67,12 @@ export function LoginForm({ lang }: { lang: Lang }) {
       <h1 className="text-2xl font-bold text-slate-900">{t(currentLang, "login_title")}</h1>
       <p className="mt-1 text-sm text-slate-500">{t(currentLang, "tagline")}</p>
 
+      {notice && (
+        <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+          {t(currentLang, notice === "reset" ? "login_reset_done" : "login_deleted")}
+        </p>
+      )}
+
       <form action={formAction} className="mt-6 space-y-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-700">{t(currentLang, "login_email")}</label>
@@ -79,6 +93,11 @@ export function LoginForm({ lang }: { lang: Lang }) {
             placeholder="••••••••"
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
           />
+          <div className="mt-1.5 text-right">
+            <Link href="/forgot-password" className="text-xs font-semibold text-emerald-600 hover:underline">
+              {t(currentLang, "login_forgot")}
+            </Link>
+          </div>
         </div>
 
         {state?.error && (
@@ -104,20 +123,15 @@ export function LoginForm({ lang }: { lang: Lang }) {
         </Link>
       </p>
 
-      <div className="mt-6 rounded-xl bg-slate-50 p-4 text-xs text-slate-500">
-        <p className="mb-1 font-semibold text-slate-600">
-          {currentLang === "en" ? "Demo accounts" : currentLang === "es" ? "Cuentas de demostración" : "Contas de demonstração"}
-        </p>
-        <p>
-          {currentLang === "en" ? "Citizen" : currentLang === "es" ? "Ciudadana" : "Cidadã"}: ana@ecoverify.app · senha 123456
-        </p>
-        <p>
-          {currentLang === "en" ? "Moderator" : currentLang === "es" ? "Moderador" : "Moderador"}: marcos@ecoverify.app · senha 123456
-        </p>
-        <p>
-          {currentLang === "en" ? "Admin" : currentLang === "es" ? "Admin" : "Admin"}: julia@ecoverify.app · senha 123456
-        </p>
-      </div>
+      {showDemoAccounts && (
+        <div className="mt-6 rounded-xl bg-slate-50 p-4 text-xs text-slate-500">
+          <p className="mb-1 font-semibold text-slate-600">
+            {currentLang === "en" ? "Seed accounts (development)" : currentLang === "es" ? "Cuentas de ejemplo (desarrollo)" : "Contas de exemplo (desenvolvimento)"}
+          </p>
+          <p>cidada@ecoverify.dev · moderador@ecoverify.dev · admin@ecoverify.dev</p>
+          <p>{currentLang === "en" ? "password" : currentLang === "es" ? "contraseña" : "senha"}: ecoverify123</p>
+        </div>
+      )}
     </div>
   );
 }

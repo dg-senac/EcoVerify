@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { LogoHorizontal } from "@/components/logo";
+import { PoweredByFone } from "@/components/brand/fone";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -9,8 +11,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
         <div className="w-full max-w-md animate-slide-up">{children}</div>
       </div>
-      <footer className="pb-6 text-center text-xs text-slate-400">
-        © {new Date().getFullYear()} EcoVerify — Ações sustentáveis, reconhecidas e recompensadas.
+      <footer className="flex flex-col items-center gap-3 pb-6 text-center text-xs text-slate-400">
+        <PoweredByFone lang="pt" />
+        <nav className="flex gap-4 font-medium text-slate-500">
+          <Link href="/termos" className="hover:underline">Termos de Uso</Link>
+          <Link href="/privacidade" className="hover:underline">Privacidade</Link>
+        </nav>
+        <p>© {new Date().getFullYear()} EcoVerify · Ações sustentáveis, reconhecidas e recompensadas.</p>
       </footer>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, Star, Sprout, Wallet, CheckCircle2, Clock, Users } from "lucide-react";
+import { Copy, Star, Wallet, CheckCircle2, Clock, Users, ShieldCheck } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { formatDate, formatFone, levelForPoints } from "@/lib/utils";
 import { dt } from "../i18n";
@@ -8,6 +8,9 @@ import { Avatar, PageHeader, card, toast } from "../components/ui";
 import { roleTone, ProfileSwitcher } from "../components/ProfileSwitcher";
 import { WalletForm } from "./Wallet";
 import { ResetDemoButton } from "../components/ResetDemo";
+import { FoneMark } from "@/components/brand/fone";
+
+const FoneStatIcon = ({ className }: { className?: string }) => <FoneMark size={20} className={className} />;
 
 export function ProfileScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -23,7 +26,7 @@ export function ProfileScreen({ user }: { user: User }) {
   const stats = [
     { icon: Star, label: t(lang, "points"), value: String(user.totalPoints), tone: "bg-amber-50 text-amber-700" },
     { icon: CheckCircle2, label: dt(lang, "approved_actions"), value: String(approved), tone: "bg-emerald-50 text-emerald-700" },
-    { icon: Sprout, label: dt(lang, "fone_received"), value: formatFone(received), tone: "bg-teal-50 text-teal-700" },
+    { icon: FoneStatIcon, label: dt(lang, "fone_received"), value: formatFone(received), tone: "bg-teal-50 text-teal-700" },
     { icon: Clock, label: dt(lang, "fone_pending"), value: formatFone(pending), tone: "bg-sky-50 text-sky-700" },
   ];
 
@@ -60,29 +63,35 @@ export function ProfileScreen({ user }: { user: User }) {
       <div className={`${card} mt-4 p-5 animate-slide-up`}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 font-bold text-slate-900"><Wallet className="h-5 w-5 text-emerald-600" /> {dt(lang, "wallet_label")}</h3>
-          {user.walletAddress && !editingWallet && (
-            <button type="button" onClick={() => setEditingWallet(true)} className="text-sm font-semibold text-emerald-700 hover:underline">{dt(lang, "wallet_change")}</button>
+          {user.walletAddress && !editingWallet && !user.pendingWallet && (
+            <button type="button" onClick={() => setEditingWallet(true)} className="text-sm font-semibold text-emerald-700 hover:underline">{t(lang, "wallet_change")}</button>
           )}
         </div>
-        {user.walletAddress && !editingWallet ? (
-          <button
-            type="button"
-            onClick={() => {
-              void navigator.clipboard?.writeText(user.walletAddress ?? "").catch(() => undefined);
-              toast("✓");
-            }}
-            className="flex w-full items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-left font-mono text-xs text-slate-700"
-          >
-            <span className="min-w-0 flex-1 break-all">{user.walletAddress}</span>
-            <Copy className="h-4 w-4 shrink-0 text-slate-400" />
-          </button>
-        ) : (
+        {user.walletAddress && (
+          <div className="mb-3">
+            <p className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-emerald-700"><ShieldCheck className="h-4 w-4" /> {t(lang, "wallet_verified")}</p>
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard?.writeText(user.walletAddress ?? "").catch(() => undefined);
+                toast("✓");
+              }}
+              className="flex w-full items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-left font-mono text-xs text-slate-700"
+            >
+              <span className="min-w-0 flex-1 break-all">{user.walletAddress}</span>
+              <Copy className="h-4 w-4 shrink-0 text-slate-400" />
+            </button>
+            <p className="mt-1.5 text-xs text-slate-500">{t(lang, "wallet_verified_hint")}</p>
+          </div>
+        )}
+        {(!user.walletAddress || editingWallet || user.pendingWallet) && (
           <>
-            {!user.walletAddress && <p className="mb-3 text-sm text-slate-500">{dt(lang, "wallet_none")}</p>}
-            <WalletForm onDone={() => setEditingWallet(false)} />
+            {!user.walletAddress && !user.pendingWallet && <p className="mb-3 text-sm text-slate-500">{t(lang, "wallet_none")}</p>}
+            {user.walletAddress && !user.pendingWallet && <p className="mb-3 text-xs text-slate-500">{t(lang, "wallet_change_hint")}</p>}
+            <WalletForm onDone={() => setEditingWallet(false)} onCancel={user.walletAddress && !user.pendingWallet ? () => setEditingWallet(false) : undefined} />
           </>
         )}
-        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">⚠️ {dt(lang, "wallet_demo_note")}</p>
+        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">⚠️ {dt(lang, "wallet_demo_note")} {dt(lang, "wallet_demo_note_verify")}</p>
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">

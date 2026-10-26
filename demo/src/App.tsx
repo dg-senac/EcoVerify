@@ -16,6 +16,7 @@ import { AdminScreen } from "./screens/Admin";
 import { NotificationsScreen } from "./screens/Notifications";
 import { ProfileScreen } from "./screens/Profile";
 import { SettingsScreen } from "./screens/Settings";
+import { LegalScreen } from "./screens/Legal";
 
 /** Applies the user's accessibility settings to <html>, like src/app/layout.tsx. */
 function useHtmlSettings(user: User | null) {
@@ -78,7 +79,9 @@ export function App() {
 
   return (
     <>
-      {!user || user.isBanned ? (
+      {path === "/termos" || path === "/privacidade" ? (
+        <LegalScreen doc={path === "/termos" ? "terms" : "privacy"} />
+      ) : !user || user.isBanned ? (
         path === "/register" ? <RegisterScreen /> : path === "/" ? <LoginScreen /> : <Redirect to="/" />
       ) : (
         <Shell user={user}>
