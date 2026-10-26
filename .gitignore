@@ -13,6 +13,9 @@ node_modules
 # Production
 /build
 
+# Offline demo build (bundled into the demo APK)
+/demo/dist/
+
 # Misc
 .DS_Store
 *.pem

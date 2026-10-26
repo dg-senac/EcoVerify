@@ -66,7 +66,39 @@ jobs:
         run: chmod +x android/gradlew
 
       # ==========================================
-      # 7. Sincronizar Capacitor
+      # 7. Escolher o modo do app
+      #    - Com CAPACITOR_SERVER_URL: APK abre o servidor Next.js real (HTTPS)
+      #    - Sem a variável: APK de demonstração offline (sem servidor e sem banco)
+      # ==========================================
+      - name: Detect app mode
+        id: mode
+        env:
+          CAPACITOR_SERVER_URL: ${{ vars.CAPACITOR_SERVER_URL || secrets.CAPACITOR_SERVER_URL }}
+        run: |
+          if [ -n "$CAPACITOR_SERVER_URL" ]; then
+            echo "mode=server" >> "$GITHUB_OUTPUT"
+            echo "label=Servidor" >> "$GITHUB_OUTPUT"
+            echo "artifact=ecoverify-debug" >> "$GITHUB_OUTPUT"
+            echo "### 🌐 Modo servidor" >> "$GITHUB_STEP_SUMMARY"
+            echo "O APK abre o servidor configurado em \`CAPACITOR_SERVER_URL\`." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "mode=demo" >> "$GITHUB_OUTPUT"
+            echo "label=Demo offline" >> "$GITHUB_OUTPUT"
+            echo "artifact=ecoverify-demo-debug" >> "$GITHUB_OUTPUT"
+            echo "### 🧪 Modo demonstração (offline)" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`CAPACITOR_SERVER_URL\` não está configurada: o APK inclui a demo offline (dados simulados no aparelho, sem servidor e sem banco)." >> "$GITHUB_STEP_SUMMARY"
+            echo "Para gerar o APK conectado ao servidor real, crie a variável \`CAPACITOR_SERVER_URL\` (HTTPS) em Settings → Secrets and variables → Actions." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # ==========================================
+      # 8. Build da demo offline (somente no modo demo)
+      # ==========================================
+      - name: Build offline demo
+        if: steps.mode.outputs.mode == 'demo'
+        run: npm run demo:build
+
+      # ==========================================
+      # 9. Sincronizar Capacitor
       # ==========================================
       - name: Sync Capacitor
         run: npx cap sync android
@@ -74,7 +106,7 @@ jobs:
           CAPACITOR_SERVER_URL: ${{ vars.CAPACITOR_SERVER_URL || secrets.CAPACITOR_SERVER_URL }}
 
       # ==========================================
-      # 8. Build do APK Debug
+      # 10. Build do APK Debug
       # ==========================================
       - name: Build debug APK
         run: |
@@ -82,31 +114,33 @@ jobs:
           ./gradlew assembleDebug
 
       # ==========================================
-      # 9. Upload do APK como Artifact
+      # 11. Upload do APK como Artifact
       # ==========================================
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: ecoverify-debug
+          name: ${{ steps.mode.outputs.artifact }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
       # ==========================================
-      # 10. Criar GitHub Release
+      # 12. Criar GitHub Release
       # ==========================================
       - name: Create GitHub Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: EcoVerify Android APK v${{ github.run_number }}
+          name: EcoVerify Android APK v${{ github.run_number }} (${{ steps.mode.outputs.label }})
 
           body: |
             ## EcoVerify Android APK
 
-            ### 📱 Debug APK
+            ### 📱 Debug APK · modo: ${{ steps.mode.outputs.label }}
 
             APK gerado automaticamente pelo GitHub Actions.
+
+            ${{ steps.mode.outputs.mode == 'demo' && '> 🧪 **Versão de demonstração offline.** Funciona sem internet, sem servidor e sem banco de dados. Os dados são simulados e ficam salvos só no aparelho. Os perfis prontos (cidadão, moderador e admin) permitem testar o fluxo completo: enviar comprovação, moderar e ver os pontos no ranking. O saldo de FONE é simulado: nenhum FONE real é movimentado.' || '> 🌐 **Versão conectada ao servidor** configurado em `CAPACITOR_SERVER_URL`.' }}
 
             ### Instalação
 

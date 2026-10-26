@@ -41,3 +41,6 @@ jobs:
         env:
           # Build does not connect to the database; a placeholder URL is enough.
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+      - name: Build offline demo (Android demo APK)
+        run: npm run demo:build

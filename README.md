@@ -26,7 +26,7 @@ Perfis: **cidadão**, **moderador** e **admin**. Idiomas: 🇧🇷 PT · 🇺�
 | Web | Next.js 16 (App Router, Server Actions), React 19, Tailwind CSS 4 |
 | Banco | PostgreSQL (Supabase) + Drizzle ORM |
 | Arquivos | Supabase Storage (produção) ou disco local (desenvolvimento) |
-| Android | Capacitor 8 (WebView apontando para o app web) |
+| Android | Capacitor 8: WebView apontando para o app web **ou** demo offline embutida (`demo/`) |
 
 ## Rodando localmente
 
@@ -53,6 +53,7 @@ O seed cria `admin@ecoverify.dev`, `moderador@ecoverify.dev` e `cidada@ecoverify
 | `npm run db:generate` / `npm run db:migrate` | Migrations versionadas em `./drizzle` |
 | `npm run db:studio` | Interface visual do banco |
 | `npm run db:seed` | Dados de demonstração |
+| `npm run demo:dev` / `npm run demo:build` | Demo offline (sem servidor e sem banco) usada no APK de demonstração |
 
 ## Variáveis de ambiente
 
@@ -61,7 +62,7 @@ Veja [`.env.example`](.env.example). As principais:
 - `DATABASE_URL`: conexão Postgres.
 - `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (+ `SUPABASE_STORAGE_BUCKET`, padrão `uploads`): armazenamento das fotos em produção. Crie o bucket como **privado**. Os arquivos são servidos por `/api/files/...` apenas para usuários logados.
 - `SERVER_ACTIONS_ALLOWED_ORIGINS`: domínio de produção (ex.: `ecoverify.app`).
-- `CAPACITOR_SERVER_URL`: URL HTTPS do app web, usada no build Android.
+- `CAPACITOR_SERVER_URL`: URL HTTPS do app web, usada no build Android. **Opcional**: sem ela, o APK é gerado com a demo offline.
 
 ## Atualizando um banco já existente
 
@@ -84,12 +85,19 @@ Detalhes e próximos passos: [`docs/RECOMENDACOES.md`](docs/RECOMENDACOES.md).
 
 ## Android
 
+O APK tem dois modos:
+
+- **Demo offline** (padrão, quando `CAPACITOR_SERVER_URL` não está configurada): o app roda inteiro no celular, sem internet, servidor ou banco. Tem perfis prontos (cidadão, moderador e admin), as missões do Recife, ranking e chat com usuários fictícios, e saldo de FONE **simulado**. Ideal para testes e apresentações.
+- **Servidor**: com `CAPACITOR_SERVER_URL` (HTTPS), o APK abre o app web real.
+
+Para testar a demo no navegador: `npm run demo:dev` (http://localhost:5173).
+
 Veja [`BUILD_ANDROID.md`](BUILD_ANDROID.md). O app declara as permissões de **localização**, **câmera** e **microfone**, necessárias para comprovar missões no local e gravar áudios no chat.
 
 ## CI
 
-- **CI** (`.github/workflows/ci.yml`): lint, typecheck, auditoria de dependências e build em todo PR.
-- **Build Android APK** (`.github/workflows/build-android.yml`): gera o APK debug a cada push na `main`.
+- **CI** (`.github/workflows/ci.yml`): lint, typecheck, auditoria de dependências, build do app web e da demo offline em todo PR.
+- **Build Android APK** (`.github/workflows/build-android.yml`): gera o APK debug a cada push na `main`, no modo demo ou servidor conforme `CAPACITOR_SERVER_URL`. O modo aparece no resumo da execução e no título da Release.
 
 ## Roadmap
 

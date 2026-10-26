@@ -8,6 +8,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck",
+    "demo:dev": "vite --config demo/vite.config.mts",
+    "demo:build": "vite build --config demo/vite.config.mts",
+    "demo:preview": "vite preview --config demo/vite.config.mts",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -35,13 +38,15 @@
     "@types/pg": "8.18.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "^6.1.2",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.4.3",
     "postcss": "8.5.8",
     "tailwindcss": "4.1.17",
     "tsx": "^4.23.13",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite": "^8.3.5"
   },
   "version": "1.1.0",
   "engines": {

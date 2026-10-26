@@ -1,0 +1,341 @@
+import type { ChatMessage, Mission, Notification, Reward, State, Submission, User } from "./store";
+import { placeholderPhoto } from "./media";
+
+/** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
+
+/** Bump when the stored shape changes: older saved data is replaced by a fresh seed. */
+export const STATE_VERSION = 1;
+
+const DAY = 24 * 60 * 60 * 1000;
+const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+
+export const DEMO_IDS = {
+  citizen: "u-citizen",
+  moderator: "u-moderator",
+  admin: "u-admin",
+} as const;
+
+function person(partial: Partial<User> & Pick<User, "id" | "name" | "email">): User {
+  return {
+    role: "citizen",
+    totalPoints: 0,
+    walletAddress: null,
+    isBanned: false,
+    banReason: null,
+    createdAt: ago(30 * DAY),
+    language: "pt",
+    fontSize: "medium",
+    highContrast: false,
+    reducedMotion: false,
+    notificationsEnabled: true,
+    ...partial,
+  };
+}
+
+export function createSeed(): State {
+  const users: User[] = [
+    person({
+      id: DEMO_IDS.citizen,
+      name: "Maria Cidadã",
+      email: "cidada@ecoverify.dev",
+      totalPoints: 70,
+      walletAddress: "0xFONEdemo4f2a9c1e7b3d5a8f0c6e2b9d1a7c3e5f",
+      isDemoProfile: true,
+      createdAt: ago(20 * DAY),
+    }),
+    person({ id: DEMO_IDS.moderator, name: "Carlos Moderador", email: "moderador@ecoverify.dev", role: "moderator", isDemoProfile: true }),
+    person({ id: DEMO_IDS.admin, name: "Ana Admin", email: "admin@ecoverify.dev", role: "admin", isDemoProfile: true, createdAt: ago(60 * DAY) }),
+    person({ id: "u-bot-1", name: "João Silva", email: "joao@exemplo.dev", totalPoints: 340, walletAddress: "0xFONEdemo1b2c3d4e5f60718293a4b5c6d7e8f901", isBot: true }),
+    person({ id: "u-bot-2", name: "Luana Costa", email: "luana@exemplo.dev", totalPoints: 260, walletAddress: "0xFONEdemo9a8b7c6d5e4f30210fedcba987654321", isBot: true }),
+    person({ id: "u-bot-3", name: "Pedro Albuquerque", email: "pedro@exemplo.dev", totalPoints: 180, walletAddress: "0xFONEdemo0f1e2d3c4b5a69788796a5b4c3d2e1f0", isBot: true }),
+    person({ id: "u-bot-4", name: "Beatriz Lima", email: "beatriz@exemplo.dev", totalPoints: 95, walletAddress: "0xFONEdemo55aa66bb77cc88dd99ee00ff11223344", isBot: true }),
+    person({ id: "u-bot-5", name: "Rafael Souza", email: "rafael@exemplo.dev", totalPoints: 45, isBot: true }),
+  ];
+
+  const missions: Mission[] = [
+    {
+      id: "m-boa-viagem",
+      title: "Mutirão de limpeza na Praia de Boa Viagem",
+      titleEn: "Beach cleanup at Boa Viagem",
+      titleEs: "Limpieza de la playa de Boa Viagem",
+      description: "Recolha pelo menos um saco de resíduos na faixa de areia e descarte corretamente.",
+      descriptionEn: "Collect at least one bag of waste from the sand and dispose of it properly.",
+      descriptionEs: "Recoge al menos una bolsa de residuos en la arena y deséchala correctamente.",
+      context: "Leve luvas e sacos. Fotografe o material recolhido com a praia ao fundo.",
+      impact: "Resíduos plásticos na praia acabam no mar e afetam tartarugas e peixes.",
+      latitude: -8.1196,
+      longitude: -34.8956,
+      category: "cleanup",
+      pointsReward: 50,
+      foneReward: "25.00",
+      isActive: true,
+      createdAt: ago(40 * DAY),
+    },
+    {
+      id: "m-jaqueira",
+      title: "Plantio de muda no Parque da Jaqueira",
+      titleEn: "Plant a seedling at Jaqueira Park",
+      titleEs: "Plantar un plantón en el Parque da Jaqueira",
+      description: "Participe da ação de plantio e registre a muda plantada.",
+      descriptionEn: "Join the planting action and record the planted seedling.",
+      descriptionEs: "Participa en la acción de plantación y registra el plantón.",
+      context: "Plante a muda em área autorizada e fotografe com a placa de identificação.",
+      impact: "Árvores reduzem ilhas de calor e melhoram a qualidade do ar no Recife.",
+      latitude: -8.0376,
+      longitude: -34.9035,
+      category: "planting",
+      pointsReward: 80,
+      foneReward: "40.00",
+      isActive: true,
+      createdAt: ago(40 * DAY),
+    },
+    {
+      id: "m-marco-zero",
+      title: "Entrega de recicláveis no Marco Zero",
+      titleEn: "Drop off recyclables at Marco Zero",
+      titleEs: "Entrega de reciclables en el Marco Zero",
+      description: "Separe recicláveis em casa e entregue no ponto de coleta seletiva.",
+      descriptionEn: "Sort recyclables at home and drop them off at the collection point.",
+      descriptionEs: "Separa reciclables en casa y entrégalos en el punto de recolección.",
+      context: "Fotografe o material separado no ponto de coleta.",
+      impact: "A reciclagem gera renda para cooperativas de catadores e reduz o lixo em aterros.",
+      latitude: -8.0631,
+      longitude: -34.8711,
+      category: "recycling",
+      pointsReward: 30,
+      foneReward: "15.00",
+      isActive: true,
+      createdAt: ago(40 * DAY),
+    },
+    {
+      id: "m-dona-lindu",
+      title: "Doação de roupas no Parque Dona Lindu",
+      titleEn: "Clothing donation at Dona Lindu Park",
+      titleEs: "Donación de ropa en el Parque Dona Lindu",
+      description: "Doe roupas em bom estado na campanha de arrecadação.",
+      descriptionEn: "Donate clothes in good condition to the collection campaign.",
+      descriptionEs: "Dona ropa en buen estado en la campaña de recolección.",
+      context: "Fotografe a entrega no ponto de arrecadação.",
+      impact: "Reaproveitar roupas reduz o descarte têxtil e ajuda famílias da comunidade.",
+      latitude: -8.1366,
+      longitude: -34.9008,
+      category: "donation",
+      pointsReward: 40,
+      foneReward: "20.00",
+      isActive: true,
+      createdAt: ago(40 * DAY),
+    },
+    {
+      id: "m-capibaribe",
+      title: "Limpeza às margens do Capibaribe",
+      titleEn: "Capibaribe riverbank cleanup",
+      titleEs: "Limpieza en las orillas del Capibaribe",
+      description: "Recolha resíduos às margens do rio na Rua da Aurora e separe o que for reciclável.",
+      descriptionEn: "Pick up waste along the river on Rua da Aurora and sort what can be recycled.",
+      descriptionEs: "Recoge residuos en la orilla del río en la Rua da Aurora y separa lo reciclable.",
+      context: "Use luvas, não entre na água e fotografe os sacos recolhidos com o rio ao fundo.",
+      impact: "O lixo das margens chega ao mar pelo rio e entope a drenagem nas chuvas.",
+      latitude: -8.0597,
+      longitude: -34.8796,
+      category: "cleanup",
+      pointsReward: 60,
+      foneReward: "30.00",
+      isActive: true,
+      createdAt: ago(10 * DAY),
+    },
+    {
+      id: "m-olinda-oleo",
+      title: "Coleta de óleo de cozinha em Olinda",
+      titleEn: "Cooking oil collection in Olinda",
+      titleEs: "Recolección de aceite de cocina en Olinda",
+      description: "Junte óleo de cozinha usado em garrafa PET e entregue no ponto de coleta do Alto da Sé.",
+      descriptionEn: "Store used cooking oil in a PET bottle and deliver it to the Alto da Sé collection point.",
+      descriptionEs: "Junta aceite de cocina usado en una botella PET y entrégalo en el punto del Alto da Sé.",
+      context: "Fotografe a garrafa no ponto de coleta.",
+      impact: "Um litro de óleo pode contaminar até 25 mil litros de água.",
+      latitude: -8.0137,
+      longitude: -34.8553,
+      category: "recycling",
+      pointsReward: 35,
+      foneReward: "18.00",
+      isActive: true,
+      createdAt: ago(5 * DAY),
+    },
+  ];
+
+  const sub = (s: Omit<Submission, "photoHash" | "accuracy" | "simulatedLocation" | "latitude" | "longitude"> & { at: Mission }): Submission => {
+    const { at, ...rest } = s;
+    return {
+      ...rest,
+      photoHash: `seed-${s.id}`,
+      latitude: at.latitude + 0.0002,
+      longitude: at.longitude - 0.0001,
+      accuracy: 12,
+      simulatedLocation: false,
+    };
+  };
+  const [boaViagem, jaqueira, marcoZero, donaLindu, capibaribe] = missions;
+
+  const submissions: Submission[] = [
+    // Waiting for moderation (log in as moderator to review them)
+    sub({
+      id: "s-luana-praia",
+      userId: "u-bot-2",
+      missionId: boaViagem.id,
+      at: boaViagem,
+      photo: placeholderPhoto("🧹", "#38bdf8", "#2563eb", "3 sacos recolhidos na areia"),
+      report: "Fui com minha irmã no fim da tarde e recolhemos três sacos de lixo, principalmente copos plásticos e tampinhas perto do posto 7.",
+      status: "pending",
+      reviewedBy: null,
+      rejectionReason: null,
+      submittedAt: ago(3 * 60 * 60 * 1000),
+      reviewedAt: null,
+    }),
+    sub({
+      id: "s-pedro-jaqueira",
+      userId: "u-bot-3",
+      missionId: jaqueira.id,
+      at: jaqueira,
+      photo: placeholderPhoto("🌳", "#34d399", "#059669", "Muda de ipê plantada"),
+      report: "Plantei uma muda de ipê-amarelo na área indicada pela equipe do parque, ao lado da placa de identificação número 12.",
+      status: "pending",
+      reviewedBy: null,
+      rejectionReason: null,
+      submittedAt: ago(5 * 60 * 60 * 1000),
+      reviewedAt: null,
+    }),
+    sub({
+      id: "s-beatriz-marco",
+      userId: "u-bot-4",
+      missionId: marcoZero.id,
+      at: marcoZero,
+      photo: placeholderPhoto("♻️", "#2dd4bf", "#0d9488", "Recicláveis separados"),
+      report: "Separei garrafas PET, latinhas e papelão durante a semana e entreguei tudo no ponto de coleta seletiva do Marco Zero.",
+      status: "pending",
+      reviewedBy: null,
+      rejectionReason: null,
+      submittedAt: ago(26 * 60 * 60 * 1000),
+      reviewedAt: null,
+    }),
+    // History of the demo citizen
+    sub({
+      id: "s-maria-marco",
+      userId: DEMO_IDS.citizen,
+      missionId: marcoZero.id,
+      at: marcoZero,
+      photo: placeholderPhoto("♻️", "#2dd4bf", "#0f766e", "Garrafas e latinhas"),
+      report: "Juntei as garrafas e latinhas lá de casa durante duas semanas e levei ao ponto de coleta do Marco Zero no domingo.",
+      status: "approved",
+      reviewedBy: DEMO_IDS.moderator,
+      rejectionReason: null,
+      submittedAt: ago(12 * DAY),
+      reviewedAt: ago(11 * DAY),
+    }),
+    sub({
+      id: "s-maria-lindu",
+      userId: DEMO_IDS.citizen,
+      missionId: donaLindu.id,
+      at: donaLindu,
+      photo: placeholderPhoto("🤝", "#fbbf24", "#f97316", "Sacola de roupas doadas"),
+      report: "Doei duas sacolas de roupas infantis em bom estado na campanha de arrecadação do Parque Dona Lindu neste sábado.",
+      status: "approved",
+      reviewedBy: DEMO_IDS.moderator,
+      rejectionReason: null,
+      submittedAt: ago(3 * DAY),
+      reviewedAt: ago(2 * DAY),
+    }),
+    sub({
+      id: "s-maria-capibaribe",
+      userId: DEMO_IDS.citizen,
+      missionId: capibaribe.id,
+      at: capibaribe,
+      photo: placeholderPhoto("🧹", "#94a3b8", "#475569", "Foto escura"),
+      report: "Recolhi lixo na margem do rio perto da ponte, mas a foto ficou escura porque já estava anoitecendo quando terminei.",
+      status: "rejected",
+      reviewedBy: DEMO_IDS.moderator,
+      rejectionReason: "A foto não mostra os resíduos recolhidos. Envie uma nova foto com os sacos e o rio ao fundo.",
+      submittedAt: ago(6 * DAY),
+      reviewedAt: ago(5 * DAY),
+    }),
+    // Other approved actions (feed the rewards panel)
+    sub({
+      id: "s-joao-jaqueira",
+      userId: "u-bot-1",
+      missionId: jaqueira.id,
+      at: jaqueira,
+      photo: placeholderPhoto("🌳", "#4ade80", "#15803d", "Mutirão de plantio"),
+      report: "Participei do mutirão de plantio do sábado e plantei duas mudas de pau-brasil junto com o pessoal da associação.",
+      status: "approved",
+      reviewedBy: DEMO_IDS.moderator,
+      rejectionReason: null,
+      submittedAt: ago(9 * DAY),
+      reviewedAt: ago(8 * DAY),
+    }),
+    sub({
+      id: "s-rafael-praia",
+      userId: "u-bot-5",
+      missionId: boaViagem.id,
+      at: boaViagem,
+      photo: placeholderPhoto("🧹", "#7dd3fc", "#0284c7", "Saco de lixo cheio"),
+      report: "Fiz uma caminhada na orla recolhendo lixo e enchi um saco grande com plástico, isopor e bitucas de cigarro.",
+      status: "approved",
+      reviewedBy: DEMO_IDS.moderator,
+      rejectionReason: null,
+      submittedAt: ago(2 * DAY),
+      reviewedAt: ago(1 * DAY),
+    }),
+  ];
+
+  const rewards: Reward[] = [
+    { id: "r-maria-marco", userId: DEMO_IDS.citizen, submissionId: "s-maria-marco", foneAmount: "15.00", status: "paid", txHash: "demo-7c1e0b5d9a2f4e8c3b6a1d0f9e8c7b6a5d4c3b2a1f0e9d8c7b6a5d4c", createdAt: ago(11 * DAY), paidAt: ago(10 * DAY) },
+    { id: "r-maria-lindu", userId: DEMO_IDS.citizen, submissionId: "s-maria-lindu", foneAmount: "20.00", status: "pending", txHash: null, createdAt: ago(2 * DAY), paidAt: null },
+    { id: "r-joao-jaqueira", userId: "u-bot-1", submissionId: "s-joao-jaqueira", foneAmount: "40.00", status: "paid", txHash: "demo-2b9d7f1a3c5e8b0d4f6a2c9e1b7d3f5a8c0e6b2d4f9a1c3e5b7d0f2a", createdAt: ago(8 * DAY), paidAt: ago(7 * DAY) },
+    { id: "r-rafael-praia", userId: "u-bot-5", submissionId: "s-rafael-praia", foneAmount: "25.00", status: "pending", txHash: null, createdAt: ago(1 * DAY), paidAt: null },
+  ];
+
+  const chat: ChatMessage[] = [
+    { id: "c1", userId: "u-bot-1", message: "Bom dia, pessoal! 🌞 Alguém vai no mutirão da Jaqueira no sábado?", replyToId: null, deleted: false, createdAt: ago(2 * DAY) },
+    { id: "c2", userId: "u-bot-2", message: "Eu vou! Levo luvas extras pra quem precisar 🧤", replyToId: "c1", deleted: false, createdAt: ago(2 * DAY - 20 * 60 * 1000) },
+    { id: "c3", userId: "u-bot-3", message: "Dica: no Marco Zero o ponto de coleta fica do lado do centro de artesanato ♻️", replyToId: null, deleted: false, createdAt: ago(1 * DAY) },
+    { id: "c4", userId: "u-bot-4", message: "Valeu, Pedro! Entreguei meus recicláveis lá ontem.", replyToId: "c3", deleted: false, createdAt: ago(1 * DAY - 60 * 60 * 1000) },
+    { id: "c5", userId: "u-bot-5", message: "Primeira missão aprovada! Bora subir no ranking 💪🌱", replyToId: null, deleted: false, createdAt: ago(6 * 60 * 60 * 1000) },
+  ];
+
+  const notifications: Notification[] = [
+    {
+      id: "n-maria-lindu",
+      userId: DEMO_IDS.citizen,
+      title: "Comprovação aprovada! 🎉",
+      message: "Sua comprovação para \"Doação de roupas no Parque Dona Lindu\" foi aprovada. Você ganhou 40 pontos e 20.00 FONE entrou na fila de pagamento.",
+      isRead: false,
+      createdAt: ago(2 * DAY),
+    },
+    {
+      id: "n-maria-capibaribe",
+      userId: DEMO_IDS.citizen,
+      title: "Comprovação rejeitada",
+      message: "Sua comprovação para \"Limpeza às margens do Capibaribe\" foi rejeitada. Motivo: A foto não mostra os resíduos recolhidos. Você pode enviar uma nova comprovação.",
+      isRead: true,
+      createdAt: ago(5 * DAY),
+    },
+  ];
+
+  return {
+    version: STATE_VERSION,
+    currentUserId: null,
+    guestLanguage: detectLanguage(),
+    users,
+    missions,
+    submissions,
+    rewards,
+    notifications,
+    chat,
+  };
+}
+
+function detectLanguage(): State["guestLanguage"] {
+  const nav = (typeof navigator !== "undefined" ? navigator.language : "pt").toLowerCase();
+  if (nav.startsWith("es")) return "es";
+  if (nav.startsWith("en")) return "en";
+  return "pt";
+}

@@ -2,15 +2,46 @@
 
 Este projeto usa Capacitor para gerar o APK Android do EcoVerify.
 
+## Dois modos de APK
+
+| Modo | Quando | O que o app faz |
+|---|---|---|
+| 🧪 **Demo offline** | `CAPACITOR_SERVER_URL` **não** configurada | Embute a demo de `demo/` (build em `demo/dist`). Roda inteiro no celular, sem internet, servidor ou banco. |
+| 🌐 **Servidor** | `CAPACITOR_SERVER_URL` configurada (HTTPS) | Abre o app web Next.js real hospedado nessa URL. |
+
+### O que tem na demo offline
+
+- Perfis prontos: **Maria Cidadã** (cidadão), **Carlos Moderador** e **Ana Admin**. O botão **Trocar perfil** permite testar o ciclo completo: enviar a comprovação como cidadão, aprovar como moderador e ver os pontos no ranking.
+- As missões do Recife (Boa Viagem, Jaqueira, Marco Zero, Dona Lindu, Capibaribe e Olinda).
+- Foto real da câmera, reduzida para cerca de 1024 px e salva no aparelho.
+- Mesmas regras do servidor: raio de **150 m** e precisão do GPS, 5 envios por dia, foto repetida bloqueada pelo hash SHA-256, moderador não revisa a própria comprovação e pagamento só para quem tem carteira.
+- Botão **"Simular que estou no local"**, para testar longe dos pontos das missões. O moderador vê o selo "Localização simulada".
+- Ranking e chat da comunidade preenchidos com usuários fictícios.
+- Carteira e saldo de FONE **simulados**: nenhum FONE real é movimentado.
+- Banner permanente "Modo demonstração" e botão **Resetar demonstração** (no Perfil e nas Configurações).
+
+Os dados ficam no `localStorage` do WebView. Desinstalar o app ou limpar os dados dele também apaga a demo.
+
 ## Build Local
 
 ### Pré-requisitos
-- Node.js 20+
-- Java 17
-- Android SDK
-- Capacitor CLI
+- Node.js 20.9+
+- Java 21
+- Android SDK (platform 36, build-tools 36.0.0)
 
-### Passos para build local
+### APK de demonstração (sem servidor)
+
+```bash
+npm install
+npm run demo:build          # gera demo/dist
+npx cap sync android        # sem CAPACITOR_SERVER_URL => usa demo/dist
+cd android
+./gradlew assembleDebug
+```
+
+Para testar a demo no navegador antes de gerar o APK: `npm run demo:dev` (http://localhost:5173).
+
+### APK conectado ao servidor
 
 1. Instale as dependências:
 ```bash
@@ -33,7 +64,9 @@ cd android
 ./gradlew assembleDebug
 ```
 
-O APK debug será gerado em: `android/app/build/outputs/apk/debug/app-debug.apk`
+Nos dois modos, o APK debug é gerado em: `android/app/build/outputs/apk/debug/app-debug.apk`
+
+> O `npx cap sync` cria `android/app/capacitor.build.gradle` e `android/capacitor.settings.gradle`. São arquivos gerados: não precisam ser commitados.
 
 ### Build de Release (Assinado)
 
@@ -95,7 +128,12 @@ base64 release.keystore > keystore.base64
 
 ### Build Debug Automatizado
 
-O workflow sempre constrói APKs debug sem necessidade de secrets.
+O workflow sempre constrói o APK debug, sem precisar de secrets:
+
+- **Sem** a variável `CAPACITOR_SERVER_URL`, ele roda `npm run demo:build` e gera o **APK de demonstração** (artifact `ecoverify-demo-debug`).
+- **Com** a variável (Settings → Secrets and variables → Actions → *Variables*), gera o **APK do servidor** (artifact `ecoverify-debug`).
+
+O modo usado aparece no resumo da execução (aba *Summary*) e no título e na descrição da Release.
 
 ### Baixar o APK
 
@@ -108,7 +146,7 @@ Após o build:
 
 Antes de build de produção:
 
-1. Configure `CAPACITOR_SERVER_URL` com a URL HTTPS real do servidor Next.js
+1. Configure `CAPACITOR_SERVER_URL` com a URL HTTPS real do servidor Next.js (sem ela o APK é a demo offline)
 2. Configure `DATABASE_URL` somente no ambiente do servidor Next.js
 3. Configure o banco de dados de produção
 4. Teste completamente em ambiente de staging
