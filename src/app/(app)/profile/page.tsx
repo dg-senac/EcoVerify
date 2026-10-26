@@ -1,11 +1,13 @@
-import { eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { submissions } from "@/db/schema";
+import { rewardQueue, submissions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { initials, formatDate, levelForPoints } from "@/lib/utils";
 import { t } from "@/lib/i18n";
-import { WalletEditor } from "@/components/profile/wallet-editor";
+import { WalletPanel } from "@/components/wallet/wallet-panel";
+import { getFoneConfig } from "@/lib/fone-config";
+import { explorerTxUrl, shortHex, verifiedWallet, walletRequestState } from "@/lib/fone";
 import { logoutAction } from "@/lib/actions/auth";
 
 const roleLabels: Record<string, string> = {
@@ -32,6 +34,25 @@ export default async function ProfilePage() {
     .where(sql`${submissions.userId} = ${user.id} and ${submissions.status} = 'rejected'`);
 
   const level = levelForPoints(user.totalPoints, user.language);
+
+  const { treasury, explorerUrl } = getFoneConfig();
+  const verified = verifiedWallet(user);
+  const [queued] = await db
+    .select({ sum: sql<string>`coalesce(sum(${rewardQueue.foneAmount}), 0)::text` })
+    .from(rewardQueue)
+    .where(and(eq(rewardQueue.userId, user.id), inArray(rewardQueue.status, ["pending", "processing", "failed"])));
+  const payouts = await db
+    .select({
+      txHash: rewardQueue.txHash,
+      total: sql<string>`sum(${rewardQueue.foneAmount})::text`,
+      paidAt: sql<string | null>`max(${rewardQueue.paidAt})`,
+    })
+    .from(rewardQueue)
+    .where(and(eq(rewardQueue.userId, user.id), eq(rewardQueue.status, "paid")))
+    .groupBy(rewardQueue.txHash)
+    .orderBy(desc(sql`max(${rewardQueue.paidAt})`))
+    .limit(10);
+  const queuedFone = Number(queued.sum);
 
   return (
     <div>
@@ -76,9 +97,56 @@ export default async function ProfilePage() {
         </div>
 
         <div className="mt-6 border-t border-slate-100 pt-5">
-          <p className="mb-2 text-sm font-semibold text-slate-700">🪙 Carteira FONE</p>
-          <WalletEditor walletAddress={user.walletAddress} />
+          <p className="mb-3 text-sm font-semibold text-slate-700">🪙 {t(user.language, "wallet_section")}</p>
+          {!verified && (
+            <p className="mb-3 text-xs text-slate-500">
+              {queuedFone > 0
+                ? t(user.language, "wallet_waiting_payouts").replace("{amount}", queued.sum)
+                : t(user.language, "wallet_none")}
+            </p>
+          )}
+          <WalletPanel
+            lang={user.language}
+            verifiedAddress={verified}
+            request={walletRequestState(user)}
+            treasury={treasury}
+            explorerUrl={explorerUrl}
+            adultDeclared={!!user.adultDeclaredAt}
+          />
         </div>
+
+        {(payouts.length > 0 || (verified && queuedFone > 0)) && (
+          <div className="mt-6 border-t border-slate-100 pt-5">
+            <p className="mb-3 text-sm font-semibold text-slate-700">{t(user.language, "wallet_payouts_title")}</p>
+            <ul className="space-y-2">
+              {verified && queuedFone > 0 && (
+                <li className="flex items-center justify-between rounded-xl bg-amber-50 px-3 py-2 text-sm">
+                  <span className="font-bold text-amber-800">{queued.sum} FONE</span>
+                  <span className="text-xs font-semibold text-amber-700">{t(user.language, "wallet_payout_queued")}</span>
+                </li>
+              )}
+              {payouts.map((payout) => (
+                <li key={payout.txHash ?? "none"} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm">
+                  <span className="font-bold text-emerald-800">{payout.total} FONE</span>
+                  <span className="text-xs text-emerald-700">
+                    {t(user.language, "wallet_payout_paid")}
+                    {payout.paidAt ? ` · ${formatDate(payout.paidAt, user.language)}` : ""}
+                  </span>
+                  {payout.txHash && (
+                    <a
+                      href={explorerTxUrl(payout.txHash, explorerUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full font-mono text-xs text-teal-700 hover:underline"
+                    >
+                      {shortHex(payout.txHash)} ↗
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="mt-5 border-t border-slate-100 pt-5 text-sm text-slate-500">
           Na plataforma desde {formatDate(user.createdAt, user.language)}

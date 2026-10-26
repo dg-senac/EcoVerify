@@ -9,7 +9,7 @@ import { headers } from "next/headers";
 import { createSession, destroySession, hashPassword, verifyPassword } from "@/lib/auth";
 import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
 
-export type ActionState = { error?: string };
+export type ActionState = { error?: string; success?: boolean };
 
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

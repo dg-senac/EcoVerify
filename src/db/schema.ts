@@ -47,7 +47,20 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: roleEnum("role").notNull().default("citizen"),
   totalPoints: integer("total_points").notNull().default(0),
+  /** Verified FONE wallet: the only address that receives payouts. */
   walletAddress: text("wallet_address"),
+  walletVerifiedAt: timestamp("wallet_verified_at", { withTimezone: true }),
+  walletVerifiedBy: uuid("wallet_verified_by").references((): AnyPgColumn => users.id),
+  /** Transaction that proved ownership (sent from the wallet to the EcoVerify verification address). */
+  walletVerificationTx: text("wallet_verification_tx"),
+  /** In-progress link request: the user must send exactly `walletChallengeAmount` FONE from this address. */
+  pendingWalletAddress: text("pending_wallet_address"),
+  walletChallengeAmount: numeric("wallet_challenge_amount", { precision: 12, scale: 2 }),
+  walletChallengeCreatedAt: timestamp("wallet_challenge_created_at", { withTimezone: true }),
+  /** Transaction hash reported by the user (optional, speeds up the review). */
+  walletChallengeTx: text("wallet_challenge_tx"),
+  /** Self-declared 18+ (required to link a wallet and receive FONE). */
+  adultDeclaredAt: timestamp("adult_declared_at", { withTimezone: true }),
   isBanned: boolean("is_banned").notNull().default(false),
   banReason: text("ban_reason"),
   language: languageEnum("language").notNull().default("pt"),
@@ -59,6 +72,9 @@ export const users = pgTable("users", {
 }, (table) => [
   // One wallet per account: prevents several accounts funnelling rewards to the same wallet.
   uniqueIndex("users_wallet_address_unique").on(table.walletAddress),
+  // A transfer can prove ownership of only one account.
+  uniqueIndex("users_wallet_verification_tx_unique").on(table.walletVerificationTx),
+  index("users_pending_wallet_idx").on(table.pendingWalletAddress),
 ]);
 
 export const sessions = pgTable("sessions", {
@@ -141,12 +157,17 @@ export const rewardQueue = pgTable("reward_queue", {
   status: rewardStatusEnum("status").notNull().default("pending"),
   network: varchar("network", { length: 50 }).default("FONE"),
   txHash: text("tx_hash"),
+  /** Destination wallet at payment time (kept even if the user changes wallet later). */
+  walletAddress: text("wallet_address"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  paidBy: uuid("paid_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   // A submission can only ever generate one FONE payout.
   uniqueIndex("reward_queue_submission_unique").on(table.submissionId),
   index("reward_queue_status_idx").on(table.status),
+  index("reward_queue_tx_hash_idx").on(table.txHash),
 ]);
 
 export const notifications = pgTable("notifications", {

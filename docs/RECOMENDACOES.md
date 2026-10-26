@@ -12,8 +12,8 @@
 | Item | Status | Onde |
 |---|---|---|
 | C1: build quebrado | ✅ Corrigido (`npm run build`, lint e typecheck limpos) | `icons.tsx`, `schema.ts` |
-| C2: carteira | 🟡 Parcial: validação de formato + 1 carteira por conta. **Falta** integrar o SDK FONE e a prova de posse | `actions/wallet.ts` |
-| C3: pagamento manual | 🟡 Parcial: "pago" exige hash da transação, rede padrão `FONE`. **Falta** o worker automático via SDK | `actions/admin.ts` |
+| C2: carteira | ✅ Carteira falsa removida. Só endereço FONE nativo da Fone Wallet, com **prova de posse** (transferência de valor exato para a carteira de verificação, conferida pelo admin) e declaração 18+. **Falta** automatizar a conferência quando sair o SDK/API | `actions/wallet.ts`, `lib/fone.ts`, Admin → Carteiras |
+| C3: pagamento manual | 🟡 Parcial: só para carteira verificada, em lote por pessoa, hash de 64 hex único por pessoa, destino/data/admin registrados, notificação e histórico com explorer. **Falta** o envio automático via SDK | `actions/admin.ts`, Admin → Recompensas |
 | C4: aprovação duplicada | ✅ Transação + update condicional + índices únicos | `actions/moderation.ts`, `schema.ts` |
 | C5: upload inseguro | ✅ Exige login, valida magic bytes, extensão pelo conteúdo, rate limit | `api/upload`, `lib/file-type.ts` |
 | C6: arquivos em `public/` | ✅ Supabase Storage (prod) ou disco local, servidos por `/api/files` com login | `lib/storage.ts` |
@@ -27,6 +27,8 @@
 | Missões | ✅ Rejeitada pode ser reenviada; pendente/aprovada não | `missions/page.tsx`, `actions/submissions.ts` |
 | Admin | ✅ Valida categoria, cargo, status, teto de pontos/FONE | `actions/admin.ts` |
 | Infra | ✅ CI (lint, typecheck, audit, build), `.env.example`, `drizzle.config.ts` via env, seed com missões em Recife, script de checagem pré‑migração, README, headers de segurança | vários |
+
+**Fase 1 / Parte 1 (carteira de verdade, v1.2):** pagamentos só para carteira verificada, agrupados por pessoa com um hash por envio (validado e nunca reaproveitado), destino registrado e histórico com links do explorer. Testado ponta a ponta contra Postgres com **60 cenários** de carteira e pagamento, incluindo migração de dados antigos.
 
 Testado ponta a ponta contra Postgres + build de produção: **52 cenários** (cadastro, carteira, upload, comprovação, aprovação concorrente, chat, admin, banimento, força bruta) e renderização de todas as páginas nos 3 perfis.
 
@@ -127,7 +129,7 @@ Para a Fone, isso gera **utilidade real para o token**, **usuários novos fora d
 
 ### Fase 1: "Integração FONE de verdade" (até dez/2026, janela do vesting)
 - [ ] Camada `src/lib/fone/` (adapter) com: criar/importar carteira, saldo, enviar FONE, histórico. Isolada para trocar fácil quando sair o SDK do Node 2.0
-- [ ] Prova de posse da carteira e carteira única por conta (C2)
+- [x] Prova de posse da carteira e carteira única por conta (C2)
 - [ ] Worker de pagamento automático com carteira‑tesouro e teto diário (C3)
 - [ ] **Hash da prova (foto + missão + data) nos metadados da transação FONE**, o que entrega a "rastreabilidade transparente" prometida no pitch
 - [ ] Tela "Meu saldo / Extrato" e link da transação no explorer

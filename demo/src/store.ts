@@ -3,7 +3,8 @@ import type { Lang } from "@/lib/i18n";
 import type { Role } from "@/lib/nav";
 import { dt, botReplies } from "./i18n";
 import { createSeed, STATE_VERSION } from "./seed";
-import { distanceMeters, fakeTxHash, fakeWalletAddress, MAX_DISTANCE_METERS, MAX_GPS_ACCURACY_METERS, uid } from "./media";
+import { centsToFone, foneToCents, isValidFoneAddress, normalizeHex, pickChallengeCents } from "@/lib/fone";
+import { distanceMeters, fakeTxHash, MAX_DISTANCE_METERS, MAX_GPS_ACCURACY_METERS, uid } from "./media";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -17,7 +18,12 @@ export type User = {
   email: string;
   role: Role;
   totalPoints: number;
+  /** Verified FONE wallet (only this one receives payouts), like users.wallet_address. */
   walletAddress: string | null;
+  /** In-progress link request: send exactly `amount` FONE from `address` to prove ownership. */
+  pendingWallet: { address: string; amount: string; createdAt: string } | null;
+  /** Self-declared 18+ (required to receive FONE). */
+  adultDeclaredAt: string | null;
   isBanned: boolean;
   banReason: string | null;
   createdAt: string;
@@ -80,6 +86,8 @@ export type Reward = {
   foneAmount: string;
   status: "pending" | "paid";
   txHash: string | null;
+  /** Destination wallet at payment time. */
+  walletAddress?: string | null;
   createdAt: string;
   paidAt: string | null;
 };
@@ -269,6 +277,8 @@ export function register(name: string, email: string, password: string): Result 
     role: "citizen",
     totalPoints: 0,
     walletAddress: null,
+    pendingWallet: null,
+    adultDeclaredAt: null,
     isBanned: false,
     banReason: null,
     createdAt: now(),
@@ -289,22 +299,58 @@ export function register(name: string, email: string, password: string): Result 
 /* Wallet & settings                                                   */
 /* ------------------------------------------------------------------ */
 
-const WALLET_PATTERN = /^[A-Za-z0-9]{20,128}$/;
+/* Same rules as src/lib/actions/wallet.ts; the admin confirmation is simulated by a button. */
 
-export function createDemoWallet(): Result {
+export function requestWalletLink(address: string, adult: boolean): Result {
   const user = me();
   if (!user) return { error: "generic" };
-  commit((s) => ({ ...s, users: s.users.map((u) => (u.id === user.id ? { ...u, walletAddress: fakeWalletAddress() } : u)) }));
+  const clean = normalizeHex(address);
+  if (!user.adultDeclaredAt && !adult) return { error: "wallet_error_adult" };
+  if (!isValidFoneAddress(clean)) return { error: "wallet_error_invalid" };
+  if (user.walletAddress === clean) return { error: "wallet_error_already" };
+  if (state.users.some((u) => u.id !== user.id && u.walletAddress === clean)) return { error: "wallet_error_in_use" };
+  const taken = new Set(
+    state.users.filter((u) => u.id !== user.id && u.pendingWallet).map((u) => foneToCents(u.pendingWallet!.amount)),
+  );
+  const cents = pickChallengeCents(taken);
+  if (cents === null) return { error: "wallet_error_later" };
+  commit((s) => ({
+    ...s,
+    users: s.users.map((u) =>
+      u.id === user.id
+        ? {
+            ...u,
+            pendingWallet: { address: clean, amount: centsToFone(cents), createdAt: now() },
+            adultDeclaredAt: u.adultDeclaredAt ?? now(),
+          }
+        : u,
+    ),
+  }));
   return {};
 }
 
-export function importWallet(address: string): Result {
+export function cancelWalletRequest() {
   const user = me();
-  if (!user) return { error: "generic" };
-  const clean = address.trim();
-  if (!WALLET_PATTERN.test(clean)) return { error: "wallet_error_invalid" };
-  if (state.users.some((u) => u.id !== user.id && u.walletAddress === clean)) return { error: "wallet_error_in_use" };
-  commit((s) => ({ ...s, users: s.users.map((u) => (u.id === user.id ? { ...u, walletAddress: clean } : u)) }));
+  if (!user) return;
+  commit((s) => ({ ...s, users: s.users.map((u) => (u.id === user.id ? { ...u, pendingWallet: null } : u)) }));
+}
+
+/** In the real app an admin checks the transfer on the explorer; here a button does it. */
+export function simulateWalletVerification(): Result {
+  const user = me();
+  if (!user?.pendingWallet) return { error: "generic" };
+  const address = user.pendingWallet.address;
+  if (state.users.some((u) => u.id !== user.id && u.walletAddress === address)) return { error: "wallet_error_in_use" };
+  commit((s) => {
+    const next: State = {
+      ...s,
+      users: s.users.map((u) => (u.id === user.id ? { ...u, walletAddress: address, pendingWallet: null } : u)),
+    };
+    return {
+      ...next,
+      notifications: notify(next, user.id, (l) => ({ title: dt(l, "notif_wallet_title"), message: dt(l, "notif_wallet_msg") })),
+    };
+  });
   return {};
 }
 
@@ -513,7 +559,9 @@ export function simulatePayout(rewardId: string): Result {
   commit((s) => {
     const next: State = {
       ...s,
-      rewards: s.rewards.map((r) => (r.id === rewardId ? { ...r, status: "paid", txHash: fakeTxHash(), paidAt: now() } : r)),
+      rewards: s.rewards.map((r) =>
+        r.id === rewardId ? { ...r, status: "paid", txHash: fakeTxHash(), walletAddress: owner.walletAddress, paidAt: now() } : r,
+      ),
     };
     return {
       ...next,

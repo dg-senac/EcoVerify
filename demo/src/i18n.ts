@@ -117,14 +117,24 @@ const demoDict = {
   fone_pending: { pt: "FONE a receber", en: "FONE pending", es: "FONE por recibir" },
   approved_actions: { pt: "Ações aprovadas", en: "Approved actions", es: "Acciones aprobadas" },
   wallet_label: { pt: "Carteira FONE", en: "FONE wallet", es: "Billetera FONE" },
-  wallet_none: { pt: "Nenhuma carteira vinculada", en: "No wallet linked", es: "Ninguna billetera vinculada" },
   wallet_demo_note: {
     pt: "Na demo a carteira e os pagamentos são simulados. Nenhum FONE real é movimentado.",
     en: "In the demo, wallet and payouts are simulated. No real FONE is moved.",
     es: "En la demo la billetera y los pagos son simulados. No se mueve FONE real.",
   },
-  wallet_create_demo: { pt: "Criar carteira de teste", en: "Create test wallet", es: "Crear billetera de prueba" },
-  wallet_change: { pt: "Alterar", en: "Change", es: "Cambiar" },
+  wallet_demo_note_verify: {
+    pt: "Na demo você pode colar qualquer endereço no formato FONE (64 caracteres começando com \"f\") e simular a verificação. No app real, o envio é conferido no explorer da Fone.",
+    en: "In the demo you can paste any address in FONE format (64 characters starting with \"f\") and simulate the verification. In the real app the transfer is checked on the Fone explorer.",
+    es: "En la demo puedes pegar cualquier dirección en formato FONE (64 caracteres empezando con \"f\") y simular la verificación. En la app real, el envío se revisa en el explorador de Fone.",
+  },
+  wallet_simulate: { pt: "Simular verificação (demo)", en: "Simulate verification (demo)", es: "Simular verificación (demo)" },
+  wallet_fill_example: { pt: "Usar endereço de exemplo", en: "Use sample address", es: "Usar dirección de ejemplo" },
+  notif_wallet_title: { pt: "Carteira verificada ✅", en: "Wallet verified ✅", es: "Billetera verificada ✅" },
+  notif_wallet_msg: {
+    pt: "Sua carteira FONE foi verificada. Suas recompensas em FONE serão enviadas para ela (simulado).",
+    en: "Your FONE wallet was verified. Your FONE rewards will be sent to it (simulated).",
+    es: "Tu billetera FONE fue verificada. Tus recompensas en FONE se enviarán a ella (simulado).",
+  },
   member_since: { pt: "Membro desde", en: "Member since", es: "Miembro desde" },
   // Admin
   metric_users: { pt: "Usuários", en: "Users", es: "Usuarios" },
@@ -156,7 +166,7 @@ const demoDict = {
   reward_pending: { pt: "Pendente", en: "Pending", es: "Pendiente" },
   reward_paid: { pt: "Pago", en: "Paid", es: "Pagado" },
   simulate_payment: { pt: "Simular pagamento", en: "Simulate payout", es: "Simular pago" },
-  no_wallet_warning: { pt: "Usuário sem carteira", en: "User has no wallet", es: "Usuario sin billetera" },
+  no_wallet_warning: { pt: "Usuário sem carteira verificada", en: "User has no verified wallet", es: "Usuario sin billetera verificada" },
   no_rewards: { pt: "Nenhuma recompensa ainda.", en: "No rewards yet.", es: "Aún no hay recompensas." },
   you: { pt: "você", en: "you", es: "tú" },
   // Community
