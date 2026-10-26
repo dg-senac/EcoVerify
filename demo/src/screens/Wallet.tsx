@@ -6,6 +6,7 @@ import { navigate } from "../router";
 import { dt, errorText } from "../i18n";
 import { cancelWalletRequest, requestWalletLink, simulateWalletVerification, useCurrentUser, useLang } from "../store";
 import { btnPrimary, btnSecondary, card, input } from "../components/ui";
+import { FoneAmount, FoneMark, PoweredByFone } from "@/components/brand/fone";
 
 /** Fictional verification address used only in the demo (the real one comes from FONE_TREASURY_ADDRESS). */
 const DEMO_TREASURY = `f${"ec0".repeat(21)}`;
@@ -33,6 +34,9 @@ export function WalletSetupScreen() {
         <button type="button" onClick={() => navigate("/missions", { replace: true })} className="mt-4 text-sm font-semibold text-slate-500 hover:underline">
           {user?.pendingWallet || user?.walletAddress ? t(lang, "wallet_continue") : t(lang, "wallet_skip")}
         </button>
+        <div className="mt-5 flex justify-center">
+          <PoweredByFone lang={lang} />
+        </div>
       </div>
     </div>
   );
@@ -77,7 +81,9 @@ export function WalletForm({ onDone, onCancel }: { onDone: () => void; onCancel?
           <ShieldCheck className="h-5 w-5 text-emerald-600" /> {t(lang, "wallet_pending_title")}
         </h3>
         <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 p-4 text-center">
-          <p className="text-3xl font-extrabold text-emerald-700">{pending.amount} FONE</p>
+          <p className="text-3xl font-extrabold text-emerald-700">
+            <FoneAmount amount={pending.amount} size={30} />
+          </p>
         </div>
         <p className="text-sm text-slate-700">{t(lang, "wallet_step_send").replace("{amount}", pending.amount)}</p>
         <HexBox value={DEMO_TREASURY} />
@@ -112,7 +118,13 @@ export function WalletForm({ onDone, onCancel }: { onDone: () => void; onCancel?
   return (
     <form onSubmit={submit} className="grid gap-3 text-left">
       <div className="rounded-2xl border border-teal-100 bg-teal-50/60 p-3">
-        <p className="text-sm font-semibold text-teal-900">{t(lang, "wallet_get_app")}</p>
+        <div className="flex items-center gap-2.5">
+          <FoneMark size={32} className="rounded-lg" />
+          <div>
+            <p className="text-sm font-semibold text-teal-900">{t(lang, "wallet_get_app")}</p>
+            <p className="text-xs text-teal-700/80">Fone Wallet · {t(lang, "fone_wallet_official")}</p>
+          </div>
+        </div>
         <div className="mt-2 flex flex-wrap gap-2">
           <a href={FONE_WALLET_ANDROID_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-teal-800 shadow-sm">
             {t(lang, "wallet_android")} <ExternalLink className="h-3 w-3" />

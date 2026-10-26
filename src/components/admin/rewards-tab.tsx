@@ -1,5 +1,6 @@
 import { PayoutRow, type PayoutGroup } from "@/components/admin/payout-row";
 import { explorerTxUrl, shortHex } from "@/lib/fone";
+import { FoneAmount, FoneMark } from "@/components/brand/fone";
 
 export type PaidBatch = {
   txHash: string | null;
@@ -62,7 +63,7 @@ export function RewardsTab({
               <li key={`${batch.txHash}-${batch.userName}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                 <span className="font-semibold text-slate-800">{batch.userName}</span>
                 <span className="font-bold text-emerald-700">
-                  {batch.totalFone} FONE <span className="text-xs font-normal text-slate-400">({batch.count})</span>
+                  <FoneAmount amount={batch.totalFone} size={14} /> <span className="text-xs font-normal text-slate-400">({batch.count})</span>
                 </span>
                 <span className="text-xs text-slate-500">
                   {batch.paidAt ? new Date(batch.paidAt).toLocaleString("pt-BR") : "—"}

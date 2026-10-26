@@ -10,6 +10,7 @@ import {
 import type { ActionState } from "@/lib/actions/auth";
 import { t, type Lang } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
+import { FoneAmount, FoneMark, PoweredByFone } from "@/components/brand/fone";
 import {
   FONE_WALLET_ANDROID_URL,
   FONE_WALLET_IOS_URL,
@@ -23,6 +24,7 @@ const initialState: ActionState = {};
 
 const errorKeys = {
   adult_required: "wallet_error_adult",
+  email_required: "wallet_error_email",
   invalid_address: "wallet_error_invalid",
   wallet_in_use: "wallet_error_in_use",
   already_verified: "wallet_error_already",
@@ -81,7 +83,13 @@ function HexBox({ lang, value, href }: { lang: Lang; value: string; href?: strin
 function GetFoneWallet({ lang }: { lang: Lang }) {
   return (
     <div className="rounded-2xl border border-teal-100 bg-teal-50/60 p-4 text-left">
-      <p className="text-sm font-semibold text-teal-900">{t(lang, "wallet_get_app")}</p>
+      <div className="flex items-center gap-2.5">
+        <FoneMark size={32} className="rounded-lg" />
+        <div>
+          <p className="text-sm font-semibold text-teal-900">{t(lang, "wallet_get_app")}</p>
+          <p className="text-xs text-teal-700/80">Fone Wallet · {t(lang, "fone_wallet_official")}</p>
+        </div>
+      </div>
       <div className="mt-2 flex flex-wrap gap-2">
         <a
           href={FONE_WALLET_ANDROID_URL}
@@ -201,7 +209,9 @@ function PendingCard({
       ) : (
         <>
           <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 p-4 text-center">
-            <p className="text-3xl font-extrabold text-emerald-700">{request.amount} FONE</p>
+            <p className="text-3xl font-extrabold text-emerald-700">
+              <FoneAmount amount={request.amount} size={30} />
+            </p>
           </div>
           <div className="space-y-2">
             <p className="text-sm text-slate-700">{t(lang, "wallet_step_send").replace("{amount}", request.amount)}</p>
@@ -325,6 +335,9 @@ export function WalletPanel({ lang, verifiedAddress, request, treasury, explorer
           />
         </>
       )}
+      <div className="flex justify-center pt-2">
+        <PoweredByFone lang={lang} />
+      </div>
     </div>
   );
 }

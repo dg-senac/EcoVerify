@@ -1,7 +1,11 @@
-import { Settings as SettingsIcon } from "lucide-react";
+import { useState } from "react";
+import { Download, Settings as SettingsIcon, Trash2 } from "lucide-react";
 import { t, type Lang } from "@/lib/i18n";
-import { updateSettings, useLang, type FontSize, type User } from "../store";
-import { PageHeader, card } from "../components/ui";
+import { deleteMyAccount, exportMyData, updateSettings, useLang, type FontSize, type User } from "../store";
+import { PageHeader, btnDanger, btnSecondary, card, toast } from "../components/ui";
+import { Link, navigate } from "../router";
+import { dt, errorText } from "../i18n";
+import { formatDate } from "@/lib/utils";
 import { ResetDemoButton } from "../components/ResetDemo";
 
 const LANGS: { id: Lang; label: string }[] = [
@@ -9,6 +13,66 @@ const LANGS: { id: Lang; label: string }[] = [
   { id: "en", label: "🇺🇸 English" },
   { id: "es", label: "🇪🇸 Español" },
 ];
+
+/** "Privacidade e dados": same options as the web app (export + delete), stored only on this device. */
+function PrivacySection({ user }: { user: User }) {
+  const lang = useLang();
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const download = () => {
+    const json = exportMyData();
+    if (!json) return;
+    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ecoverify-meus-dados-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const remove = () => {
+    const result = deleteMyAccount(confirm);
+    if (result.error) return setError(errorText(lang, result.error));
+    toast(dt(lang, "demo_account_deleted"));
+    navigate("/", { replace: true });
+  };
+
+  return (
+    <div className={`${card} mt-4 grid gap-4 p-5`}>
+      <h3 className="text-sm font-bold text-slate-900">{t(lang, "privacy_section")}</h3>
+      <div className="text-sm text-slate-600">
+        {user.termsAcceptedAt && <p>{t(lang, "terms_accepted_on").replace("{date}", formatDate(user.termsAcceptedAt, lang))}</p>}
+        <p className="mt-1 flex flex-wrap gap-4 font-semibold">
+          <Link to="/termos" className="text-emerald-700 underline">{t(lang, "terms_of_use")}</Link>
+          <Link to="/privacidade" className="text-emerald-700 underline">{t(lang, "privacy_policy")}</Link>
+        </p>
+      </div>
+      <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">{dt(lang, "demo_account_note")}</p>
+      <div>
+        <p className="text-sm font-semibold text-slate-700">{t(lang, "export_title")}</p>
+        <p className="mt-1 text-xs text-slate-500">{t(lang, "export_text")}</p>
+        <button type="button" onClick={download} className={`${btnSecondary} mt-2`}>
+          <Download className="h-4 w-4" /> {t(lang, "export_button")}
+        </button>
+      </div>
+      <div className="rounded-2xl border border-red-200 bg-red-50/40 p-4">
+        <p className="text-sm font-semibold text-red-700">{t(lang, "delete_title")}</p>
+        <p className="mt-1 text-sm text-slate-600">{t(lang, "delete_text")}</p>
+        <label className="mt-3 flex items-start gap-2.5 text-sm text-slate-700">
+          <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-red-600" />
+          <span>{t(lang, "delete_confirm_label")}</span>
+        </label>
+        {error && <p className="mt-2 text-sm font-medium text-red-600">{error}</p>}
+        <button type="button" onClick={remove} className={`${btnDanger} mt-3`}>
+          <Trash2 className="h-4 w-4" /> {t(lang, "delete_button")}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
@@ -67,6 +131,7 @@ export function SettingsScreen({ user }: { user: User }) {
           <Toggle label={t(lang, "settings_notifications")} checked={user.notificationsEnabled} onChange={(v) => updateSettings({ notificationsEnabled: v })} />
         </div>
       </div>
+      <PrivacySection user={user} />
       <div className="mt-4">
         <ResetDemoButton />
       </div>

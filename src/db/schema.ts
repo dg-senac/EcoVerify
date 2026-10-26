@@ -63,6 +63,13 @@ export const users = pgTable("users", {
   adultDeclaredAt: timestamp("adult_declared_at", { withTimezone: true }),
   isBanned: boolean("is_banned").notNull().default(false),
   banReason: text("ban_reason"),
+  /** E-mail ownership confirmed through the link sent by e-mail. */
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  /** LGPD: when and which version of the Terms of Use / Privacy Policy was accepted. */
+  termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
+  termsVersion: varchar("terms_version", { length: 20 }),
+  /** Account deleted by its owner: personal data was anonymised (see actions/account.ts). */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   language: languageEnum("language").notNull().default("pt"),
   fontSize: fontSizeEnum("font_size").notNull().default("medium"),
   highContrast: boolean("high_contrast").notNull().default(false),
@@ -75,6 +82,24 @@ export const users = pgTable("users", {
   // A transfer can prove ownership of only one account.
   uniqueIndex("users_wallet_verification_tx_unique").on(table.walletVerificationTx),
   index("users_pending_wallet_idx").on(table.pendingWalletAddress),
+]);
+
+export const authTokenPurposeEnum = pgEnum("auth_token_purpose", ["verify_email", "reset_password"]);
+
+/** One-time tokens sent by e-mail. Only the SHA-256 of the token is stored. */
+export const authTokens = pgTable("auth_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  purpose: authTokenPurposeEnum("purpose").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("auth_tokens_hash_unique").on(table.tokenHash),
+  index("auth_tokens_user_idx").on(table.userId, table.purpose),
 ]);
 
 export const sessions = pgTable("sessions", {

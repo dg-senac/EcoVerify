@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, Star, Sprout, Wallet, CheckCircle2, Clock, Users, ShieldCheck } from "lucide-react";
+import { Copy, Star, Wallet, CheckCircle2, Clock, Users, ShieldCheck } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { formatDate, formatFone, levelForPoints } from "@/lib/utils";
 import { dt } from "../i18n";
@@ -8,6 +8,9 @@ import { Avatar, PageHeader, card, toast } from "../components/ui";
 import { roleTone, ProfileSwitcher } from "../components/ProfileSwitcher";
 import { WalletForm } from "./Wallet";
 import { ResetDemoButton } from "../components/ResetDemo";
+import { FoneMark } from "@/components/brand/fone";
+
+const FoneStatIcon = ({ className }: { className?: string }) => <FoneMark size={20} className={className} />;
 
 export function ProfileScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -23,7 +26,7 @@ export function ProfileScreen({ user }: { user: User }) {
   const stats = [
     { icon: Star, label: t(lang, "points"), value: String(user.totalPoints), tone: "bg-amber-50 text-amber-700" },
     { icon: CheckCircle2, label: dt(lang, "approved_actions"), value: String(approved), tone: "bg-emerald-50 text-emerald-700" },
-    { icon: Sprout, label: dt(lang, "fone_received"), value: formatFone(received), tone: "bg-teal-50 text-teal-700" },
+    { icon: FoneStatIcon, label: dt(lang, "fone_received"), value: formatFone(received), tone: "bg-teal-50 text-teal-700" },
     { icon: Clock, label: dt(lang, "fone_pending"), value: formatFone(pending), tone: "bg-sky-50 text-sky-700" },
   ];
 

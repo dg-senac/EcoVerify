@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { toggleMissionAction } from "@/lib/actions/admin";
 import { categoryEmoji, categoryLabels } from "@/lib/i18n";
+import { FoneAmount, FoneMark } from "@/components/brand/fone";
 
 export function MissionRow({
   mission,
@@ -25,7 +26,8 @@ export function MissionRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-slate-800">{mission.title}</p>
         <p className="text-xs text-slate-400">
-          {categoryLabels[mission.category]?.pt} · ⭐ {mission.pointsReward} · 🪙 {mission.foneReward} FONE
+          {categoryLabels[mission.category]?.pt} · ⭐ {mission.pointsReward} ·{" "}
+          <FoneAmount amount={mission.foneReward} size={14} className="align-middle" />
         </p>
       </div>
       <button

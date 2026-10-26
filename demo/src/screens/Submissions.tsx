@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, RotateCcw, Star, Sprout } from "lucide-react";
+import { FileText, RotateCcw, Star } from "lucide-react";
 import { categoryEmoji, t } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { Link } from "../router";
@@ -7,6 +7,7 @@ import { dt } from "../i18n";
 import { localizedTitle, useLang, useStore, type User } from "../store";
 import { EmptyState, PageHeader, StatusBadge, card } from "../components/ui";
 import { PhotoViewer } from "../components/PhotoViewer";
+import { FoneAmount } from "@/components/brand/fone";
 
 export function SubmissionsScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -46,7 +47,7 @@ export function SubmissionsScreen({ user }: { user: User }) {
                     <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
                       <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-700"><Star className="h-3.5 w-3.5" /> +{mission.pointsReward}</span>
                       <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-teal-700">
-                        <Sprout className="h-3.5 w-3.5" /> {reward?.foneAmount ?? mission.foneReward} FONE · {dt(lang, reward?.status === "paid" ? "reward_paid" : "reward_pending")}
+                        <FoneAmount amount={reward?.foneAmount ?? mission.foneReward} size={14} /> · {dt(lang, reward?.status === "paid" ? "reward_paid" : "reward_pending")}
                       </span>
                     </div>
                   )}

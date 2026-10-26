@@ -8,6 +8,7 @@ import { notifications, rewardQueue, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import type { ActionState } from "@/lib/actions/auth";
 import { rateLimit } from "@/lib/rate-limit";
+import { isEmailVerificationRequired } from "@/lib/email";
 import {
   WALLET_CHALLENGE_TTL_MS,
   centsToFone,
@@ -68,6 +69,8 @@ export async function linkWalletAction(_prev: ActionState, formData: FormData): 
 
   if (!user.adultDeclaredAt && !adult) return { error: "adult_required" };
   if (!isValidFoneAddress(address)) return { error: "invalid_address" };
+  // Rewards are tied to a reachable, confirmed account (anti-multi-account and account recovery).
+  if (isEmailVerificationRequired() && !user.emailVerifiedAt) return { error: "email_required" };
   if (user.walletVerifiedAt && user.walletAddress === address) return { error: "already_verified" };
   if (!rateLimit(`wallet-link:${user.id}`, LINK_LIMIT_PER_DAY, DAY_MS)) return { error: "too_many_attempts" };
 

@@ -185,6 +185,18 @@ const demoDict = {
   },
   more: { pt: "Mais", en: "More", es: "Más" },
   have_demo_profiles: { pt: "Usar um perfil pronto", en: "Use a ready-made profile", es: "Usar un perfil listo" },
+  // Account & LGPD
+  deleted_account_name: { pt: "Conta excluída", en: "Deleted account", es: "Cuenta eliminada" },
+  demo_account_note: {
+    pt: "No app real: confirmação de e-mail, troca de senha e exclusão protegida por senha. Aqui tudo fica só neste aparelho.",
+    en: "In the real app: e-mail confirmation, password change and password-protected deletion. Here everything stays on this device.",
+    es: "En la app real: confirmación de correo, cambio de contraseña y eliminación protegida por contraseña. Aquí todo queda en este dispositivo.",
+  },
+  demo_account_deleted: {
+    pt: "Conta excluída neste aparelho. Para recriá-la, use \"Resetar demonstração\" em Configurações.",
+    en: "Account deleted on this device. To bring it back, use \"Reset demo\" in Settings.",
+    es: "Cuenta eliminada en este dispositivo. Para recrearla, usa \"Reiniciar demostración\" en Configuración.",
+  },
 } satisfies Record<string, Record<Lang, string>>;
 
 export type DemoKey = keyof typeof demoDict;
@@ -227,5 +239,7 @@ export function errorText(lang: Lang, code: string): string {
   if (code === "storage") return dt(lang, "demo_storage_full");
   if (code in demoDict) return dt(lang, code as DemoKey);
   const shared = t(lang, code as DictKey);
-  return shared === code ? t(lang, "error_generic") : shared;
+  if (shared !== code) return shared;
+  const prefixed = t(lang, `error_${code}` as DictKey);
+  return prefixed === `error_${code}` ? t(lang, "error_generic") : prefixed;
 }

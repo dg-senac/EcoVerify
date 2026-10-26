@@ -95,7 +95,8 @@ export async function updateUserRoleAction(userId: string, role: Role) {
   const admin = await assertAdmin();
   if (admin.id === userId) return;
   if (!ROLES.includes(role)) return;
-  await db.update(users).set({ role }).where(eq(users.id, userId));
+  // Accounts deleted by their owner (LGPD) are anonymised and must stay inert.
+  await db.update(users).set({ role }).where(and(eq(users.id, userId), isNull(users.deletedAt)));
   revalidatePath("/admin");
 }
 
@@ -119,7 +120,7 @@ export async function banUserAction(_prev: AdminActionState, formData: FormData)
 export async function unbanUserAction(userId: string) {
   const admin = await assertAdmin();
   if (admin.id === userId) return;
-  await db.update(users).set({ isBanned: false, banReason: null }).where(eq(users.id, userId));
+  await db.update(users).set({ isBanned: false, banReason: null }).where(and(eq(users.id, userId), isNull(users.deletedAt)));
   revalidatePath("/admin");
 }
 
@@ -130,6 +131,12 @@ export async function contactUserAction(_prev: AdminActionState, formData: FormD
   const message = String(formData.get("message") ?? "").trim();
 
   if (!title || !message) return { error: "invalid" };
+  const [target] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, userId), isNull(users.deletedAt)))
+    .limit(1);
+  if (!target) return { error: "invalid" };
 
   await db.insert(notifications).values({
     userId,

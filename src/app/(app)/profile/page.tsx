@@ -9,6 +9,7 @@ import { WalletPanel } from "@/components/wallet/wallet-panel";
 import { getFoneConfig } from "@/lib/fone-config";
 import { explorerTxUrl, shortHex, verifiedWallet, walletRequestState } from "@/lib/fone";
 import { logoutAction } from "@/lib/actions/auth";
+import { FoneAmount, FoneMark } from "@/components/brand/fone";
 
 const roleLabels: Record<string, string> = {
   citizen: "Cidadão(ã)",
@@ -97,7 +98,9 @@ export default async function ProfilePage() {
         </div>
 
         <div className="mt-6 border-t border-slate-100 pt-5">
-          <p className="mb-3 text-sm font-semibold text-slate-700">🪙 {t(user.language, "wallet_section")}</p>
+          <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <FoneMark size={18} /> {t(user.language, "wallet_section")}
+          </p>
           {!verified && (
             <p className="mb-3 text-xs text-slate-500">
               {queuedFone > 0
@@ -121,13 +124,13 @@ export default async function ProfilePage() {
             <ul className="space-y-2">
               {verified && queuedFone > 0 && (
                 <li className="flex items-center justify-between rounded-xl bg-amber-50 px-3 py-2 text-sm">
-                  <span className="font-bold text-amber-800">{queued.sum} FONE</span>
+                  <FoneAmount amount={queued.sum} className="font-bold text-amber-800" />
                   <span className="text-xs font-semibold text-amber-700">{t(user.language, "wallet_payout_queued")}</span>
                 </li>
               )}
               {payouts.map((payout) => (
                 <li key={payout.txHash ?? "none"} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm">
-                  <span className="font-bold text-emerald-800">{payout.total} FONE</span>
+                  <FoneAmount amount={payout.total} className="font-bold text-emerald-800" />
                   <span className="text-xs text-emerald-700">
                     {t(user.language, "wallet_payout_paid")}
                     {payout.paidAt ? ` · ${formatDate(payout.paidAt, user.language)}` : ""}

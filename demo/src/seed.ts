@@ -32,6 +32,7 @@ function person(partial: Partial<User> & Pick<User, "id" | "name" | "email">): U
     reducedMotion: false,
     notificationsEnabled: true,
     ...partial,
+    termsAcceptedAt: partial.termsAcceptedAt ?? partial.createdAt ?? ago(30 * DAY),
   };
 }
 

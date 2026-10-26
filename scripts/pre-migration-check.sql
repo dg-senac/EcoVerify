@@ -2,6 +2,11 @@
 -- Run this in the Supabase SQL editor BEFORE `npm run db:push` on an existing
 -- database. The new unique indexes cannot be created while duplicates exist.
 -- Every query should return 0 rows. If not, fix the rows listed first.
+--
+-- After db:push:
+--   * v1.2: run scripts/wallet-verification-cleanup.sql (old unverified wallets).
+--   * v1.3: nothing to fix (new auth_tokens table and nullable users columns);
+--     existing users accept the Terms once on their next visit.
 -- ---------------------------------------------------------------------------
 
 -- 1) Submissions approved twice (double points / double FONE in the queue)

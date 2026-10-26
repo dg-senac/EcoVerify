@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { FlaskConical, LogOut, Menu, X, Users } from "lucide-react";
 import { LogoMark } from "@/components/logo";
+import { PoweredByFone } from "@/components/brand/fone";
 import { NAV_ITEMS } from "@/lib/nav";
 import { t } from "@/lib/i18n";
 import { Link, useRoute } from "../router";
@@ -71,6 +72,9 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
       >
         <LogOut className="h-4 w-4" /> {t(lang, "nav_logout")}
       </button>
+      <div className="mt-2 flex justify-center">
+        <PoweredByFone lang={lang} height={14} />
+      </div>
     </div>
   );
 

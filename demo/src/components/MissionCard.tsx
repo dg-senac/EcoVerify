@@ -1,8 +1,9 @@
-import { Star, Sprout, MapPin } from "lucide-react";
+import { Star, MapPin } from "lucide-react";
 import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
 import { Link } from "../router";
 import { localizedDescription, localizedTitle, type Mission, type SubmissionStatus } from "../store";
 import { StatusBadge, card } from "./ui";
+import { FoneAmount } from "@/components/brand/fone";
 
 export const categoryStyles: Record<string, string> = {
   planting: "from-emerald-400 to-emerald-600",
@@ -36,7 +37,7 @@ export function MissionCard({ lang, mission, myStatus }: { lang: Lang; mission: 
           <Star className="h-4 w-4" /> {mission.pointsReward}
         </span>
         <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-teal-700">
-          <Sprout className="h-4 w-4" /> {mission.foneReward} FONE
+          <FoneAmount amount={mission.foneReward} size={16} />
         </span>
       </div>
       {done ? (

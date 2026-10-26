@@ -15,7 +15,7 @@ const roleIcon = { citizen: Sprout, moderator: ShieldCheck, admin: BarChart3 };
 
 /** Profiles a tester can switch to: the ready-made ones plus accounts created on this device. */
 export function useSwitchableUsers() {
-  return useStore((s) => s.users.filter((u) => !u.isBot));
+  return useStore((s) => s.users.filter((u) => !u.isBot && !u.deletedAt));
 }
 
 export function ProfileList({ onPicked }: { onPicked?: () => void }) {

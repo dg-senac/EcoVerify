@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -17,7 +17,7 @@ export default async function RankingPage() {
   const visible = await db
     .select({ id: users.id, name: users.name, totalPoints: users.totalPoints })
     .from(users)
-    .where(eq(users.isBanned, false))
+    .where(and(eq(users.isBanned, false), isNull(users.deletedAt)))
     .orderBy(desc(users.totalPoints), users.createdAt)
     .limit(RANKING_LIMIT);
 

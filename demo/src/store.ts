@@ -4,6 +4,7 @@ import type { Role } from "@/lib/nav";
 import { dt, botReplies } from "./i18n";
 import { createSeed, STATE_VERSION } from "./seed";
 import { centsToFone, foneToCents, isValidFoneAddress, normalizeHex, pickChallengeCents } from "@/lib/fone";
+import { TERMS_VERSION } from "@/lib/legal";
 import { distanceMeters, fakeTxHash, MAX_DISTANCE_METERS, MAX_GPS_ACCURACY_METERS, uid } from "./media";
 
 /* ------------------------------------------------------------------ */
@@ -27,6 +28,10 @@ export type User = {
   isBanned: boolean;
   banReason: string | null;
   createdAt: string;
+  /** LGPD: when the Terms of Use / Privacy Policy were accepted (like users.terms_accepted_at). */
+  termsAcceptedAt?: string | null;
+  /** Account deleted by its owner: personal data anonymised (like users.deleted_at). */
+  deletedAt?: string | null;
   /** Fictional community member (fills ranking and chat). */
   isBot?: boolean;
   /** Ready-made demo profile shown on the login screen. */
@@ -263,7 +268,14 @@ export function setGuestLanguage(lang: Lang) {
   commit((s) => ({ ...s, guestLanguage: lang }));
 }
 
-export function register(name: string, email: string, password: string): Result {
+export function register(
+  name: string,
+  email: string,
+  password: string,
+  consent: { terms: boolean; age: boolean } = { terms: false, age: false },
+): Result {
+  if (!consent.terms) return { error: "terms_required" };
+  if (!consent.age) return { error: "age_required" };
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
   if (cleanName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return { error: "invalid" };
@@ -282,6 +294,7 @@ export function register(name: string, email: string, password: string): Result 
     isBanned: false,
     banReason: null,
     createdAt: now(),
+    termsAcceptedAt: now(),
     language: state.guestLanguage,
     fontSize: "medium",
     highContrast: false,
@@ -623,4 +636,101 @@ export function deleteChatMessage(id: string) {
   const user = me();
   if (!user) return;
   commit((s) => ({ ...s, chat: s.chat.map((m) => (m.id === id && m.userId === user.id ? { ...m, deleted: true, message: "" } : m)) }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Account & LGPD (mirrors src/lib/actions/account.ts)                  */
+/* ------------------------------------------------------------------ */
+
+/** LGPD art. 18: everything the demo keeps about the current user, as a JSON string. */
+export function exportMyData(): string | null {
+  const user = me();
+  if (!user) return null;
+  const mySubmissions = state.submissions.filter((x) => x.userId === user.id);
+  const payload = {
+    format: "ecoverify-data-export",
+    version: 1,
+    demo: true,
+    exportedAt: now(),
+    profile: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      totalPoints: user.totalPoints,
+      language: user.language,
+      preferences: {
+        fontSize: user.fontSize,
+        highContrast: user.highContrast,
+        reducedMotion: user.reducedMotion,
+        notificationsEnabled: user.notificationsEnabled,
+      },
+      adultDeclaredAt: user.adultDeclaredAt,
+      wallet: { verifiedAddress: user.walletAddress, pending: user.pendingWallet },
+      terms: { acceptedAt: user.termsAcceptedAt ?? null, version: TERMS_VERSION },
+      createdAt: user.createdAt,
+    },
+    submissions: mySubmissions.map((x) => ({
+      id: x.id,
+      mission: state.missions.find((m) => m.id === x.missionId)?.title ?? x.missionId,
+      status: x.status,
+      report: x.report,
+      photoHash: x.photoHash,
+      latitude: x.latitude,
+      longitude: x.longitude,
+      rejectionReason: x.rejectionReason,
+      submittedAt: x.submittedAt,
+      reviewedAt: x.reviewedAt,
+    })),
+    foneRewards: state.rewards.filter((r) => r.userId === user.id),
+    notifications: state.notifications.filter((n) => n.userId === user.id),
+    communityMessages: state.chat.filter((c) => c.userId === user.id && !c.deleted),
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+/**
+ * Same rules as the server: blocks the last admin, removes personal data, pending proofs,
+ * unpaid FONE and chat messages, and keeps an anonymous record of reviewed proofs and paid rewards.
+ */
+export function deleteMyAccount(confirmed: boolean): Result {
+  const user = me();
+  if (!user) return { error: "generic" };
+  if (!confirmed) return { error: "confirm_required" };
+  if (user.role === "admin" && !state.users.some((u) => u.id !== user.id && u.role === "admin" && !u.isBanned && !u.deletedAt)) {
+    return { error: "last_admin" };
+  }
+  const lang = user.language;
+  const ok = commit((s) => {
+    const pendingIds = new Set(s.submissions.filter((x) => x.userId === user.id && x.status === "pending").map((x) => x.id));
+    return {
+      ...s,
+      currentUserId: null,
+      guestLanguage: lang,
+      submissions: s.submissions
+        .filter((x) => !pendingIds.has(x.id))
+        .map((x) => (x.userId === user.id ? { ...x, photo: "", report: "", latitude: 0, longitude: 0 } : x)),
+      rewards: s.rewards.filter((r) => !(r.userId === user.id && r.status !== "paid")),
+      notifications: s.notifications.filter((n) => n.userId !== user.id),
+      chat: s.chat.map((c) => (c.userId === user.id ? { ...c, message: "", deleted: true } : c)),
+      users: s.users.map((u) =>
+        u.id === user.id
+          ? {
+              ...u,
+              name: dt(lang, "deleted_account_name"),
+              email: `deleted-${u.id}@deleted.invalid`,
+              walletAddress: null,
+              pendingWallet: null,
+              adultDeclaredAt: null,
+              totalPoints: 0,
+              isBanned: true,
+              banReason: null,
+              isDemoProfile: false,
+              deletedAt: now(),
+            }
+          : u,
+      ),
+    };
+  });
+  return ok ? {} : { error: "storage" };
 }

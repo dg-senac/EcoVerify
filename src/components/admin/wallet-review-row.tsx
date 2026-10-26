@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { confirmWalletAction, rejectWalletAction, type AdminActionState } from "@/lib/actions/admin";
 import { explorerAddressUrl, explorerTxUrl, shortHex } from "@/lib/fone";
+import { FoneAmount, FoneMark } from "@/components/brand/fone";
 
 const initialState: AdminActionState = {};
 
@@ -49,7 +50,9 @@ export function WalletReviewRow({
           <p className="text-xs text-slate-500">{item.email}</p>
         </div>
         <div className="text-right">
-          <p className="text-lg font-extrabold text-emerald-700">{item.amount} FONE</p>
+          <p className="text-lg font-extrabold text-emerald-700">
+            <FoneAmount amount={item.amount} size={20} />
+          </p>
           <p className={`text-xs ${expired ? "font-bold text-amber-600" : "text-slate-500"}`}>
             pedido em {new Date(item.requestedAt).toLocaleString("pt-BR")}
             {expired ? " · expirado" : ""}

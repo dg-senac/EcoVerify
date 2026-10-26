@@ -8,6 +8,7 @@ import { NAV_ITEMS, MOBILE_PRIMARY_HREFS, type Role } from "@/lib/nav";
 import { t, type Lang } from "@/lib/i18n";
 import { initials } from "@/lib/utils";
 import { logoutAction } from "@/lib/actions/auth";
+import { PoweredByFone } from "@/components/brand/fone";
 import { LogOut, Menu, X } from "@/components/ui/icons";
 
 type ShellUser = {
@@ -83,6 +84,9 @@ export function AppShell({
               <LogOut className="h-4 w-4" /> {t(lang, "nav_logout")}
             </button>
           </form>
+          <div className="mt-4 flex justify-center">
+            <PoweredByFone lang={lang} height={14} />
+          </div>
         </div>
       </aside>
 
@@ -157,6 +161,9 @@ export function AppShell({
                 <LogOut className="h-4 w-4" /> {t(lang, "nav_logout")}
               </button>
             </form>
+            <div className="mt-4 flex justify-center">
+              <PoweredByFone lang={lang} height={14} />
+            </div>
           </div>
         </div>
       )}

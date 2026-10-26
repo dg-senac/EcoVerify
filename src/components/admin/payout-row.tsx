@@ -7,6 +7,7 @@ import {
   type AdminActionState,
 } from "@/lib/actions/admin";
 import { explorerAddressUrl } from "@/lib/fone";
+import { FoneAmount, FoneMark } from "@/components/brand/fone";
 
 const initialState: AdminActionState = {};
 
@@ -50,7 +51,9 @@ export function PayoutRow({ group, explorerUrl }: { group: PayoutGroup; explorer
             · desde {new Date(group.oldest).toLocaleDateString("pt-BR")}
           </p>
         </div>
-        <p className="text-lg font-extrabold text-teal-700">🪙 {group.totalFone} FONE</p>
+        <p className="text-lg font-extrabold text-teal-700">
+          <FoneAmount amount={group.totalFone} size={20} />
+        </p>
       </div>
 
       {group.wallet ? (

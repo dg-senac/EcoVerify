@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { BarChart3, Crosshair, Loader2, Plus, Users, Sprout, Clock, CheckCircle2, Coins, Hourglass, Target } from "lucide-react";
+import { BarChart3, Crosshair, Loader2, Plus, Users, Clock, CheckCircle2, Coins, Hourglass, Target } from "lucide-react";
 import { categoryEmoji, categoryLabels, t } from "@/lib/i18n";
 import { formatDate, formatFone } from "@/lib/utils";
 import type { Role } from "@/lib/nav";
@@ -18,6 +18,7 @@ import {
 } from "../store";
 import { getCurrentPosition } from "../media";
 import { Avatar, Modal, PageHeader, btnPrimary, btnSecondary, card, input, label, toast } from "../components/ui";
+import { FoneAmount, FoneMark } from "@/components/brand/fone";
 
 type Tab = "metrics" | "missions" | "users" | "rewards";
 
@@ -58,7 +59,7 @@ function MetricsTab() {
   const s = useStore((st) => st);
   const sum = (status: "paid" | "pending") => s.rewards.filter((r) => r.status === status).reduce((acc, r) => acc + Number(r.foneAmount), 0);
   const metrics: { icon: typeof Users; key: DemoKey; value: string; tone: string }[] = [
-    { icon: Users, key: "metric_users", value: String(s.users.length), tone: "bg-sky-50 text-sky-700" },
+    { icon: Users, key: "metric_users", value: String(s.users.filter((u) => !u.deletedAt).length), tone: "bg-sky-50 text-sky-700" },
     { icon: Target, key: "metric_active_missions", value: String(s.missions.filter((m) => m.isActive).length), tone: "bg-emerald-50 text-emerald-700" },
     { icon: Clock, key: "metric_pending", value: String(s.submissions.filter((x) => x.status === "pending").length), tone: "bg-amber-50 text-amber-700" },
     { icon: CheckCircle2, key: "metric_approved", value: String(s.submissions.filter((x) => x.status === "approved").length), tone: "bg-teal-50 text-teal-700" },
@@ -153,7 +154,7 @@ function MissionsTab() {
             <span className="text-2xl">{categoryEmoji[m.category] ?? "🌱"}</span>
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold text-slate-900">{localizedTitle(m, lang)}</p>
-              <p className="text-xs text-slate-500">{m.pointsReward} {t(lang, "reward_points")} · {m.foneReward} FONE · {m.latitude.toFixed(4)}, {m.longitude.toFixed(4)}</p>
+              <p className="text-xs text-slate-500">{m.pointsReward} {t(lang, "reward_points")} · <FoneAmount amount={m.foneReward} size={12} className="align-middle" /> · {m.latitude.toFixed(4)}, {m.longitude.toFixed(4)}</p>
             </div>
             <button
               type="button"
@@ -217,7 +218,7 @@ function MissionsTab() {
 
 function UsersTab({ me }: { me: User }) {
   const lang = useLang();
-  const users = useStore((s) => s.users);
+  const users = useStore((s) => s.users.filter((u) => !u.deletedAt));
   const roles: { id: Role; key: DemoKey }[] = [
     { id: "citizen", key: "demo_role_citizen" },
     { id: "moderator", key: "demo_role_moderator" },
@@ -283,9 +284,9 @@ function RewardsTab() {
           const owner = users.find((u) => u.id === r.userId);
           return (
             <div key={r.id} className={`${card} flex flex-wrap items-center gap-3 p-4`}>
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-50 text-teal-700"><Sprout className="h-5 w-5" /></div>
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-50"><FoneMark size={24} /></div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-900">{formatFone(r.foneAmount)} FONE → {owner?.name ?? "—"}</p>
+                <p className="text-sm font-semibold text-slate-900"><FoneAmount amount={formatFone(r.foneAmount)} size={14} /> → {owner?.name ?? "—"}</p>
                 <p className="truncate text-xs text-slate-500">
                   {r.status === "paid" && r.txHash ? `tx ${r.txHash.slice(0, 18)}… · ${formatDate(r.paidAt ?? r.createdAt, lang)}` : formatDate(r.createdAt, lang)}
                 </p>
