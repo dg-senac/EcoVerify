@@ -1,7 +1,10 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { missionRequests, missions, pointsLedger, regionSeeds, rewardQueue, submissions, users } from "@/db/schema";
+import { invoices, leads, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, users } from "@/db/schema";
+import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
+import { PLANS } from "@/lib/plans";
+import { orgPlan } from "@/lib/saas/org-rules";
 import { municipalityByIbge } from "@/lib/municipalities";
 import { formatDate } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth";
@@ -213,6 +216,89 @@ export default async function AdminPage() {
     })
     .from(submissions);
 
+  // --- Business (SaaS revenue) ---
+  const orgRows = await db
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      slug: organizations.slug,
+      type: organizations.type,
+      plan: organizations.plan,
+      billingCycle: organizations.billingCycle,
+      subscriptionStatus: organizations.subscriptionStatus,
+      currentPeriodEnd: organizations.currentPeriodEnd,
+      ownerEmail: users.email,
+      members: sql<number>`(select count(*)::int from organization_members om where om.organization_id = ${organizations.id})`,
+    })
+    .from(organizations)
+    .leftJoin(users, eq(users.id, organizations.ownerId))
+    .orderBy(desc(organizations.createdAt))
+    .limit(300);
+  const invoiceRows = await db
+    .select({
+      id: invoices.id,
+      orgName: organizations.name,
+      orgSlug: organizations.slug,
+      plan: invoices.plan,
+      cycle: invoices.billingCycle,
+      amountCents: invoices.amountCents,
+      reference: invoices.reference,
+      reportedAt: invoices.reportedAt,
+      createdAt: invoices.createdAt,
+    })
+    .from(invoices)
+    .innerJoin(organizations, eq(organizations.id, invoices.organizationId))
+    .where(eq(invoices.status, "pending"))
+    .orderBy(sql`${invoices.reportedAt} is null`, desc(invoices.createdAt));
+  const [received] = await db
+    .select({
+      total: sql<number>`coalesce(sum(${invoices.amountCents}), 0)::int`,
+      month: sql<number>`coalesce(sum(${invoices.amountCents}) filter (where ${invoices.paidAt} >= ${monthStart(new Date()).toISOString()}), 0)::int`,
+    })
+    .from(invoices)
+    .where(eq(invoices.status, "paid"));
+  const leadRows = await db.select().from(leads).orderBy(desc(leads.createdAt)).limit(100);
+  const orgsWithPlan = orgRows.map((o) => ({ ...o, effective: orgPlan(o) }));
+  const paying = orgsWithPlan.filter((o) => o.effective !== "free" && o.subscriptionStatus === "active");
+  const business: BusinessData = {
+    mrrCents: paying.reduce((sum, o) => {
+      const plan = PLANS[o.effective];
+      if (o.billingCycle === "yearly" && plan.yearlyCents) return sum + Math.round(plan.yearlyCents / 12);
+      return sum + (plan.monthlyCents ?? 0);
+    }, 0),
+    receivedMonthCents: received.month,
+    receivedTotalCents: received.total,
+    payingOrgs: paying.length,
+    trialOrgs: orgsWithPlan.filter((o) => o.effective !== "free" && o.subscriptionStatus === "trialing").length,
+    totalOrgs: orgRows.length,
+    pendingInvoices: invoiceRows.map((i) => ({ ...i, reportedAt: i.reportedAt?.toISOString() ?? null, createdAt: i.createdAt.toISOString() })),
+    orgs: orgsWithPlan.map((o) => ({
+      id: o.id,
+      name: o.name,
+      slug: o.slug,
+      type: o.type,
+      plan: o.plan,
+      effectivePlan: o.effective,
+      status: o.subscriptionStatus,
+      periodEnd: o.currentPeriodEnd?.toISOString() ?? null,
+      members: o.members,
+      ownerEmail: o.ownerEmail,
+    })),
+    leads: leadRows.map((l) => ({
+      id: l.id,
+      name: l.name,
+      email: l.email,
+      organization: l.organization,
+      type: l.type,
+      plan: l.plan,
+      message: l.message,
+      status: l.status,
+      createdAt: l.createdAt.toISOString(),
+    })),
+  };
+  const newLeads = leadRows.filter((l) => l.status === "new").length;
+  const businessBadge = invoiceRows.filter((i) => i.reportedAt).length + newLeads;
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">📊 Painel Administrativo</h1>
@@ -246,6 +332,12 @@ export default async function AdminPage() {
                   topRanking={topRanking}
                 />
               ),
+            },
+            {
+              key: "business",
+              label: businessBadge ? `Negócios (${businessBadge})` : "Negócios",
+              icon: "💼",
+              content: <BusinessTab data={business} />,
             },
             { key: "missions", label: missionsToReview ? `Missões (${missionsToReview})` : "Missões", icon: "🌱", content: (
                 <MissionsTab

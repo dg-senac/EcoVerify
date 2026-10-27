@@ -120,6 +120,13 @@ export interface OrgText {
   publicTitle: (org: string) => string;
   publicSubtitle: string;
   publicJoinCta: string;
+  statPeople: string;
+  impactEmpty: string;
+  publicMissions: string;
+  publicSince: (date: string) => string;
+  certificateIssued: (date: string) => string;
+  certificateInvalid: string;
+  reportGenerated: (date: string) => string;
   upgradeCta: string;
   ownerOnly: string;
 }
@@ -253,6 +260,13 @@ const pt: OrgText = {
   publicTitle: (org) => `Impacto de ${org}`,
   publicSubtitle: "Ações ambientais comprovadas com foto, GPS e moderação no EcoVerify.",
   publicJoinCta: "Quero criar a minha",
+  statPeople: "Pessoas engajadas",
+  impactEmpty: "Ainda sem ações aprovadas.",
+  publicMissions: "Missões em andamento",
+  publicSince: (d) => `Ações verificadas desde ${d}`,
+  certificateIssued: (d) => `Emitido em ${d}`,
+  certificateInvalid: "Certificado não encontrado ou indisponível.",
+  reportGenerated: (d) => `Gerado em ${d} pelo EcoVerify`,
   upgradeCta: "Ver planos",
   ownerOnly: "Só o responsável pela organização pode mudar o plano.",
 };
@@ -387,6 +401,13 @@ const en: OrgText = {
   publicTitle: (org) => `${org}'s impact`,
   publicSubtitle: "Environmental actions proven with photo, GPS and moderation on EcoVerify.",
   publicJoinCta: "Create mine",
+  statPeople: "People engaged",
+  impactEmpty: "No approved actions yet.",
+  publicMissions: "Ongoing missions",
+  publicSince: (d) => `Verified actions since ${d}`,
+  certificateIssued: (d) => `Issued on ${d}`,
+  certificateInvalid: "Certificate not found or unavailable.",
+  reportGenerated: (d) => `Generated on ${d} by EcoVerify`,
   upgradeCta: "See plans",
   ownerOnly: "Only the organization owner can change the plan.",
 };
@@ -521,6 +542,13 @@ const es: OrgText = {
   publicTitle: (org) => `Impacto de ${org}`,
   publicSubtitle: "Acciones ambientales comprobadas con foto, GPS y moderación en EcoVerify.",
   publicJoinCta: "Quiero crear la mía",
+  statPeople: "Personas involucradas",
+  impactEmpty: "Aún no hay acciones aprobadas.",
+  publicMissions: "Misiones en curso",
+  publicSince: (d) => `Acciones verificadas desde ${d}`,
+  certificateIssued: (d) => `Emitido el ${d}`,
+  certificateInvalid: "Certificado no encontrado o no disponible.",
+  reportGenerated: (d) => `Generado el ${d} por EcoVerify`,
   upgradeCta: "Ver planes",
   ownerOnly: "Solo el responsable de la organización puede cambiar el plan.",
 };

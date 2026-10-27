@@ -12,16 +12,19 @@ export function isOrgType(value: unknown): value is OrgType {
   return typeof value === "string" && (ORG_TYPES as readonly string[]).includes(value);
 }
 
+/** Slugs that would clash with routes under /org. */
+const RESERVED_SLUGS = new Set(["nova", "entrar", "new", "join"]);
+
 export function slugify(name: string): string {
-  return (
+  const slug =
     name
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
-      .slice(0, 48) || "org"
-  );
+      .slice(0, 48) || "org";
+  return RESERVED_SLUGS.has(slug) ? `${slug}-org` : slug;
 }
 
 /** 8 characters without look-alikes (0/O, 1/I/L). */

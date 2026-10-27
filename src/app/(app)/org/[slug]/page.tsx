@@ -15,7 +15,7 @@ import { canManage, canPromote, orgPlan } from "@/lib/saas/org-rules";
 import { activeMissionCount, membershipRole, orgBySlug, orgImpact, orgRanking } from "@/lib/saas/orgs";
 import { pixConfig, salesConfig } from "@/lib/saas/sales-config";
 import { pixPayload } from "@/lib/saas/pix";
-import { appUrl } from "@/lib/email";
+import { publicBaseUrl } from "@/lib/saas/base-url";
 import { cancelInvoiceAction, createInvoiceAction, reportInvoicePaidAction } from "@/lib/actions/billing";
 import { ModerationCard } from "@/components/moderation/moderation-card";
 import { BillingPanel } from "@/components/org/billing-panel";
@@ -66,7 +66,7 @@ export default async function OrganizationPage({
     .where(and(eq(submissions.userId, user.id), inArray(submissions.status, ["pending", "approved"])));
   const done = new Set(mine.map((m) => m.missionId));
 
-  const base = appUrl() ?? "";
+  const base = await publicBaseUrl();
   const inviteUrl = `${base}/org/entrar/${org.inviteCode}`;
   const tabLabel = (t: Tab) => text.tabs[t];
 
