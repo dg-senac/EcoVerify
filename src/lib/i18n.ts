@@ -762,6 +762,33 @@ const dict = {
   },
   mission_suggested_badge: { pt: "Sugerida pela comunidade", en: "Suggested by the community", es: "Sugerida por la comunidad" },
   mission_sponsor: { pt: "Apoio", en: "Supported by", es: "Apoyo" },
+  transparency: { pt: "Transparência", en: "Transparency", es: "Transparencia" },
+  mission_sponsor_left: {
+    pt: "FONE pago pelo patrocinador · restam {fone} FONE no orçamento",
+    en: "FONE paid by the sponsor · {fone} FONE left in the budget",
+    es: "FONE pagado por el patrocinador · quedan {fone} FONE en el presupuesto",
+  },
+  mission_sponsor_empty: {
+    pt: "O orçamento do patrocinador acabou: os pontos valem normalmente e o FONE fica em espera até uma recarga.",
+    en: "The sponsor budget ran out: points work as usual and the FONE stays on hold until a top-up.",
+    es: "Se acabó el presupuesto del patrocinador: los puntos valen normalmente y el FONE queda en espera hasta una recarga.",
+  },
+  payout_below_min: {
+    pt: "Enviamos quando somar pelo menos {min} FONE — assim a taxa da rede não come a sua recompensa.",
+    en: "We send it once it adds up to at least {min} FONE — so the network fee doesn't eat your reward.",
+    es: "Lo enviamos cuando sume al menos {min} FONE — así la comisión de la red no se come tu recompensa.",
+  },
+  payout_waiting: { pt: "em carência · libera em {date}", en: "in hold period · released on {date}", es: "en período de carencia · se libera el {date}" },
+  payout_held: {
+    pt: "em espera (orçamento do mês ou limite atingido)",
+    en: "on hold (monthly budget or limit reached)",
+    es: "en espera (presupuesto del mes o límite alcanzado)",
+  },
+  payout_rules_note: {
+    pt: "Cada recompensa espera {days} dia(s) antes de ser paga (tempo para contestações) e os envios começam a partir de {min} FONE.",
+    en: "Each reward waits {days} day(s) before it is paid (time for appeals) and payments start from {min} FONE.",
+    es: "Cada recompensa espera {days} día(s) antes de pagarse (tiempo para apelaciones) y los envíos empiezan desde {min} FONE.",
+  },
   osm_attribution: { pt: "Local: © colaboradores do OpenStreetMap", en: "Place: © OpenStreetMap contributors", es: "Lugar: © colaboradores de OpenStreetMap" },
   anywhere_location_note: {
     pt: "Missão em qualquer lugar: registramos a localização como as outras, mas você não precisa estar num ponto específico.",

@@ -4,7 +4,7 @@ import { placeholderPhoto } from "./media";
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -206,6 +206,7 @@ export function createSeed(): State {
       id: "m-casa-oleo",
       scope: "anywhere",
       sponsorName: "Cooperativa Recicla PE (exemplo)",
+      sponsorId: "sp-recicla",
       title: "Guarde o óleo de cozinha usado",
       titleEn: "Store used cooking oil",
       titleEs: "Guarda el aceite de cocina usado",
@@ -302,8 +303,8 @@ export function createSeed(): State {
       status: "approved",
       reviewedBy: DEMO_IDS.moderator,
       rejectionReason: null,
-      submittedAt: ago(3 * DAY),
-      reviewedAt: ago(2 * DAY),
+      submittedAt: ago(9 * DAY),
+      reviewedAt: ago(8 * DAY),
     }),
     sub({
       id: "s-maria-capibaribe",
@@ -349,7 +350,8 @@ export function createSeed(): State {
 
   const rewards: Reward[] = [
     { id: "r-maria-marco", userId: DEMO_IDS.citizen, submissionId: "s-maria-marco", foneAmount: "15.00", status: "paid", txHash: "demo-7c1e0b5d9a2f4e8c3b6a1d0f9e8c7b6a5d4c3b2a1f0e9d8c7b6a5d4c", createdAt: ago(11 * DAY), paidAt: ago(10 * DAY) },
-    { id: "r-maria-lindu", userId: DEMO_IDS.citizen, submissionId: "s-maria-lindu", foneAmount: "20.00", status: "pending", txHash: null, createdAt: ago(2 * DAY), paidAt: null },
+    // Past the 7-day hold period: Ana can pay it right away. Rafael's reward is still in the hold period.
+    { id: "r-maria-lindu", userId: DEMO_IDS.citizen, submissionId: "s-maria-lindu", foneAmount: "20.00", status: "pending", txHash: null, createdAt: ago(8 * DAY), paidAt: null },
     { id: "r-joao-jaqueira", userId: "u-bot-1", submissionId: "s-joao-jaqueira", foneAmount: "40.00", status: "paid", txHash: "demo-2b9d7f1a3c5e8b0d4f6a2c9e1b7d3f5a8c0e6b2d4f9a1c3e5b7d0f2a", createdAt: ago(8 * DAY), paidAt: ago(7 * DAY) },
     { id: "r-rafael-praia", userId: "u-bot-5", submissionId: "s-rafael-praia", foneAmount: "25.00", status: "pending", txHash: null, createdAt: ago(1 * DAY), paidAt: null },
   ];
@@ -369,7 +371,7 @@ export function createSeed(): State {
       title: "Comprovação aprovada! 🎉",
       message: "Sua comprovação para \"Doação de roupas no Parque Dona Lindu\" foi aprovada. Você ganhou 40 pontos e 20.00 FONE entrou na fila de pagamento.",
       isRead: false,
-      createdAt: ago(2 * DAY),
+      createdAt: ago(8 * DAY),
     },
     {
       id: "n-maria-capibaribe",
@@ -394,6 +396,8 @@ export function createSeed(): State {
     region: null,
     missionRequests: [],
     seededCities: [],
+    payoutSettings: { minPayoutFone: 5, holdDays: 7, monthlyBudgetFone: 500, maxFonePerUserMonth: 100 },
+    sponsors: [{ id: "sp-recicla", name: "Cooperativa Recicla PE (exemplo)", budgetFone: "30.00", isActive: true, createdAt: ago(20 * DAY) }],
   };
 }
 

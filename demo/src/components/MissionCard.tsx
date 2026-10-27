@@ -1,7 +1,8 @@
 import { Star, MapPin } from "lucide-react";
-import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
+import { categoryEmoji, categoryLabels, t, tf, type Lang } from "@/lib/i18n";
+import { centsToFone } from "@/lib/fone";
 import { Link } from "../router";
-import { localizedDescription, localizedTitle, type Mission, type SubmissionStatus } from "../store";
+import { localizedDescription, localizedTitle, sponsorBalance, useStore, type Mission, type SubmissionStatus } from "../store";
 import { StatusBadge, card } from "./ui";
 import { FoneAmount } from "@/components/brand/fone";
 import { formatKm } from "@/lib/region";
@@ -19,6 +20,8 @@ export function MissionCard({ lang, mission, myStatus, distanceKm }: { lang: Lan
   const done = myStatus === "pending" || myStatus === "approved";
   const paysFone = Number(mission.foneReward) > 0;
   const anywhere = mission.scope === "anywhere";
+  const sponsorLeftCents = useStore((s) => (mission.sponsorId ? sponsorBalance(s, mission.sponsorId).remainingCents : null));
+  const sponsorEmpty = sponsorLeftCents !== null && paysFone && sponsorLeftCents < Math.round(Number(mission.foneReward) * 100);
   return (
     <div className={`${card} flex flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(16,24,40,0.1)] animate-slide-up`}>
       <div className="mb-4 flex items-start justify-between gap-2">
@@ -60,11 +63,16 @@ export function MissionCard({ lang, mission, myStatus, distanceKm }: { lang: Lan
           <Star className="h-4 w-4" /> {mission.pointsReward}
         </span>
         {paysFone && (
-          <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-teal-700">
+          <span className={`flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-teal-700 ${sponsorEmpty ? "line-through opacity-60" : ""}`}>
             <FoneAmount amount={mission.foneReward} size={16} />
           </span>
         )}
       </div>
+      {sponsorLeftCents !== null && paysFone && (
+        <p className={`mt-2 text-[11px] font-medium ${sponsorEmpty ? "text-amber-700" : "text-slate-500"}`} data-testid="mission-sponsor-budget">
+          {sponsorEmpty ? t(lang, "mission_sponsor_empty") : tf(lang, "mission_sponsor_left", { fone: centsToFone(sponsorLeftCents) })}
+        </p>
+      )}
       {mission.needsReview && !paysFone && <p className="mt-2 text-[11px] text-slate-400">{t(lang, "mission_auto_points_only")}</p>}
       {done ? (
         <span className="mt-4 w-full rounded-xl bg-slate-100 px-4 py-2.5 text-center text-sm font-semibold text-slate-500">

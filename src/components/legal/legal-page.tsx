@@ -21,6 +21,7 @@ export function LegalPage({ lang, title, children }: { lang: Lang; title: string
           <nav className="flex gap-4 text-sm font-semibold text-emerald-700">
             <Link href="/termos" className="hover:underline">{t(lang, "terms_of_use")}</Link>
             <Link href="/privacidade" className="hover:underline">{t(lang, "privacy_policy")}</Link>
+            <Link href="/transparencia" className="hover:underline">{t(lang, "transparency")}</Link>
           </nav>
         </div>
         <article className="card-surface rounded-3xl border border-black/5 bg-white p-6 shadow-sm md:p-10">

@@ -49,6 +49,7 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
           <nav className="flex gap-4 text-xs font-medium text-slate-500">
             <Link to="/termos" className="hover:underline">{t(lang, "terms_of_use")}</Link>
             <Link to="/privacidade" className="hover:underline">{t(lang, "privacy_policy")}</Link>
+            <Link to="/transparencia" className="hover:underline">{t(lang, "transparency")}</Link>
           </nav>
         </div>
       </div>

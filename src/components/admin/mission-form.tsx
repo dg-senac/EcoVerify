@@ -5,14 +5,16 @@ import { createMissionAction, type AdminActionState } from "@/lib/actions/admin"
 import { categoryEmoji, categoryLabels } from "@/lib/i18n";
 import { Star, Utensils } from "@/components/ui/icons";
 import { FoneAmount, FoneMark } from "@/components/brand/fone";
+import type { SponsorItem } from "@/components/admin/sponsors-panel";
 
 const initialState: AdminActionState = {};
 const categories = Object.keys(categoryLabels);
 
-export function MissionForm() {
+export function MissionForm({ sponsors = [] }: { sponsors?: SponsorItem[] }) {
   const [state, formAction, pending] = useActionState(createMissionAction, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const [scope, setScope] = useState<"local" | "anywhere">("local");
+  const [sponsorId, setSponsorId] = useState("");
 
   useEffect(() => {
     if (state.success) {
@@ -23,7 +25,10 @@ export function MissionForm() {
   return (
     <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
       <h3 className="font-bold text-slate-900">Nova missão</h3>
-      <form ref={formRef} action={formAction} onReset={() => setScope("local")} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <form ref={formRef} action={formAction} onReset={() => {
+        setScope("local");
+        setSponsorId("");
+      }} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-slate-700">Título (Português)</label>
           <input
@@ -149,7 +154,27 @@ export function MissionForm() {
             />
           </div>
         </div>
-        <div className="sm:col-span-2">
+        {sponsors.length > 0 && (
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-slate-700">💰 Patrocinador que paga o FONE (opcional)</label>
+            <select
+              name="sponsorId"
+              value={sponsorId}
+              onChange={(event) => setSponsorId(event.target.value)}
+              data-testid="mission-sponsor"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500"
+            >
+              <option value="">Tesouraria do EcoVerify</option>
+              {sponsors.map((sponsor) => (
+                <option key={sponsor.id} value={sponsor.id}>
+                  {sponsor.name} — restam {sponsor.remainingFone} FONE
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">O FONE sai do orçamento do patrocinador e o nome aparece no cartão da missão.</p>
+          </div>
+        )}
+        <div className={`sm:col-span-2 ${sponsorId ? "hidden" : ""}`}>
           <label className="mb-1 block text-sm font-medium text-slate-700">🤝 Apoio local (opcional)</label>
           <input name="sponsorName" maxLength={80} placeholder="Ex.: Associação de Moradores de Casa Amarela" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
           <p className="mt-1 text-xs text-slate-400">Aparece no cartão da missão como “Apoio: …”.</p>

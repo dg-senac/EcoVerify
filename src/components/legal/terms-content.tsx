@@ -55,7 +55,9 @@ export function TermsContent({ info }: { info: LegalInfo }) {
             "FONE é a criptomoeda da rede Fone Protocol. As recompensas dependem do orçamento disponível do EcoVerify e de seus parceiros, e os valores das missões podem mudar.",
             "Para receber, é preciso ter 18 anos ou mais, e-mail confirmado e uma carteira da Fone Wallet vinculada e verificada (prova de que a carteira é sua).",
             "O EcoVerify não guarda suas chaves nem seus fundos: a carteira é sua e de sua responsabilidade. Transações em blockchain são públicas e irreversíveis; um endereço errado não tem como ser corrigido.",
-            "Os pagamentos são feitos em lotes e podem levar alguns dias. Recompensas obtidas com fraude podem ser canceladas, inclusive depois de aprovadas, enquanto não tiverem sido pagas.",
+            "Os pagamentos são feitos em lotes e podem levar alguns dias. Cada recompensa passa por um período de carência antes de ser paga (para contestações e checagem de fraude) e só enviamos quando o total liberado atinge o pagamento mínimo, porque cada envio tem taxa da rede. Os valores atuais ficam na página pública de Transparência.",
+            "Pode haver orçamento mensal do EcoVerify, orçamento próprio de cada patrocinador e limite mensal de FONE por pessoa. Quando um deles é atingido, os pontos valem normalmente e o FONE fica em espera até ser liberado pela equipe.",
+            "Recompensas obtidas com fraude podem ser canceladas, inclusive depois de aprovadas, enquanto não tiverem sido pagas.",
             "Criptomoedas têm preço variável e podem perder valor. As recompensas não são investimento, salário nem promessa de ganho. Obrigações fiscais sobre o que você recebe são de sua responsabilidade.",
             "Se você excluir sua conta, recompensas ainda não pagas são perdidas.",
           ]}

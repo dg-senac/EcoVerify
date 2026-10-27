@@ -55,6 +55,8 @@ O último administrador não consegue excluir a própria conta (precisa promover
 
 **Revisão de decisões automatizadas (art. 20)**: rejeições feitas pela verificação automática podem ser contestadas em *Minhas Submissões*; a contestação vai para uma pessoa da moderação. Detalhes em [VERIFICACAO_IA.md](VERIFICACAO_IA.md).
 
+**Página pública de Transparência** (`/transparencia`): mostra só agregados (ações, pessoas, cidades, pontos, FONE) e os últimos pagamentos com data, valor, **endereço abreviado** e link da transação, que já são públicos na blockchain. Nunca nome, e-mail, foto ou localização. Patrocinadores aparecem com nome e orçamento (são pessoas jurídicas que aceitaram aparecer).
+
 **Metadados das fotos**: o EXIF (modelo do aparelho, GPS embutido, data) é removido antes de guardar a foto.
 
 **Correção**: nome e preferências pelo app; outros pedidos pelo contato de privacidade.

@@ -113,6 +113,9 @@ export function AccountSettings({
             <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline">
               {t(lang, "privacy_policy")}
             </a>
+            <a href="/transparencia" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline">
+              {t(lang, "transparency")}
+            </a>
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 p-4">

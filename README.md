@@ -65,7 +65,9 @@ Veja [`.env.example`](.env.example). As principais:
 - `FONE_TREASURY_ADDRESS`: endereço FONE nativo da carteira do EcoVerify que recebe as transferências de verificação. Sem ela, a verificação de carteiras fica fechada. `FONE_EXPLORER_URL` (padrão `https://fone.dev`) define os links do explorer.
 - `RESEND_API_KEY` + `EMAIL_FROM` + `APP_URL`: e-mails de confirmação de conta e de "Esqueci minha senha". Sem eles, em produção, nada é enviado e a confirmação de e-mail não é exigida (o admin vê um aviso). Em desenvolvimento, os e-mails aparecem no log do servidor.
 - `LEGAL_CONTROLLER_NAME` + `LEGAL_CONTACT_EMAIL`: quem responde pelos dados e o contato de privacidade, exibidos nos Termos e na Política.
+- `FONE_REWARDS_WALLET` (opcional): endereço público da carteira que paga as recompensas, mostrado na página de Transparência para qualquer pessoa conferir saldo e envios.
 - `CAPACITOR_SERVER_URL`: URL HTTPS do app web, usada no build Android. **Opcional**: sem ela, o APK é gerado com a demo offline.
+- `DEMO_SITE_URL` (opcional, só no build da demo): domínio público da demo, usado na prévia de link (WhatsApp, redes). Na Vercel, o domínio de produção é detectado sozinho.
 
 ## Atualizando um banco já existente
 
@@ -88,7 +90,7 @@ O `npm run db:push` cria a tabela `auth_tokens` (enum `auth_token_purpose`) e as
 
 ### Atualizando para a 1.4 (modo noturno, IA e missões por região)
 
-O `npm run db:push` cria as colunas de tema, verificação por IA e região, e as tabelas `ai_settings`, `region_seeds`, `mission_requests` e `mission_suggestions`. Missões antigas continuam valendo como "em um local"; para aparecerem com o nome da cidade, rode `npm run db:seed` (preenche as de exemplo) ou edite-as. Usuários verão os Termos atualizados uma vez (IA e região).
+O `npm run db:push` cria as colunas de tema, verificação por IA, região e regras de pagamento, e as tabelas `ai_settings`, `region_seeds`, `mission_requests`, `mission_suggestions`, `fone_settings` e `sponsors`. Recompensas já aprovadas continuam valendo; passam a seguir o mínimo de 5 FONE e a carência de 7 dias (ajustáveis em Admin → Recompensas). Missões antigas continuam valendo como "em um local"; para aparecerem com o nome da cidade, rode `npm run db:seed` (preenche as de exemplo) ou edite-as. Usuários verão os Termos atualizados uma vez (IA e região).
 
 ## Carteira e pagamentos FONE
 
@@ -107,6 +109,12 @@ Um pedido pendente **não ocupa** o endereço, para ninguém "reservar" a cartei
 
 Em **Admin → Recompensas**, as recompensas aprovadas aparecem **agrupadas por pessoa**, com o total e a carteira verificada. O admin envia o total da carteira de recompensas pela Fone Wallet e cola o hash: todas as recompensas listadas ficam pagas, com destino, data e responsável registrados. O usuário recebe uma notificação e vê o histórico, com links para o explorer, no perfil. Quem ainda não verificou a carteira fica em "Aguardando carteira verificada".
 
+**Regras de segurança do FONE**: pagamento mínimo (padrão 5 FONE, por causa da taxa de ≈0,15 FONE por envio), **carência** de 7 dias antes de pagar, **orçamento mensal** da tesouraria e **limite por pessoa por mês**. O que passa de um orçamento ou limite fica **em espera** (os pontos valem normalmente) até o admin liberar. O servidor reaplica as regras ao marcar como pago. Detalhes: [`docs/PAGAMENTOS_FONE.md`](docs/PAGAMENTOS_FONE.md).
+
+**Missões patrocinadas**: em Admin → Missões → Patrocinadores, cadastre empresas, prefeituras ou ONGs com o FONE que depositaram. O FONE das missões delas sai desse orçamento, o cartão mostra o saldo e, quando acaba, as recompensas ficam em espera até uma recarga.
+
+**Transparência**: a página pública [`/transparencia`](src/app/(legal)/transparencia/page.tsx) mostra impacto, FONE pago (com links das transações), orçamento do mês, regras, patrocinadores e a carteira de recompensas, **sem nomes**.
+
 **Limitações atuais**: a conferência no explorer é manual, porque a Fone ainda não publicou o SDK nem uma API pública do explorer. Toda a lógica específica da rede fica em [`src/lib/fone.ts`](src/lib/fone.ts), pronta para automatizar a verificação e os envios quando o SDK sair. O formato do endereço foi observado no explorer: confirme com a Fone antes de abrir para o público.
 
 ## Verificação automática das fotos (IA)
@@ -123,7 +131,7 @@ Detalhes, limites do plano gratuito e como trocar de provedor: [`docs/VERIFICACA
 - A tela de missões pergunta **onde você está**: pelo GPS (só para descobrir a cidade, com coordenadas arredondadas guardadas num cookie do aparelho) ou digitando a cidade. Mostra **"Perto de você"** (raio de 10, 30 ou 100 km, mais perto primeiro), **"Em qualquer lugar"** (missões feitas de casa, sem conferir distância) e quantas missões existem em outras regiões.
 - O nome da cidade vem de uma **lista offline dos 5.570 municípios** (`src/data/municipios-br.json`, IBGE), sem mandar a posição para serviços externos.
 - **Cidade sem missões**: o servidor busca praias, parques e pontos de coleta no **OpenStreetMap** e cria missões que dão **só pontos até um admin revisar** (Admin → Missões → Para revisar: aprovar com FONE, manter só pontos ou desativar). As pessoas também podem apertar **"Quero mais missões aqui"** (o admin vê a lista de cidades) e **sugerir uma ação**, que a moderação transforma em missão.
-- Missões podem ter um **apoio local** (nome do patrocinador no cartão).
+- Missões podem ter um **apoio local** (nome no cartão) ou um **patrocinador com orçamento de FONE** próprio (ver [Carteira e pagamentos FONE](#carteira-e-pagamentos-fone)).
 
 Detalhes: [`docs/MISSOES_REGIONAIS.md`](docs/MISSOES_REGIONAIS.md).
 
@@ -148,6 +156,7 @@ Valores em FONE aparecem com o ícone oficial da Fone, e o selo "Recompensas na 
 - Limite de tentativas no login, no cadastro, no chat e no upload. Senha mínima de 8 caracteres.
 - Banimento, redefinição de senha e exclusão de conta derrubam as sessões na hora.
 - Vincular carteira exige e-mail confirmado (quando o envio de e-mails está ativo).
+- FONE com **carência**, **mínimo por envio**, **orçamento mensal** e **limite por pessoa**, decididos dentro da transação de aprovação (com lock) e reaplicados no pagamento.
 - Carteira só recebe depois de **verificada** (prova de posse), uma por conta e só para maiores de 18. Pagamento exige hash válido (64 hex), nunca reaproveitado entre pessoas ou verificações, e registra a carteira de destino.
 
 Detalhes e próximos passos: [`docs/RECOMENDACOES.md`](docs/RECOMENDACOES.md).
@@ -160,6 +169,13 @@ O APK tem dois modos:
 - **Servidor**: com `CAPACITOR_SERVER_URL` (HTTPS), o APK abre o app web real.
 
 Para testar a demo no navegador: `npm run demo:dev` (http://localhost:5173).
+
+A demo web também é **instalável** (PWA: "Adicionar à tela inicial"), tem prévia de link para WhatsApp/redes e um **modo apresentação** guiado de 3 minutos (Maria → IA → moderação → pagamento → perfil → transparência). Links úteis para compartilhar:
+
+- `https://<sua-demo>/?tour=1`: abre o tour guiado.
+- `https://<sua-demo>/?lang=en&tour=1`: o mesmo, em inglês (também `es`).
+
+Na aba Recompensas da demo há o botão **"Simular fim da carência"** para mostrar um pagamento sem esperar 7 dias.
 
 Veja [`BUILD_ANDROID.md`](BUILD_ANDROID.md). O app declara as permissões de **localização**, **câmera** e **microfone**, necessárias para comprovar missões no local e gravar áudios no chat.
 
@@ -178,4 +194,9 @@ Veja [`BUILD_ANDROID.md`](BUILD_ANDROID.md). O app declara as permissões de **l
 - [ ] Antifraude avançado: hash perceptual, EXIF, foto só pela câmera do app, pré‑triagem com IA
 - [ ] Validação comunitária com reputação
 - [x] Missões por região (GPS ou cidade), missões "em qualquer lugar", abastecimento automático pelo OpenStreetMap, sugestões da comunidade
-- [ ] Painel de patrocinadores e página pública de impacto
+- [x] Regras de segurança do FONE: pagamento mínimo, carência, orçamento mensal e limite por pessoa
+- [x] Patrocinadores com orçamento próprio e página pública de transparência
+- [x] Demo instalável (PWA), prévia de link e modo apresentação
+- [ ] Certificado de impacto com QR code
+- [ ] Gastar FONE no app (comércios parceiros, doação a ONGs)
+- [ ] Reputação de usuários e moderadores

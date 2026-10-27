@@ -86,6 +86,10 @@ export function PrivacyContent({ info }: { info: LegalInfo }) {
           <b>não podem ser apagados</b> por ninguém, nem mesmo se você excluir sua conta. O EcoVerify não publica seu nome ou
           e-mail na blockchain.
         </p>
+        <p className="mt-2">
+          Na página pública de <b>Transparência</b> mostramos
+          totais do app e os últimos pagamentos (data, valor, endereço abreviado e link da transação), <b>sem nome, e-mail ou foto</b>.
+        </p>
       </LegalSection>
 
       <LegalSection n={5} title="Crianças e adolescentes">

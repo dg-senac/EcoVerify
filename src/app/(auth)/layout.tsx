@@ -16,6 +16,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <nav className="flex gap-4 font-medium text-slate-500">
           <Link href="/termos" className="hover:underline">Termos de Uso</Link>
           <Link href="/privacidade" className="hover:underline">Privacidade</Link>
+          <Link href="/transparencia" className="hover:underline">Transparência</Link>
         </nav>
         <p>© {new Date().getFullYear()} EcoVerify · Ações sustentáveis, reconhecidas e recompensadas.</p>
       </footer>

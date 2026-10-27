@@ -18,6 +18,7 @@ import { NotificationsScreen } from "./screens/Notifications";
 import { ProfileScreen } from "./screens/Profile";
 import { SettingsScreen } from "./screens/Settings";
 import { LegalScreen } from "./screens/Legal";
+import { TransparencyScreen } from "./screens/Transparency";
 import { THEME_COLORS } from "@/lib/theme";
 
 /** Applies the user's accessibility settings to <html>, like src/app/layout.tsx. */
@@ -113,6 +114,8 @@ export function App() {
     <>
       {path === "/termos" || path === "/privacidade" ? (
         <LegalScreen doc={path === "/termos" ? "terms" : "privacy"} />
+      ) : path === "/transparencia" ? (
+        <TransparencyScreen />
       ) : !user || user.isBanned ? (
         path === "/register" ? <RegisterScreen /> : path === "/" ? <LoginScreen /> : <Redirect to="/" />
       ) : (

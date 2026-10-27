@@ -12,11 +12,16 @@ import { WantMoreButton } from "@/components/missions/want-more-button";
 import { Sprout } from "@/components/ui/icons";
 import { groupMissionsByRegion, MIN_LOCAL_MISSIONS } from "@/lib/region";
 import { getRegion } from "@/lib/regional/cookie";
+import { sponsorBalances } from "@/lib/payouts";
+import { centsToFone } from "@/lib/fone";
 import { osmAutoMissionsEnabled, regionSeedState, seedRegionFromOsm } from "@/lib/regional/osm";
 
 type MissionRow = typeof missions.$inferSelect;
 
-function toCard(mission: MissionRow & { distanceKm?: number }): MissionCardData {
+/** Remaining FONE per sponsor (filled once per request when a listed mission is sponsored). */
+type SponsorLeft = Map<string, string>;
+
+function toCard(mission: MissionRow & { distanceKm?: number }, sponsorLeft?: SponsorLeft): MissionCardData {
   return {
     id: mission.id,
     title: mission.title,
@@ -32,17 +37,18 @@ function toCard(mission: MissionRow & { distanceKm?: number }): MissionCardData 
     origin: mission.origin,
     needsReview: mission.needsReview,
     sponsorName: mission.sponsorName,
+    sponsorRemainingFone: mission.sponsorId ? (sponsorLeft?.get(mission.sponsorId) ?? "0.00") : null,
     city: mission.city,
     stateCode: mission.stateCode,
     distanceKm: mission.distanceKm,
   };
 }
 
-function Grid({ lang, items }: { lang: Lang; items: (MissionRow & { distanceKm?: number })[] }) {
+function Grid({ lang, items, sponsorLeft }: { lang: Lang; items: (MissionRow & { distanceKm?: number })[]; sponsorLeft?: SponsorLeft }) {
   return (
     <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((mission) => (
-        <MissionCard key={mission.id} lang={lang} mission={toCard(mission)} />
+        <MissionCard key={mission.id} lang={lang} mission={toCard(mission, sponsorLeft)} />
       ))}
     </div>
   );
@@ -72,6 +78,11 @@ export default async function MissionsPage() {
           : undefined
       )
     );
+
+  const sponsorLeft: SponsorLeft = new Map();
+  if (activeMissions.some((mission) => mission.sponsorId)) {
+    for (const sponsor of await sponsorBalances()) sponsorLeft.set(sponsor.id, centsToFone(sponsor.remainingCents));
+  }
 
   const region = await getRegion();
   const header = (
@@ -104,7 +115,7 @@ export default async function MissionsPage() {
           </div>
         ) : (
           <div className="mt-2">
-            <Grid lang={lang} items={activeMissions} />
+            <Grid lang={lang} sponsorLeft={sponsorLeft} items={activeMissions} />
           </div>
         )}
       </div>
@@ -173,7 +184,7 @@ export default async function MissionsPage() {
           </div>
         ) : (
           <>
-            <Grid lang={lang} items={nearby} />
+            <Grid lang={lang} sponsorLeft={sponsorLeft} items={nearby} />
             {nearby.length < MIN_LOCAL_MISSIONS && <div className="mt-4">{wantMore}</div>}
           </>
         )}
@@ -185,7 +196,7 @@ export default async function MissionsPage() {
             🌎 {t(lang, "region_section_anywhere")} <span className="text-sm font-semibold text-slate-400">({anywhere.length})</span>
           </h2>
           <p className="text-sm text-slate-500">{t(lang, "region_anywhere_hint")}</p>
-          <Grid lang={lang} items={anywhere} />
+          <Grid lang={lang} sponsorLeft={sponsorLeft} items={anywhere} />
         </section>
       )}
 

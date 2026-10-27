@@ -11,6 +11,15 @@ import { decideProof, DEFAULT_AI_SETTINGS, rejectionReasonText, type AiChecks, t
 import { simulateAnalysis, type SampleKind } from "./demoAi";
 import type { Region, RegionRadius } from "@/lib/region";
 import { OSM_TEMPLATES, type OsmKind } from "@/lib/regional/templates";
+import {
+  decideHold,
+  DEFAULT_PAYOUT_SETTINGS,
+  monthStart,
+  releaseDate,
+  splitOpenRewards,
+  type HoldReason,
+  type PayoutSettings,
+} from "@/lib/payout-rules";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -78,6 +87,8 @@ export type Mission = {
   /** Pays points only until an admin reviews it. */
   needsReview?: boolean;
   sponsorName?: string | null;
+  /** Sponsor whose FONE budget pays this mission (null = EcoVerify treasury). */
+  sponsorId?: string | null;
 };
 
 export type MissionRequest = { userId: string; ibge: number; city: string; uf: string; createdAt: string };
@@ -124,6 +135,18 @@ export type Reward = {
   walletAddress?: string | null;
   createdAt: string;
   paidAt: string | null;
+  /** Kept by a budget/cap (see src/lib/payout-rules.ts); an admin releases it. */
+  holdReason?: HoldReason | null;
+  sponsorId?: string | null;
+};
+
+/** Company / city hall / NGO funding missions with its own FONE budget. */
+export type Sponsor = {
+  id: string;
+  name: string;
+  budgetFone: string;
+  isActive: boolean;
+  createdAt: string;
 };
 
 export type Notification = {
@@ -161,6 +184,9 @@ export type State = {
   missionRequests?: MissionRequest[];
   /** Cities (IBGE code) that already got example missions. */
   seededCities?: number[];
+  /** Payout rules (minimum, hold period, budgets) — Admin → Recompensas. */
+  payoutSettings?: PayoutSettings;
+  sponsors?: Sponsor[];
 };
 
 const STORAGE_KEY = "ecoverify-demo";
@@ -506,19 +532,40 @@ function applyApproval(s: State, submissionId: string, reviewerId: string | null
       x.id === sub.id ? { ...x, status: "approved", reviewedBy: reviewerId, reviewedAt, decidedBy: reviewerId ? "human" : "ai", rejectionCode: null } : x,
     ),
     users: s.users.map((u) => (u.id === sub.userId ? { ...u, totalPoints: u.totalPoints + mission.pointsReward } : u)),
-    rewards: [
-      { id: uid(), userId: sub.userId, submissionId: sub.id, foneAmount: mission.foneReward, status: "pending", txHash: null, createdAt: reviewedAt, paidAt: null },
+  };
+  // Same rules as the server (src/lib/review.ts): 0-FONE missions create no payment, budgets/caps hold the FONE.
+  const paysFone = Number(mission.foneReward) > 0;
+  const holdReason = paysFone ? holdReasonFor(s, sub.userId, mission) : null;
+  if (paysFone) {
+    next.rewards = [
+      {
+        id: uid(),
+        userId: sub.userId,
+        submissionId: sub.id,
+        foneAmount: mission.foneReward,
+        status: "pending",
+        txHash: null,
+        createdAt: reviewedAt,
+        paidAt: null,
+        holdReason,
+        sponsorId: mission.sponsorId ?? null,
+      },
       ...s.rewards,
-    ],
-  };
+    ];
+  }
   const vars = (l: Lang) => ({ mission: localizedTitle(mission, l), points: mission.pointsReward, fone: mission.foneReward });
-  return {
-    ...next,
-    notifications: notify(next, sub.userId, (l) => ({
-      title: dt(l, "notif_approved_title"),
-      message: dt(l, reviewerId ? "notif_approved_msg" : "notif_ai_approved_msg", vars(l)),
-    })),
-  };
+  const withFone = paysFone && !holdReason;
+  let notifications = notify(next, sub.userId, (l) => ({
+    title: dt(l, "notif_approved_title"),
+    message: dt(l, withFone ? (reviewerId ? "notif_approved_msg" : "notif_ai_approved_msg") : "notif_approved_points_msg", vars(l)),
+  }));
+  if (holdReason) {
+    notifications = notify({ ...next, notifications }, sub.userId, (l) => ({
+      title: dt(l, "notif_hold_title"),
+      message: dt(l, holdReason === "user_cap" ? "notif_hold_user_cap" : holdReason === "sponsor_budget" ? "notif_hold_sponsor" : "notif_hold_budget", { fone: mission.foneReward }),
+    }));
+  }
+  return { ...next, notifications };
 }
 
 function applyRejection(s: State, submissionId: string, reviewerId: string | null, code: RejectionCode | null, reason: string): State {
@@ -626,8 +673,12 @@ export function createMission(input: NewMission): Result {
     Math.abs(input.latitude) <= 90 &&
     Math.abs(input.longitude) <= 180;
   if (!valid) return { error: "invalid_form" };
+  const sponsor = input.sponsorId ? (state.sponsors ?? []).find((x) => x.id === input.sponsorId) : null;
+  if (input.sponsorId && !sponsor) return { error: "invalid_form" };
   const mission: Mission = {
     ...input,
+    sponsorId: sponsor?.id ?? null,
+    sponsorName: sponsor ? sponsor.name : input.sponsorName,
     title: input.title.trim(),
     description: input.description.trim(),
     foneReward: fone.toFixed(2),
@@ -747,27 +798,143 @@ export function setUserBan(userId: string, banned: boolean, reason?: string): Re
   return {};
 }
 
-export function simulatePayout(rewardId: string): Result {
+/* ------------------------------------------------------------------ */
+/* FONE payouts: minimum, hold period, budgets, sponsors               */
+/* ------------------------------------------------------------------ */
+
+export function payoutSettingsOf(s: State = state): PayoutSettings {
+  return s.payoutSettings ?? DEFAULT_PAYOUT_SETTINGS;
+}
+
+const cents = (value: string) => foneToCents(value);
+
+/** FONE committed by a sponsor's rewards (held ones don't count) and what's left. */
+export function sponsorBalance(s: State, sponsorId: string) {
+  const sponsor = (s.sponsors ?? []).find((x) => x.id === sponsorId);
+  const committed = s.rewards.filter((r) => r.sponsorId === sponsorId && !r.holdReason);
+  const spentCents = committed.reduce((sum, r) => sum + cents(r.foneAmount), 0);
+  const paidCents = committed.filter((r) => r.status === "paid").reduce((sum, r) => sum + cents(r.foneAmount), 0);
+  const budgetCents = sponsor ? cents(sponsor.budgetFone) : 0;
+  return { budgetCents, spentCents, paidCents, remainingCents: Math.max(0, budgetCents - spentCents) };
+}
+
+/** Treasury FONE committed this month (not sponsored, not held). */
+export function treasuryMonthCents(s: State = state) {
+  const since = monthStart().toISOString();
+  return s.rewards.filter((r) => !r.sponsorId && !r.holdReason && r.createdAt >= since).reduce((sum, r) => sum + cents(r.foneAmount), 0);
+}
+
+function holdReasonFor(s: State, userId: string, mission: Mission): HoldReason | null {
+  const since = monthStart().toISOString();
+  const userMonthCents = s.rewards.filter((r) => r.userId === userId && !r.holdReason && r.createdAt >= since).reduce((sum, r) => sum + cents(r.foneAmount), 0);
+  return decideHold({
+    amountCents: cents(mission.foneReward),
+    sponsored: !!mission.sponsorId,
+    sponsorRemainingCents: mission.sponsorId ? sponsorBalance(s, mission.sponsorId).remainingCents : undefined,
+    treasuryMonthCents: treasuryMonthCents(s),
+    userMonthCents,
+    settings: payoutSettingsOf(s),
+  });
+}
+
+/** One person's open rewards split into payable now / in hold period / held. */
+export function userPayout(s: State, userId: string) {
+  return splitOpenRewards(
+    s.rewards.filter((r) => r.userId === userId && r.status === "pending"),
+    payoutSettingsOf(s),
+  );
+}
+
+/** Pays (simulated) everything that is past the hold period, not held, and at least the minimum. */
+export function simulateUserPayout(userId: string): Result {
   if (!isAdmin(me())) return { error: "error_generic" };
-  const reward = state.rewards.find((r) => r.id === rewardId);
-  if (!reward || reward.status !== "pending") return { error: "error_generic" };
-  const owner = userById(reward.userId);
+  const owner = userById(userId);
   if (!owner?.walletAddress) return { error: "no_wallet_warning" };
+  const split = userPayout(state, userId);
+  if (!split.payable.length) return { error: "payout_nothing_ready" };
+  if (split.belowMinimum) return { error: "payout_min_error" };
+  const ids = new Set(split.payable.map((r) => r.id));
+  const txHash = fakeTxHash();
   commit((s) => {
     const next: State = {
       ...s,
-      rewards: s.rewards.map((r) =>
-        r.id === rewardId ? { ...r, status: "paid", txHash: fakeTxHash(), walletAddress: owner.walletAddress, paidAt: now() } : r,
-      ),
+      rewards: s.rewards.map((r) => (ids.has(r.id) ? { ...r, status: "paid", txHash, walletAddress: owner.walletAddress, paidAt: now() } : r)),
     };
     return {
       ...next,
-      notifications: notify(next, reward.userId, (l) => ({
+      notifications: notify(next, userId, (l) => ({
         title: dt(l, "notif_paid_title"),
-        message: dt(l, "notif_paid_msg", { fone: reward.foneAmount }),
+        message: dt(l, "notif_paid_msg", { fone: centsToFone(split.payableCents) }),
       })),
     };
   });
+  return {};
+}
+
+/** Demo only: moves the clock forward so rewards in the hold period become payable. */
+export function skipHoldPeriod(): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  const days = payoutSettingsOf().holdDays;
+  commit((s) => ({
+    ...s,
+    rewards: s.rewards.map((r) =>
+      r.status === "pending" && releaseDate(r.createdAt, days).getTime() > Date.now()
+        ? { ...r, createdAt: new Date(Date.now() - days * 24 * 60 * 60 * 1000 - 60_000).toISOString() }
+        : r,
+    ),
+  }));
+  return {};
+}
+
+export function updatePayoutSettings(input: { minPayoutFone: string; holdDays: string; monthlyBudgetFone: string; maxFonePerUserMonth: string }): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  const amount = (raw: string, optional: boolean) => {
+    const v = raw.trim().replace(",", ".");
+    if (v === "") return optional ? null : NaN;
+    return Number(v);
+  };
+  const min = amount(input.minPayoutFone, false) as number;
+  const budget = amount(input.monthlyBudgetFone, true);
+  const cap = amount(input.maxFonePerUserMonth, true);
+  const hold = Number(input.holdDays);
+  const ok = (v: number | null) => v === null || (Number.isFinite(v) && v >= 0 && v <= 1_000_000);
+  if (!ok(min) || Number.isNaN(min) || !ok(budget) || !ok(cap) || !Number.isInteger(hold) || hold < 0 || hold > 90) return { error: "invalid_form" };
+  commit((s) => ({ ...s, payoutSettings: { minPayoutFone: min, holdDays: hold, monthlyBudgetFone: budget, maxFonePerUserMonth: cap } }));
+  return {};
+}
+
+export function releaseHeldRewards(reason: HoldReason): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  commit((s) => {
+    const released = s.rewards.filter((r) => r.status === "pending" && r.holdReason === reason);
+    let next: State = { ...s, rewards: s.rewards.map((r) => (r.status === "pending" && r.holdReason === reason ? { ...r, holdReason: null } : r)) };
+    const byUser = new Map<string, number>();
+    for (const r of released) byUser.set(r.userId, (byUser.get(r.userId) ?? 0) + cents(r.foneAmount));
+    for (const [userId, total] of byUser) {
+      next = { ...next, notifications: notify(next, userId, (l) => ({ title: dt(l, "notif_released_title"), message: dt(l, "notif_released_msg", { fone: centsToFone(total) }) })) };
+    }
+    return next;
+  });
+  return {};
+}
+
+export function createSponsor(name: string, budget: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  const value = Number(budget.trim().replace(",", "."));
+  if (!name.trim() || !Number.isFinite(value) || value < 0 || value > 1_000_000) return { error: "invalid_form" };
+  const sponsor: Sponsor = { id: uid(), name: name.trim().slice(0, 80), budgetFone: value.toFixed(2), isActive: true, createdAt: now() };
+  commit((s) => ({ ...s, sponsors: [...(s.sponsors ?? []), sponsor] }));
+  return {};
+}
+
+export function topUpSponsor(sponsorId: string, amount: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  const value = Number(amount.trim().replace(",", "."));
+  if (!Number.isFinite(value) || value <= 0 || value > 1_000_000) return { error: "invalid_form" };
+  commit((s) => ({
+    ...s,
+    sponsors: (s.sponsors ?? []).map((x) => (x.id === sponsorId ? { ...x, budgetFone: centsToFone(cents(x.budgetFone) + Math.round(value * 100)) } : x)),
+  }));
   return {};
 }
 

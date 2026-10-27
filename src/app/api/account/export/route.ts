@@ -74,6 +74,7 @@ export async function GET() {
         walletAddress: rewardQueue.walletAddress,
         txHash: rewardQueue.txHash,
         paidAt: rewardQueue.paidAt,
+        holdReason: rewardQueue.holdReason,
         createdAt: rewardQueue.createdAt,
       })
       .from(rewardQueue)

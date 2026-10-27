@@ -18,6 +18,8 @@ import type { PayoutGroup } from "@/components/admin/payout-row";
 import { getFoneConfig } from "@/lib/fone-config";
 import { emailMode } from "@/lib/email";
 import { centsToFone, foneToCents, isChallengeExpired, verifiedWallet } from "@/lib/fone";
+import { getPayoutSettings, sponsorBalances } from "@/lib/payouts";
+import { isHoldReason, monthStart, splitOpenRewards, type HoldReason } from "@/lib/payout-rules";
 
 export default async function AdminPage() {
   const user = await getCurrentUser();
@@ -126,6 +128,7 @@ export default async function AdminPage() {
       foneAmount: rewardQueue.foneAmount,
       status: rewardQueue.status,
       createdAt: rewardQueue.createdAt,
+      holdReason: rewardQueue.holdReason,
       userId: users.id,
       userName: users.name,
       walletAddress: users.walletAddress,
@@ -136,26 +139,50 @@ export default async function AdminPage() {
     .where(inArray(rewardQueue.status, ["pending", "processing", "failed"]))
     .orderBy(asc(rewardQueue.createdAt));
 
-  const groupsByUser = new Map<string, PayoutGroup & { cents: number }>();
-  for (const reward of openRewards) {
-    if (reward.status === "paid") continue;
-    const group = groupsByUser.get(reward.userId) ?? {
-      userId: reward.userId,
-      userName: reward.userName,
-      wallet: verifiedWallet(reward),
-      totalFone: "0.00",
-      rewardIds: [],
-      statuses: [],
-      oldest: reward.createdAt,
-      cents: 0,
+  const payoutSettings = await getPayoutSettings();
+  const now = new Date();
+  const rewardsByUser = new Map<string, typeof openRewards>();
+  for (const reward of openRewards) rewardsByUser.set(reward.userId, [...(rewardsByUser.get(reward.userId) ?? []), reward]);
+  const heldByReason: Record<HoldReason, { cents: number; count: number }> = {
+    budget: { cents: 0, count: 0 },
+    user_cap: { cents: 0, count: 0 },
+    sponsor_budget: { cents: 0, count: 0 },
+  };
+  const payoutGroups: PayoutGroup[] = [...rewardsByUser.values()].map((rewards) => {
+    const first = rewards[0];
+    const split = splitOpenRewards(rewards, payoutSettings, now);
+    for (const reward of split.held) {
+      if (!isHoldReason(reward.holdReason)) continue;
+      heldByReason[reward.holdReason].cents += foneToCents(reward.foneAmount);
+      heldByReason[reward.holdReason].count += 1;
+    }
+    return {
+      userId: first.userId,
+      userName: first.userName,
+      wallet: verifiedWallet(first),
+      totalFone: centsToFone(rewards.reduce((sum, r) => sum + foneToCents(r.foneAmount), 0)),
+      rewardIds: split.payable.map((r) => r.id),
+      statuses: split.payable.map((r) => r.status as PayoutGroup["statuses"][number]),
+      oldest: first.createdAt,
+      payableFone: centsToFone(split.payableCents),
+      waitingFone: centsToFone(split.waitingCents),
+      waitingCount: split.waiting.length,
+      nextReleaseAt: split.nextReleaseAt,
+      heldFone: centsToFone(split.heldCents),
+      heldCount: split.held.length,
+      belowMinimum: split.belowMinimum,
+      feePercent: split.feePercent,
+      minPayoutFone: payoutSettings.minPayoutFone.toFixed(2),
     };
-    group.rewardIds.push(reward.id);
-    group.statuses.push(reward.status);
-    group.cents += foneToCents(reward.foneAmount);
-    group.totalFone = centsToFone(group.cents);
-    groupsByUser.set(reward.userId, group);
-  }
-  const payoutGroups: PayoutGroup[] = [...groupsByUser.values()].map(({ cents: _cents, ...group }) => group);
+  });
+  const [monthUsage] = await db
+    .select({
+      treasury: sql<string>`coalesce(sum(${rewardQueue.foneAmount}) filter (where ${rewardQueue.sponsorId} is null), 0)::text`,
+      sponsored: sql<string>`coalesce(sum(${rewardQueue.foneAmount}) filter (where ${rewardQueue.sponsorId} is not null), 0)::text`,
+    })
+    .from(rewardQueue)
+    .where(and(sql`${rewardQueue.createdAt} >= ${monthStart(now).toISOString()}`, isNull(rewardQueue.holdReason)));
+  const sponsorList = await sponsorBalances();
 
   const paidBatches: PaidBatch[] = await db
     .select({
@@ -220,7 +247,24 @@ export default async function AdminPage() {
                 />
               ),
             },
-            { key: "missions", label: missionsToReview ? `Missões (${missionsToReview})` : "Missões", icon: "🌱", content: <MissionsTab missions={allMissions} demand={cityDemand} seeds={seedLog} /> },
+            { key: "missions", label: missionsToReview ? `Missões (${missionsToReview})` : "Missões", icon: "🌱", content: (
+                <MissionsTab
+                  missions={allMissions}
+                  demand={cityDemand}
+                  seeds={seedLog}
+                  sponsors={sponsorList.map((sp) => ({
+                    id: sp.id,
+                    name: sp.name,
+                    website: sp.website,
+                    isActive: sp.isActive,
+                    budgetFone: centsToFone(sp.budgetCents),
+                    spentFone: centsToFone(sp.spentCents),
+                    paidFone: centsToFone(sp.paidCents),
+                    remainingFone: centsToFone(sp.remainingCents),
+                  }))}
+                />
+              ),
+            },
             { key: "users", label: "Usuários", icon: "👥", content: <UsersTab users={allUsers} currentUserId={user.id} /> },
             {
               key: "wallets",
@@ -251,7 +295,16 @@ export default async function AdminPage() {
               key: "rewards",
               label: "Recompensas",
               icon: "💸",
-              content: <RewardsTab groups={payoutGroups} paid={paidBatches} explorerUrl={explorerUrl} />,
+              content: (
+                <RewardsTab
+                  groups={payoutGroups}
+                  paid={paidBatches}
+                  explorerUrl={explorerUrl}
+                  settings={payoutSettings}
+                  month={{ treasuryFone: monthUsage.treasury, sponsoredFone: monthUsage.sponsored }}
+                  held={Object.entries(heldByReason).map(([reason, value]) => ({ reason: reason as HoldReason, fone: centsToFone(value.cents), count: value.count }))}
+                />
+              ),
             },
             {
               key: "ai",

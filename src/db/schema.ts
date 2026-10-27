@@ -153,6 +153,8 @@ export const missions = pgTable("missions", {
   osmRef: varchar("osm_ref", { length: 40 }),
   /** Local partner that supports the mission (shown on the card). */
   sponsorName: varchar("sponsor_name", { length: 80 }),
+  /** Sponsor whose FONE budget pays this mission's rewards (null = EcoVerify treasury). */
+  sponsorId: uuid("sponsor_id").references((): AnyPgColumn => sponsors.id, { onDelete: "set null" }),
   category: categoryEnum("category").notNull(),
   /** Optional: what the proof photo must show, used by the automatic verification. */
   aiChecklist: text("ai_checklist"),
@@ -165,6 +167,37 @@ export const missions = pgTable("missions", {
   uniqueIndex("missions_osm_ref_unique").on(table.osmRef),
   index("missions_ibge_idx").on(table.ibgeCode),
 ]);
+
+/**
+ * Companies, city halls or NGOs that fund missions with their own FONE budget
+ * (they deposit it in the EcoVerify treasury; the app tracks what was spent).
+ */
+export const sponsors = pgTable("sponsors", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 80 }).notNull(),
+  website: text("website"),
+  /** Total FONE committed by the sponsor (top-ups add to it). */
+  budgetFone: numeric("budget_fone", { precision: 12, scale: 2 }).notNull().default("0"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Payout rules (single row, id = 1). See src/lib/payout-rules.ts. */
+export const foneSettings = pgTable("fone_settings", {
+  id: integer("id").primaryKey().default(1),
+  /** A person's open rewards are only paid when they add up to at least this (network fee is 0.15 FONE). */
+  minPayoutFone: numeric("min_payout_fone", { precision: 12, scale: 2 }).notNull().default("5"),
+  /** Days a reward waits before it can be paid (time for appeals and fraud checks). */
+  holdDays: integer("hold_days").notNull().default(7),
+  /** FONE the treasury may commit per calendar month (sponsored missions not included). null = no limit. */
+  monthlyBudgetFone: numeric("monthly_budget_fone", { precision: 12, scale: 2 }),
+  /** FONE one person may earn per calendar month. null = no limit. */
+  maxFonePerUserMonth: numeric("max_fone_per_user_month", { precision: 12, scale: 2 }),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 /** One automatic OpenStreetMap search per municipality (and per retry window). */
 export const regionSeeds = pgTable("region_seeds", {
@@ -308,6 +341,14 @@ export const rewardQueue = pgTable("reward_queue", {
   txHash: text("tx_hash"),
   /** Destination wallet at payment time (kept even if the user changes wallet later). */
   walletAddress: text("wallet_address"),
+  /**
+   * Why the reward can't be paid yet: "budget" (treasury monthly budget), "user_cap"
+   * (personal monthly cap) or "sponsor_budget" (sponsor ran out). null = normal.
+   * An admin releases held rewards in Admin → Recompensas.
+   */
+  holdReason: varchar("hold_reason", { length: 20 }),
+  /** Sponsor that pays this reward (copied from the mission at approval time). */
+  sponsorId: uuid("sponsor_id").references(() => sponsors.id, { onDelete: "set null" }),
   paidAt: timestamp("paid_at", { withTimezone: true }),
   paidBy: uuid("paid_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

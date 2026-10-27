@@ -89,12 +89,17 @@ const STEPS: Step[] = [
   {
     title: { pt: "4. Pagamento em FONE", en: "4. FONE payout", es: "4. Pago en FONE" },
     text: {
-      pt: "Ana (admin) vê a fila de recompensas na aba Recompensas. O FONE só vai para carteiras verificadas (prova de posse) de maiores de 18 anos, em lote, e cada pagamento guarda o hash da transação na rede Fone.",
-      en: "Ana (admin) sees the reward queue in the Rewards tab. FONE only goes to verified wallets (proof of ownership) of people over 18, in batches, and every payout keeps the transaction hash on the Fone network.",
-      es: "Ana (admin) ve la cola de recompensas en la pestaña Recompensas. El FONE solo va a billeteras verificadas (prueba de propiedad) de mayores de 18 años, en lote, y cada pago guarda el hash de la transacción en la red Fone.",
+      pt: "Ana (admin) vê a fila na aba Recompensas. O FONE só vai para carteiras verificadas de maiores de 18 anos, depois de 7 dias de carência e a partir de 5 FONE (por causa da taxa da rede). Orçamento mensal, limite por pessoa e patrocinadores com orçamento próprio protegem a tesouraria.",
+      en: "Ana (admin) sees the queue in the Rewards tab. FONE only goes to verified wallets of people over 18, after a 7-day hold period and from 5 FONE up (because of the network fee). A monthly budget, a per-person limit and sponsors with their own budget protect the treasury.",
+      es: "Ana (admin) ve la cola en la pestaña Recompensas. El FONE solo va a billeteras verificadas de mayores de 18 años, tras 7 días de carencia y desde 5 FONE (por la comisión de la red). Un presupuesto mensual, un límite por persona y patrocinadores con presupuesto propio protegen la tesorería.",
     },
     run: () => {
       loginAs(DEMO_IDS.admin);
+      try {
+        sessionStorage.setItem("ecoverify-admin-tab", "rewards");
+      } catch {
+        // Private mode: the admin screen just opens on the first tab.
+      }
       navigate("/admin");
     },
   },
@@ -113,11 +118,11 @@ const STEPS: Step[] = [
   {
     title: { pt: "Pronto!", en: "Done!", es: "¡Listo!" },
     text: {
-      pt: "Agora explore à vontade: troque de perfil no menu, escolha outra cidade em Missões ou envie uma foto de verdade. Tudo fica só neste aparelho.",
-      en: "Now explore freely: switch profiles from the menu, pick another city in Missions or send a real photo. Everything stays on this device.",
-      es: "Ahora explora libremente: cambia de perfil en el menú, elige otra ciudad en Misiones o envía una foto real. Todo queda solo en este dispositivo.",
+      pt: "Esta é a página pública de Transparência: impacto, FONE pago e patrocinadores, sem nomes. Agora explore à vontade: troque de perfil no menu, escolha outra cidade em Missões ou envie uma foto de verdade. Tudo fica só neste aparelho.",
+      en: "This is the public Transparency page: impact, FONE paid and sponsors, with no names. Now explore freely: switch profiles from the menu, pick another city in Missions or send a real photo. Everything stays on this device.",
+      es: "Esta es la página pública de Transparencia: impacto, FONE pagado y patrocinadores, sin nombres. Ahora explora libremente: cambia de perfil en el menú, elige otra ciudad en Misiones o envía una foto real. Todo queda solo en este dispositivo.",
     },
-    run: () => navigate("/ranking"),
+    run: () => navigate("/transparencia"),
   },
 ];
 

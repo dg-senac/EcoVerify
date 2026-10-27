@@ -17,7 +17,7 @@ async function main() {
   }
 
   const { db, pool } = await import("../src/db");
-  const { missions, users } = await import("../src/db/schema");
+  const { missions, sponsors, users } = await import("../src/db/schema");
 
   const password = process.env.SEED_PASSWORD || "ecoverify123";
   const passwordHash = await bcrypt.hash(password, 10);
@@ -163,6 +163,20 @@ async function main() {
     }
     await db.insert(missions).values({ ...mission, createdBy: adminId });
     console.log(`✓ missão criada: ${mission.title}`);
+  }
+
+  // Example sponsor paying the FONE of the "óleo" mission from its own budget (see Admin → Missões → Patrocinadores).
+  const [anySponsor] = await db.select({ id: sponsors.id }).from(sponsors).limit(1);
+  if (!anySponsor) {
+    const [sponsor] = await db
+      .insert(sponsors)
+      .values({ name: "Instituto Exemplo Verde", budgetFone: "30.00", createdBy: adminId })
+      .returning({ id: sponsors.id, name: sponsors.name });
+    await db
+      .update(missions)
+      .set({ sponsorId: sponsor.id, sponsorName: sponsor.name })
+      .where(and(eq(missions.title, "Guarde o óleo de cozinha usado"), isNull(missions.sponsorId)));
+    console.log(`✓ patrocinador de exemplo: ${sponsor.name} (30 FONE)`);
   }
 
   console.log(`\nPronto! Senha dos usuários de demonstração: ${password}`);

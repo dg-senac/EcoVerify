@@ -1,4 +1,4 @@
-import { categoryLabels, t, type Lang } from "@/lib/i18n";
+import { categoryLabels, t, tf, type Lang } from "@/lib/i18n";
 import Link from "next/link";
 import { Star, Sprout } from "@/components/ui/icons";
 import { FoneAmount } from "@/components/brand/fone";
@@ -27,6 +27,8 @@ export type MissionCardData = {
   origin?: "admin" | "auto" | "suggestion";
   needsReview?: boolean;
   sponsorName?: string | null;
+  /** For missions paid by a sponsor: FONE left in its budget. */
+  sponsorRemainingFone?: string | null;
   city?: string | null;
   stateCode?: string | null;
   distanceKm?: number;
@@ -47,6 +49,8 @@ export function MissionCard({ lang, mission }: { lang: Lang; mission: MissionCar
 
   const paysFone = Number(mission.foneReward) > 0;
   const pointsOnly = mission.needsReview && !paysFone;
+  const sponsored = mission.sponsorRemainingFone !== undefined && mission.sponsorRemainingFone !== null;
+  const sponsorEmpty = sponsored && paysFone && Number(mission.sponsorRemainingFone) < Number(mission.foneReward);
 
   return (
     <div className="card-surface flex flex-col rounded-2xl border border-black/5 bg-white p-5 shadow-[0_10px_30px_rgba(16,24,40,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(16,24,40,0.1)] animate-slide-up">
@@ -95,11 +99,18 @@ export function MissionCard({ lang, mission }: { lang: Lang; mission: MissionCar
           <Star className="h-4 w-4" /> {mission.pointsReward}
         </span>
         {paysFone && (
-          <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-teal-700">
+          <span className={`flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-teal-700 ${sponsorEmpty ? "line-through opacity-60" : ""}`}>
             <FoneAmount amount={mission.foneReward} size={16} />
           </span>
         )}
       </div>
+      {sponsored && paysFone && (
+        <p className={`mt-2 text-[11px] font-medium ${sponsorEmpty ? "text-amber-700" : "text-slate-500"}`} data-testid="mission-sponsor-budget">
+          {sponsorEmpty
+            ? t(lang, "mission_sponsor_empty")
+            : tf(lang, "mission_sponsor_left", { fone: mission.sponsorRemainingFone ?? "0" })}
+        </p>
+      )}
       {pointsOnly && <p className="mt-2 text-[11px] text-slate-400">{t(lang, "mission_auto_points_only")}</p>}
       {mission.origin === "auto" && <p className="mt-1 text-[10px] text-slate-400">{t(lang, "osm_attribution")}</p>}
       <Link
