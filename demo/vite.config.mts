@@ -11,13 +11,31 @@ import react from "@vitejs/plugin-react";
  * icons and theme from ../src through the "@" alias.
  */
 const demoDir = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Absolute URL of the published demo, used by link previews (og:image must be absolute).
+ * DEMO_SITE_URL wins; on Vercel the production domain is detected automatically.
+ * Empty (e.g. inside the APK): previews fall back to relative paths.
+ */
+function siteUrl() {
+  const explicit = process.env.DEMO_SITE_URL?.trim();
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  const url = explicit || (vercel ? `https://${vercel}` : "");
+  return url && !url.endsWith("/") ? `${url}/` : url;
+}
 const repoRoot = path.resolve(demoDir, "..");
 
 export default defineConfig({
   root: demoDir,
   // Relative asset paths: works inside the APK (https://localhost) and on any static host.
   base: "./",
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: "ecoverify-site-url",
+      transformIndexHtml: (html) => html.split("%SITE_URL%").join(siteUrl() || "./"),
+    },
+  ],
   resolve: {
     alias: { "@": path.resolve(repoRoot, "src") },
   },

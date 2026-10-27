@@ -8,6 +8,7 @@ import { users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { headers } from "next/headers";
 import type { ActionState } from "@/lib/actions/auth";
+import { parseTheme } from "@/lib/theme";
 
 export async function updateSettingsAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await getCurrentUser();
@@ -17,13 +18,14 @@ export async function updateSettingsAction(_prev: ActionState, formData: FormDat
   const fontSizeInput = String(formData.get("fontSize") ?? "medium");
   const language = (["pt", "en", "es"] as const).find((value) => value === languageInput) ?? "pt";
   const fontSize = (["small", "medium", "large"] as const).find((value) => value === fontSizeInput) ?? "medium";
+  const theme = parseTheme(formData.get("theme"));
   const highContrast = formData.get("highContrast") === "on";
   const reducedMotion = formData.get("reducedMotion") === "on";
   const notificationsEnabled = formData.get("notificationsEnabled") === "on";
 
   await db
     .update(users)
-    .set({ language, fontSize, highContrast, reducedMotion, notificationsEnabled })
+    .set({ language, fontSize, theme, highContrast, reducedMotion, notificationsEnabled })
     .where(eq(users.id, user.id));
 
   revalidatePath("/", "layout");

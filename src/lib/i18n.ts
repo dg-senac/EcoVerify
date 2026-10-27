@@ -22,6 +22,7 @@ const dict = {
   nav_notifications: { pt: "Notificações", en: "Notifications", es: "Notificaciones" },
   nav_profile: { pt: "Perfil", en: "Profile", es: "Perfil" },
   nav_settings: { pt: "Configurações", en: "Settings", es: "Configuración" },
+  nav_orgs: { pt: "Organizações", en: "Organizations", es: "Organizaciones" },
   nav_logout: { pt: "Sair", en: "Log out", es: "Salir" },
   login_title: { pt: "Entrar", en: "Sign in", es: "Iniciar sesión" },
   login_email: { pt: "E-mail", en: "Email", es: "Correo" },
@@ -260,6 +261,124 @@ const dict = {
   settings_title: { pt: "Configurações", en: "Settings", es: "Configuración" },
   settings_language: { pt: "Idioma", en: "Language", es: "Idioma" },
   settings_font_size: { pt: "Tamanho da fonte", en: "Font size", es: "Tamaño de fuente" },
+  ai_title: { pt: "Verificação automática", en: "Automatic verification", es: "Verificación automática" },
+  ai_queued: { pt: "Analisando a foto…", en: "Analysing the photo…", es: "Analizando la foto…" },
+  ai_failed: {
+    pt: "A IA não conseguiu analisar esta foto (limite diário gratuito ou falha). Decida manualmente ou tente de novo.",
+    en: "The AI could not analyse this photo (free daily limit or failure). Decide manually or try again.",
+    es: "La IA no pudo analizar esta foto (límite diario gratuito o falla). Decide manualmente o inténtalo de nuevo.",
+  },
+  ai_retry: { pt: "Analisar de novo", en: "Analyse again", es: "Analizar de nuevo" },
+  ai_unavailable: {
+    pt: "A verificação automática está desligada ou sem chave configurada.",
+    en: "Automatic verification is off or has no key configured.",
+    es: "La verificación automática está apagada o sin clave configurada.",
+  },
+  ai_suggests_approve: { pt: "IA sugere aprovar", en: "AI suggests approving", es: "La IA sugiere aprobar" },
+  ai_suggests_reject: { pt: "IA sugere rejeitar", en: "AI suggests rejecting", es: "La IA sugiere rechazar" },
+  ai_suggests_review: { pt: "IA pede revisão humana", en: "AI asks for human review", es: "La IA pide revisión humana" },
+  ai_confidence: { pt: "confiança", en: "confidence", es: "confianza" },
+  ai_seen: { pt: "O que a IA viu", en: "What the AI saw", es: "Lo que vio la IA" },
+  ai_flag_similar: {
+    pt: "Foto muito parecida com outra já enviada",
+    en: "Photo very similar to one already sent",
+    es: "Foto muy parecida a otra ya enviada",
+  },
+  ai_flag_faces: {
+    pt: "Há rostos reconhecíveis (cuidado com a privacidade)",
+    en: "Recognisable faces (mind privacy)",
+    es: "Hay rostros reconocibles (cuidado con la privacidad)",
+  },
+  ai_rules_only: {
+    pt: "Só as regras locais rodaram (sem IA configurada).",
+    en: "Only local rules ran (no AI configured).",
+    es: "Solo corrieron las reglas locales (sin IA configurada).",
+  },
+  appeal_badge: { pt: "Contestação", en: "Appeal", es: "Apelación" },
+  appeal_from_user: {
+    pt: "O usuário contestou a rejeição automática:",
+    en: "The user appealed the automatic rejection:",
+    es: "El usuario apeló el rechazo automático:",
+  },
+  appeal_previous_reason: { pt: "Motivo dado pela IA", en: "Reason given by the AI", es: "Motivo dado por la IA" },
+  ai_recent_title: { pt: "Decisões automáticas recentes", en: "Recent automatic decisions", es: "Decisiones automáticas recientes" },
+  ai_recent_hint: {
+    pt: "Para auditoria: o que a IA aprovou ou rejeitou sozinha. Rejeições podem ser contestadas pelo usuário.",
+    en: "For auditing: what the AI approved or rejected on its own. Users can appeal rejections.",
+    es: "Para auditoría: lo que la IA aprobó o rechazó sola. Los usuarios pueden apelar los rechazos.",
+  },
+  ai_mode_auto: {
+    pt: "IA ligada: aprova e rejeita sozinha os casos claros; o resto vem para cá com sugestão.",
+    en: "AI on: approves and rejects clear cases on its own; the rest comes here with a suggestion.",
+    es: "IA encendida: aprueba y rechaza sola los casos claros; el resto llega aquí con sugerencia.",
+  },
+  ai_mode_suggest: {
+    pt: "IA em modo sugestão: analisa todas as fotos, mas quem decide é a moderação.",
+    en: "AI in suggestion mode: analyses every photo, but moderators decide.",
+    es: "IA en modo sugerencia: analiza todas las fotos, pero decide la moderación.",
+  },
+  ai_mode_off: {
+    pt: "Verificação automática desligada: todas as comprovações são decididas pela moderação.",
+    en: "Automatic verification off: moderators decide every proof.",
+    es: "Verificación automática apagada: la moderación decide todas las comprobaciones.",
+  },
+  ai_mode_no_key: {
+    pt: "IA sem chave (GEMINI_API_KEY): só as regras locais rodam, e a moderação decide.",
+    en: "AI without a key (GEMINI_API_KEY): only local rules run and moderators decide.",
+    es: "IA sin clave (GEMINI_API_KEY): solo corren las reglas locales y decide la moderación.",
+  },
+  decided_ai_approved: { pt: "Aprovada automaticamente", en: "Approved automatically", es: "Aprobada automáticamente" },
+  decided_ai_rejected: { pt: "Rejeitada automaticamente", en: "Rejected automatically", es: "Rechazada automáticamente" },
+  status_ai_checking: { pt: "Em análise automática", en: "Being checked", es: "En análisis automático" },
+  status_appealed: { pt: "Contestação em análise", en: "Appeal under review", es: "Apelación en revisión" },
+  appeal_button: { pt: "Contestar", en: "Appeal", es: "Apelar" },
+  appeal_title: { pt: "Pedir revisão humana", en: "Ask for a human review", es: "Pedir revisión humana" },
+  appeal_hint: {
+    pt: "Conte por que a decisão automática está errada. Um moderador vai rever a sua foto (só dá para contestar uma vez).",
+    en: "Tell us why the automatic decision is wrong. A moderator will review your photo (you can appeal once).",
+    es: "Cuéntanos por qué la decisión automática es incorrecta. Un moderador revisará tu foto (solo se puede apelar una vez).",
+  },
+  appeal_send: { pt: "Enviar contestação", en: "Send appeal", es: "Enviar apelación" },
+  appeal_sent: {
+    pt: "Contestação enviada. Um moderador vai analisar.",
+    en: "Appeal sent. A moderator will review it.",
+    es: "Apelación enviada. Un moderador la revisará.",
+  },
+  appeal_error_appeal_length: {
+    pt: "Escreva entre 10 e 500 caracteres.",
+    en: "Write between 10 and 500 characters.",
+    es: "Escribe entre 10 y 500 caracteres.",
+  },
+  appeal_error_appeal_already_sent: {
+    pt: "Você já contestou esta decisão.",
+    en: "You already appealed this decision.",
+    es: "Ya apelaste esta decisión.",
+  },
+  appeal_error_appeal_other_active: {
+    pt: "Você já tem outra comprovação em análise ou aprovada para esta missão.",
+    en: "You already have another proof pending or approved for this mission.",
+    es: "Ya tienes otra comprobación en análisis o aprobada para esta misión.",
+  },
+  appeal_error_generic: {
+    pt: "Não foi possível contestar esta comprovação.",
+    en: "This proof cannot be appealed.",
+    es: "No se pudo apelar esta comprobación.",
+  },
+  ai_decision_notice: {
+    pt: "Decisão tomada pela verificação automática do EcoVerify.",
+    en: "Decision made by EcoVerify's automatic verification.",
+    es: "Decisión tomada por la verificación automática de EcoVerify.",
+  },
+  reject_quick_reasons: { pt: "Motivos comuns", en: "Common reasons", es: "Motivos comunes" },
+  settings_theme: { pt: "Tema", en: "Theme", es: "Tema" },
+  theme_system: { pt: "Automático", en: "Automatic", es: "Automático" },
+  theme_light: { pt: "Claro", en: "Light", es: "Claro" },
+  theme_dark: { pt: "Escuro", en: "Dark", es: "Oscuro" },
+  theme_system_hint: {
+    pt: "Automático segue o modo claro/escuro do seu celular ou computador.",
+    en: "Automatic follows your phone or computer light/dark setting.",
+    es: "Automático sigue el modo claro/oscuro de tu celular o computadora.",
+  },
   settings_high_contrast: { pt: "Alto contraste", en: "High contrast", es: "Alto contraste" },
   settings_reduced_motion: {
     pt: "Reduzir movimento/animações",
@@ -576,6 +695,145 @@ const dict = {
     en: "Confirm your e-mail before linking a wallet (Settings → Account).",
     es: "Confirma tu correo antes de vincular una billetera (Configuración → Cuenta).",
   },
+  // Regional missions
+  region_near_you: { pt: "Missões perto de você", en: "Missions near you", es: "Misiones cerca de ti" },
+  region_prompt_title: { pt: "Veja as missões da sua região", en: "See the missions in your area", es: "Mira las misiones de tu región" },
+  region_prompt_text: {
+    pt: "Use sua localização ou escolha a cidade. A localização serve só para filtrar a lista: fica arredondada (~1 km) neste aparelho e não é salva na sua conta.",
+    en: "Use your location or pick a city. Your location only filters the list: it is rounded (~1 km), kept on this device and not saved to your account.",
+    es: "Usa tu ubicación o elige la ciudad. La ubicación solo filtra la lista: se redondea (~1 km), queda en este dispositivo y no se guarda en tu cuenta.",
+  },
+  region_use_location: { pt: "Usar minha localização", en: "Use my location", es: "Usar mi ubicación" },
+  region_locating: { pt: "Localizando…", en: "Locating…", es: "Ubicando…" },
+  region_pick_city: { pt: "Escolher cidade", en: "Pick a city", es: "Elegir ciudad" },
+  region_search_placeholder: { pt: "Digite a cidade (ex.: Olinda)", en: "Type the city (e.g. Olinda)", es: "Escribe la ciudad (ej.: Olinda)" },
+  region_no_results: { pt: "Nenhuma cidade encontrada.", en: "No city found.", es: "No se encontró ninguna ciudad." },
+  region_change: { pt: "Trocar", en: "Change", es: "Cambiar" },
+  region_clear: { pt: "Ver todas", en: "See all", es: "Ver todas" },
+  region_radius: { pt: "Raio", en: "Radius", es: "Radio" },
+  region_by_gps: { pt: "pela sua localização", en: "from your location", es: "por tu ubicación" },
+  region_by_choice: { pt: "cidade escolhida", en: "chosen city", es: "ciudad elegida" },
+  region_error_location: {
+    pt: "Não foi possível obter sua localização. Permita o acesso ou escolha a cidade.",
+    en: "Could not get your location. Allow access or pick a city.",
+    es: "No se pudo obtener tu ubicación. Permite el acceso o elige la ciudad.",
+  },
+  region_error_outside: {
+    pt: "Por enquanto o EcoVerify só tem regiões no Brasil. Escolha uma cidade.",
+    en: "For now EcoVerify only has regions in Brazil. Pick a city.",
+    es: "Por ahora EcoVerify solo tiene regiones en Brasil. Elige una ciudad.",
+  },
+  region_section_nearby: { pt: "Perto de você", en: "Near you", es: "Cerca de ti" },
+  region_section_anywhere: { pt: "Em qualquer lugar", en: "Anywhere", es: "En cualquier lugar" },
+  region_anywhere_hint: {
+    pt: "Dá para fazer de casa ou de onde você estiver.",
+    en: "You can do these at home or wherever you are.",
+    es: "Puedes hacerlas en casa o donde estés.",
+  },
+  region_elsewhere: {
+    pt: "{n} missões em outras regiões.",
+    en: "{n} missions in other areas.",
+    es: "{n} misiones en otras regiones.",
+  },
+  region_empty_title: { pt: "Ainda não há missões aqui", en: "No missions here yet", es: "Todavía no hay misiones aquí" },
+  region_empty_text: {
+    pt: "Peça missões para {city} e convide sua escola, empresa ou bairro. Você também pode sugerir uma ação.",
+    en: "Ask for missions in {city} and invite your school, company or neighbourhood. You can also suggest an action.",
+    es: "Pide misiones para {city} e invita a tu escuela, empresa o barrio. También puedes sugerir una acción.",
+  },
+  region_seeding: {
+    pt: "Estamos procurando pontos de coleta, parques e praias perto de você no OpenStreetMap para criar missões. Volte em alguns minutos.",
+    en: "We are looking for recycling points, parks and beaches near you on OpenStreetMap to create missions. Come back in a few minutes.",
+    es: "Estamos buscando puntos de reciclaje, parques y playas cerca de ti en OpenStreetMap para crear misiones. Vuelve en unos minutos.",
+  },
+  region_want_more: { pt: "Quero mais missões aqui", en: "I want more missions here", es: "Quiero más misiones aquí" },
+  region_want_more_done: { pt: "Pedido registrado ✓", en: "Request registered ✓", es: "Pedido registrado ✓" },
+  region_want_more_count: {
+    pt: "{n} pessoa(s) já pediram missões em {city}.",
+    en: "{n} person(s) already asked for missions in {city}.",
+    es: "{n} persona(s) ya pidieron misiones en {city}.",
+  },
+  region_suggest: { pt: "Sugerir uma ação", en: "Suggest an action", es: "Sugerir una acción" },
+  mission_anywhere: { pt: "Em qualquer lugar", en: "Anywhere", es: "En cualquier lugar" },
+  mission_auto_badge: { pt: "Nova na região", en: "New in the area", es: "Nueva en la región" },
+  mission_auto_points_only: {
+    pt: "Só pontos até a equipe revisar esta missão.",
+    en: "Points only until the team reviews this mission.",
+    es: "Solo puntos hasta que el equipo revise esta misión.",
+  },
+  mission_suggested_badge: { pt: "Sugerida pela comunidade", en: "Suggested by the community", es: "Sugerida por la comunidad" },
+  mission_sponsor: { pt: "Apoio", en: "Supported by", es: "Apoyo" },
+  transparency: { pt: "Transparência", en: "Transparency", es: "Transparencia" },
+  mission_sponsor_left: {
+    pt: "FONE pago pelo patrocinador · restam {fone} FONE no orçamento",
+    en: "FONE paid by the sponsor · {fone} FONE left in the budget",
+    es: "FONE pagado por el patrocinador · quedan {fone} FONE en el presupuesto",
+  },
+  mission_sponsor_empty: {
+    pt: "O orçamento do patrocinador acabou: os pontos valem normalmente e o FONE fica em espera até uma recarga.",
+    en: "The sponsor budget ran out: points work as usual and the FONE stays on hold until a top-up.",
+    es: "Se acabó el presupuesto del patrocinador: los puntos valen normalmente y el FONE queda en espera hasta una recarga.",
+  },
+  payout_below_min: {
+    pt: "Enviamos quando somar pelo menos {min} FONE — assim a taxa da rede não come a sua recompensa.",
+    en: "We send it once it adds up to at least {min} FONE — so the network fee doesn't eat your reward.",
+    es: "Lo enviamos cuando sume al menos {min} FONE — así la comisión de la red no se come tu recompensa.",
+  },
+  payout_waiting: { pt: "em carência · libera em {date}", en: "in hold period · released on {date}", es: "en período de carencia · se libera el {date}" },
+  payout_held: {
+    pt: "em espera (orçamento do mês ou limite atingido)",
+    en: "on hold (monthly budget or limit reached)",
+    es: "en espera (presupuesto del mes o límite alcanzado)",
+  },
+  payout_rules_note: {
+    pt: "Cada recompensa espera {days} dia(s) antes de ser paga (tempo para contestações) e os envios começam a partir de {min} FONE.",
+    en: "Each reward waits {days} day(s) before it is paid (time for appeals) and payments start from {min} FONE.",
+    es: "Cada recompensa espera {days} día(s) antes de pagarse (tiempo para apelaciones) y los envíos empiezan desde {min} FONE.",
+  },
+  osm_attribution: { pt: "Local: © colaboradores do OpenStreetMap", en: "Place: © OpenStreetMap contributors", es: "Lugar: © colaboradores de OpenStreetMap" },
+  anywhere_location_note: {
+    pt: "Missão em qualquer lugar: registramos a localização como as outras, mas você não precisa estar num ponto específico.",
+    en: "Anywhere mission: we record your location as usual, but you don't need to be at a specific spot.",
+    es: "Misión en cualquier lugar: registramos tu ubicación como siempre, pero no necesitas estar en un punto específico.",
+  },
+  // Suggestions
+  suggest_title: { pt: "Sugerir uma ação na sua região", en: "Suggest an action in your area", es: "Sugerir una acción en tu región" },
+  suggest_subtitle: {
+    pt: "Viu uma praia suja, uma praça precisando de mutirão ou um ponto de coleta? Conte para a moderação. Se for aprovada, vira missão para todo mundo da região.",
+    en: "Saw a dirty beach, a square that needs a clean-up or a recycling point? Tell the moderators. If approved, it becomes a mission for everyone in the area.",
+    es: "¿Viste una playa sucia, una plaza que necesita limpieza o un punto de reciclaje? Cuéntalo a la moderación. Si se aprueba, será una misión para toda la región.",
+  },
+  suggest_name: { pt: "Nome da ação", en: "Action name", es: "Nombre de la acción" },
+  suggest_name_placeholder: { pt: "Ex.: Mutirão na Praça do Carmo", en: "E.g. Clean-up at Carmo Square", es: "Ej.: Limpieza en la Plaza do Carmo" },
+  suggest_description: { pt: "O que precisa ser feito e onde", en: "What needs to be done and where", es: "Qué hay que hacer y dónde" },
+  suggest_location: { pt: "Local da ação (você precisa estar lá ou perto)", en: "Place of the action (you need to be there or nearby)", es: "Lugar de la acción (debes estar allí o cerca)" },
+  suggest_category: { pt: "Tipo de ação", en: "Kind of action", es: "Tipo de acción" },
+  suggest_send: { pt: "Enviar sugestão", en: "Send suggestion", es: "Enviar sugerencia" },
+  suggest_sent: {
+    pt: "Sugestão enviada! Você recebe uma notificação quando a moderação analisar.",
+    en: "Suggestion sent! You'll get a notification when the moderators review it.",
+    es: "¡Sugerencia enviada! Recibirás una notificación cuando la moderación la revise.",
+  },
+  suggest_error_invalid: {
+    pt: "Preencha o nome (5–120 caracteres), a descrição (30–1000) e a localização.",
+    en: "Fill in the name (5–120 characters), the description (30–1000) and the location.",
+    es: "Completa el nombre (5–120 caracteres), la descripción (30–1000) y la ubicación.",
+  },
+  suggest_error_limit: {
+    pt: "Você já tem 3 sugestões aguardando análise. Espere a moderação responder.",
+    en: "You already have 3 suggestions waiting for review. Wait for the moderators.",
+    es: "Ya tienes 3 sugerencias esperando revisión. Espera a la moderación.",
+  },
+  suggestions_title: { pt: "Sugestões de ação da comunidade", en: "Community action suggestions", es: "Sugerencias de acción de la comunidad" },
+  suggestion_approve: { pt: "Virar missão", en: "Make it a mission", es: "Convertir en misión" },
+  suggestion_done_approved: { pt: "Virou missão (só pontos até o admin revisar)", en: "Now a mission (points only until an admin reviews it)", es: "Ahora es una misión (solo puntos hasta que un admin la revise)" },
+  suggestion_done_rejected: { pt: "Sugestão recusada", en: "Suggestion declined", es: "Sugerencia rechazada" },
+  suggestion_reject: { pt: "Recusar", en: "Decline", es: "Rechazar" },
+  suggestion_points_hint: {
+    pt: "Vira missão com pontos. O FONE é definido por um admin depois.",
+    en: "Becomes a mission with points. FONE is set by an admin later.",
+    es: "Se convierte en misión con puntos. El FONE lo define un admin después.",
+  },
   // Fone brand
   powered_by_fone: { pt: "Recompensas na rede", en: "Rewards on", es: "Recompensas en la red" },
   fone_wallet_official: { pt: "App oficial da rede Fone", en: "Official Fone network app", es: "App oficial de la red Fone" },
@@ -585,6 +843,13 @@ export type DictKey = keyof typeof dict;
 
 export function t(lang: Lang, key: DictKey): string {
   return dict[key]?.[lang] ?? dict[key]?.pt ?? String(key);
+}
+
+/** t() with "{name}" placeholders. */
+export function tf(lang: Lang, key: DictKey, vars: Record<string, string | number>): string {
+  let text = t(lang, key);
+  for (const [name, value] of Object.entries(vars)) text = text.split(`{${name}}`).join(String(value));
+  return text;
 }
 
 export const categoryLabels: Record<string, Record<Lang, string>> = {

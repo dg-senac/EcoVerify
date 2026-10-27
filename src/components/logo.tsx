@@ -1,4 +1,8 @@
+import { useId } from "react";
+
 export function LogoMark({ size = 40, rounded = "rounded-xl" }: { size?: number; rounded?: string }) {
+  // Unique per instance: with a shared id, Chrome paints nothing when the first copy is hidden (e.g. the desktop sidebar on mobile).
+  const gradientId = `ecoverify-grad-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   return (
     <div
       className={`relative shrink-0 ${rounded} overflow-hidden shadow-sm`}
@@ -6,12 +10,12 @@ export function LogoMark({ size = 40, rounded = "rounded-xl" }: { size?: number;
     >
       <svg viewBox="0 0 100 100" width="100%" height="100%" role="img" aria-label="EcoVerify">
         <defs>
-          <linearGradient id="ecoverify-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#22c55e" />
             <stop offset="100%" stopColor="#0d9488" />
           </linearGradient>
         </defs>
-        <rect width="100" height="100" fill="url(#ecoverify-grad)" />
+        <rect width="100" height="100" fill={`url(#${gradientId})`} />
         <path
           d="M32 78C22 68 20 50 30 36C38 25 52 20 66 22C64 34 58 44 48 50C58 47 66 41 71 32C74 46 70 62 58 72C50 79 40 80 32 78Z"
           fill="white"

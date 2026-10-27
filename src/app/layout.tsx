@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
+import { THEME_COLORS } from "@/lib/theme";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -24,9 +25,22 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     .filter(Boolean)
     .join(" ");
 
+  // data-theme drives the CSS color-scheme (see theme.css): no script, so no flash of the wrong theme.
+  const theme = user?.theme ?? "system";
+
   return (
-    <html lang="pt-BR" className={classes}>
-      <body className={`${inter.variable} font-sans antialiased bg-[#f7f8f7] text-slate-900`} suppressHydrationWarning>
+    <html lang="pt-BR" className={classes} data-theme={theme}>
+      <head>
+        {theme === "system" ? (
+          <>
+            <meta name="theme-color" media="(prefers-color-scheme: light)" content={THEME_COLORS.light} />
+            <meta name="theme-color" media="(prefers-color-scheme: dark)" content={THEME_COLORS.dark} />
+          </>
+        ) : (
+          <meta name="theme-color" content={THEME_COLORS[theme]} />
+        )}
+      </head>
+      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         {children}
       </body>
     </html>

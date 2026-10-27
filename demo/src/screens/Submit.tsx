@@ -17,6 +17,7 @@ import {
   type Coords,
 } from "../media";
 import { categoryStyles } from "../components/MissionCard";
+import { drawSamplePhoto, SAMPLE_KINDS, sampleEmoji, sampleLabel, type SampleKind } from "../demoAi";
 import { btnPrimary, btnSecondary, card, EmptyState, label, toast } from "../components/ui";
 import { FoneAmount } from "@/components/brand/fone";
 
@@ -26,7 +27,7 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
   const lang = useLang();
   const mission = useStore((s) => s.missions.find((m) => m.id === missionId && m.isActive));
   const fileRef = useRef<HTMLInputElement>(null);
-  const [photo, setPhoto] = useState<{ dataUrl: string; hash: string } | null>(null);
+  const [photo, setPhoto] = useState<{ dataUrl: string; hash: string; sample: SampleKind | null } | null>(null);
   const [processing, setProcessing] = useState(false);
   const [report, setReport] = useState("");
   const [location, setLocation] = useState<Location | null>(null);
@@ -46,12 +47,19 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
       const bytes = new Uint8Array(await file.arrayBuffer());
       if (!detectImageType(bytes)) throw new Error("invalid");
       const [hash, dataUrl] = await Promise.all([hashBytes(bytes), compressPhoto(file)]);
-      setPhoto({ dataUrl, hash });
+      setPhoto({ dataUrl, hash, sample: null });
     } catch {
       setError(t(lang, "error_invalid_photo"));
     } finally {
       setProcessing(false);
     }
+  };
+
+  const pickSample = async (kind: SampleKind) => {
+    setError(null);
+    const dataUrl = drawSamplePhoto(kind);
+    if (!dataUrl) return setError(t(lang, "error_invalid_photo"));
+    setPhoto({ dataUrl, hash: await hashBytes(new TextEncoder().encode(dataUrl)), sample: kind });
   };
 
   const useGps = async () => {
@@ -80,7 +88,9 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
   };
 
   const distance = location ? distanceMeters(location.latitude, location.longitude, mission.latitude, mission.longitude) : null;
-  const locationOk = !!location && distance !== null && distance <= MAX_DISTANCE_METERS && location.accuracy <= MAX_GPS_ACCURACY_METERS;
+  const anywhere = mission.scope === "anywhere";
+  const locationOk =
+    !!location && distance !== null && (anywhere || distance <= MAX_DISTANCE_METERS) && location.accuracy <= MAX_GPS_ACCURACY_METERS;
   const reportLength = report.trim().length;
   const canSend = !!photo && reportLength >= 50 && reportLength <= 1000 && !!location && !processing;
 
@@ -96,6 +106,7 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
       longitude: location.longitude,
       accuracy: location.accuracy,
       simulatedLocation: location.simulated,
+      sample: photo.sample,
     });
     if (result.error) return setError(errorText(lang, result.error));
     toast(t(lang, "submission_success"));
@@ -154,6 +165,27 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
               </span>
             )}
           </button>
+          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3" data-testid="sample-photos">
+            <p className="text-xs font-bold text-slate-700">🤖 {dt(lang, "sample_title")}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {SAMPLE_KINDS.map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  data-sample={kind}
+                  onClick={() => pickSample(kind)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                    photo?.sample === kind ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {sampleEmoji(kind)} {sampleLabel(kind, lang)}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] leading-snug text-slate-500">
+              {photo && !photo.sample ? dt(lang, "sim_real_photo") : dt(lang, "sample_hint")}
+            </p>
+          </div>
         </div>
 
         {/* Report */}
@@ -188,12 +220,14 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
             </button>
           </div>
           <p className="text-xs text-slate-400">{dt(lang, "simulate_location_hint")}</p>
+          {anywhere && <p className="text-xs text-slate-500" data-testid="anywhere-note">🌎 {t(lang, "anywhere_location_note")}</p>}
           {location && distance !== null && (
             <div className={`flex items-start gap-2 rounded-xl p-3 text-sm ${locationOk ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"}`}>
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
                 <p className="font-semibold">
-                  {dt(lang, location.simulated ? "location_simulated" : "location_real")} · {dt(lang, "distance_to_mission")}: {formatDistance(distance)} (± {Math.round(location.accuracy)} m)
+                  {dt(lang, location.simulated ? "location_simulated" : "location_real")}
+                  {anywhere ? "" : ` · ${dt(lang, "distance_to_mission")}: ${formatDistance(distance)}`} (± {Math.round(location.accuracy)} m)
                 </p>
                 {!locationOk && (
                   <p className="mt-0.5 text-xs">

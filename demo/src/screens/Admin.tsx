@@ -5,28 +5,109 @@ import { formatDate, formatFone } from "@/lib/utils";
 import type { Role } from "@/lib/nav";
 import { dt, errorText, type DemoKey } from "../i18n";
 import {
+  confirmDemoInvoice,
+  grantDemoPlan,
+  setDemoLeadStatus,
   createMission,
   localizedTitle,
+  reviewMission,
   setUserBan,
   setUserRole,
-  simulatePayout,
+  createSponsor,
+  payoutSettingsOf,
+  releaseHeldRewards,
+  simulateUserPayout,
+  skipHoldPeriod,
+  sponsorBalance,
   toggleMission,
+  topUpSponsor,
+  treasuryMonthCents,
+  updatePayoutSettings,
+  userPayout,
   useLang,
   useStore,
   type Category,
+  type Mission,
   type User,
 } from "../store";
+import { placeOf } from "../municipalities";
 import { getCurrentPosition } from "../media";
 import { Avatar, Modal, PageHeader, btnPrimary, btnSecondary, card, input, label, toast } from "../components/ui";
 import { FoneAmount, FoneMark } from "@/components/brand/fone";
+import { centsToFone } from "@/lib/fone";
+import { HOLD_REASONS, isReadyToPay } from "@/lib/payout-rules";
+import { Link } from "../router";
+import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
+import { PLANS } from "@/lib/plans";
+import { orgPlan } from "@/lib/saas/org-rules";
+import { monthStart } from "@/lib/payout-rules";
 
-type Tab = "metrics" | "missions" | "users" | "rewards";
+type Tab = "metrics" | "business" | "missions" | "users" | "rewards";
+export const ADMIN_TAB_KEY = "ecoverify-admin-tab";
+const BUSINESS_LABEL = { pt: "Negócios", en: "Business", es: "Negocios" };
+
+/** Same panel as the web app (src/components/admin/business-tab.tsx), fed by the local store. */
+function DemoBusinessTab() {
+  const data = useStore<BusinessData>((s) => {
+    const orgs = (s.orgs ?? []).map((o) => ({ ...o, effective: orgPlan(o) }));
+    const paying = orgs.filter((o) => o.effective !== "free" && o.subscriptionStatus === "active");
+    const paid = (s.invoices ?? []).filter((i) => i.status === "paid");
+    const month = monthStart(new Date()).getTime();
+    return {
+      mrrCents: paying.reduce((sum, o) => sum + (o.billingCycle === "yearly" && PLANS[o.effective].yearlyCents ? Math.round(PLANS[o.effective].yearlyCents! / 12) : (PLANS[o.effective].monthlyCents ?? 0)), 0),
+      receivedMonthCents: paid.filter((i) => i.paidAt && new Date(i.paidAt).getTime() >= month).reduce((sum, i) => sum + i.amountCents, 0),
+      receivedTotalCents: paid.reduce((sum, i) => sum + i.amountCents, 0),
+      campaignFeesMonthCents: 0,
+      campaignFeesTotalCents: 0,
+      payingOrgs: paying.length,
+      trialOrgs: orgs.filter((o) => o.effective !== "free" && o.subscriptionStatus === "trialing").length,
+      totalOrgs: orgs.length,
+      pendingInvoices: (s.invoices ?? [])
+        .filter((i) => i.status === "pending")
+        .map((i) => {
+          const org = orgs.find((o) => o.id === i.orgId);
+          return { id: i.id, orgName: org?.name ?? "—", orgSlug: org?.slug ?? "", plan: i.plan, cycle: i.billingCycle, amountCents: i.amountCents, reference: i.reference, reportedAt: i.reportedAt, createdAt: i.createdAt };
+        }),
+      orgs: orgs.map((o) => ({
+        id: o.id,
+        name: o.name,
+        slug: o.slug,
+        type: o.type,
+        plan: o.plan,
+        effectivePlan: o.effective,
+        status: o.subscriptionStatus,
+        periodEnd: o.currentPeriodEnd,
+        members: (s.orgMembers ?? []).filter((m) => m.orgId === o.id).length,
+        ownerEmail: s.users.find((u) => u.id === o.ownerId)?.email ?? null,
+      })),
+      leads: (s.leads ?? []).map((l) => ({ ...l })),
+    };
+  });
+  return (
+    <BusinessTab
+      data={data}
+      demoNote="Demonstração: os valores e o Pix são fictícios. No app real, o dinheiro dos planos cai direto na chave Pix configurada (PIX_KEY) e você confirma aqui."
+      actions={{
+        confirmInvoice: async (id) => confirmDemoInvoice(id),
+        grantPlan: async (orgId, plan, months) => grantDemoPlan(orgId, plan, months),
+        setLeadStatus: async (id, status) => setDemoLeadStatus(id, status),
+      }}
+    />
+  );
+}
 
 export function AdminScreen({ user }: { user: User }) {
   const lang = useLang();
-  const [tab, setTab] = useState<Tab>("metrics");
-  const tabs: { id: Tab; key: "admin_tab_metrics" | "admin_tab_missions" | "admin_tab_users" | "admin_tab_rewards" }[] = [
+  const [tab, setTab] = useState<Tab>(() => {
+    // The presentation tour opens the Rewards tab directly.
+    const wanted = sessionStorage.getItem(ADMIN_TAB_KEY);
+    sessionStorage.removeItem(ADMIN_TAB_KEY);
+    return wanted === "rewards" || wanted === "missions" || wanted === "users" || wanted === "business" ? wanted : "metrics";
+  });
+  const businessBadge = useStore((st) => (st.invoices ?? []).filter((i) => i.status === "pending" && i.reportedAt).length + (st.leads ?? []).filter((l) => l.status === "new").length);
+  const tabs: { id: Tab; key: "admin_tab_metrics" | "admin_tab_missions" | "admin_tab_users" | "admin_tab_rewards" | null }[] = [
     { id: "metrics", key: "admin_tab_metrics" },
+    { id: "business", key: null },
     { id: "missions", key: "admin_tab_missions" },
     { id: "users", key: "admin_tab_users" },
     { id: "rewards", key: "admin_tab_rewards" },
@@ -42,11 +123,12 @@ export function AdminScreen({ user }: { user: User }) {
             onClick={() => setTab(tb.id)}
             className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition ${tab === tb.id ? "bg-emerald-500 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}
           >
-            {t(lang, tb.key)}
+            {tb.key ? t(lang, tb.key) : `💼 ${BUSINESS_LABEL[lang]}${businessBadge ? ` (${businessBadge})` : ""}`}
           </button>
         ))}
       </div>
       {tab === "metrics" && <MetricsTab />}
+      {tab === "business" && <DemoBusinessTab />}
       {tab === "missions" && <MissionsTab />}
       {tab === "users" && <UsersTab me={user} />}
       {tab === "rewards" && <RewardsTab />}
@@ -100,33 +182,77 @@ function MetricsTab() {
   );
 }
 
-const emptyForm = { title: "", description: "", category: "cleanup" as Category, points: "50", fone: "25", latitude: "-8.0631", longitude: "-34.8711" };
+const emptyForm = { title: "", description: "", category: "cleanup" as Category, points: "50", fone: "25", latitude: "-8.0631", longitude: "-34.8711", sponsor: "", sponsorId: "" };
+
+function ReviewItem({ mission }: { mission: Mission }) {
+  const lang = useLang();
+  const [fone, setFone] = useState("");
+  const decide = (decision: "fone" | "points" | "deactivate") => {
+    const result = reviewMission(mission.id, decision, Number(fone.replace(",", ".")));
+    if (result.error) toast(errorText(lang, result.error), "error");
+  };
+  return (
+    <div className="rounded-xl border border-black/5 p-3" data-testid="mission-review">
+      <p className="font-semibold text-slate-800">
+        {categoryEmoji[mission.category]} {localizedTitle(mission, lang)}
+      </p>
+      <p className="text-xs text-slate-500">
+        ✨ OpenStreetMap · ⭐ {mission.pointsReward} · {mission.city}, {mission.stateCode}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" inputMode="decimal" placeholder="FONE" value={fone} onChange={(e) => setFone(e.target.value)} aria-label="FONE" />
+        <button type="button" onClick={() => decide("fone")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">{dt(lang, "review_fone")}</button>
+        <button type="button" onClick={() => decide("points")} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">{dt(lang, "review_points")}</button>
+        <button type="button" onClick={() => decide("deactivate")} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600">{dt(lang, "review_off")}</button>
+      </div>
+    </div>
+  );
+}
 
 function MissionsTab() {
   const lang = useLang();
   const missions = useStore((s) => s.missions);
+  const requests = useStore((s) => s.missionRequests ?? []);
+  const sponsors = useStore((s) => s.sponsors ?? []);
   const [open, setOpen] = useState(false);
+  const [anywhere, setAnywhere] = useState(false);
+  const toReview = missions.filter((m) => m.needsReview && m.isActive);
+  const demand = Object.values(
+    requests.reduce<Record<number, { city: string; uf: string; n: number }>>((acc, r) => {
+      acc[r.ibge] = { city: r.city, uf: r.uf, n: (acc[r.ibge]?.n ?? 0) + 1 };
+      return acc;
+    }, {}),
+  ).sort((a, b) => b.n - a.n);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
 
   const set = (key: keyof typeof emptyForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
+    const latitude = Number(form.latitude.replace(",", "."));
+    const longitude = Number(form.longitude.replace(",", "."));
+    const place = !anywhere && Number.isFinite(latitude) && Number.isFinite(longitude) ? await placeOf(latitude, longitude) : null;
     const result = createMission({
+      scope: anywhere ? "anywhere" : "local",
+      city: place?.city ?? null,
+      stateCode: place?.stateCode ?? null,
+      sponsorName: form.sponsor.trim().slice(0, 80) || null,
+      sponsorId: form.sponsorId || null,
       title: form.title,
       description: form.description,
       category: form.category,
       pointsReward: Number(form.points),
       // Accept "25,50" (pt-BR keyboards) as well as "25.50".
       foneReward: form.fone.replace(",", "."),
-      latitude: Number(form.latitude.replace(",", ".")),
-      longitude: Number(form.longitude.replace(",", ".")),
+      latitude,
+      longitude,
     });
     if (result.error) return setError(errorText(lang, result.error));
     toast(dt(lang, "mission_created"));
     setForm(emptyForm);
+    setAnywhere(false);
     setError(null);
     setOpen(false);
   };
@@ -145,16 +271,41 @@ function MissionsTab() {
 
   return (
     <>
+      {toReview.length > 0 && (
+        <div className={`${card} mb-4 border-sky-200 p-4`} data-testid="missions-review">
+          <h3 className="font-bold text-slate-900">🔎 {dt(lang, "review_title")} ({toReview.length})</h3>
+          <p className="mb-3 text-sm text-slate-500">{dt(lang, "review_hint")}</p>
+          <div className="grid gap-2">
+            {toReview.map((m) => (
+              <ReviewItem key={m.id} mission={m} />
+            ))}
+          </div>
+        </div>
+      )}
+      {demand.length > 0 && (
+        <div className={`${card} mb-4 p-4`} data-testid="city-demand">
+          <h3 className="mb-2 font-bold text-slate-900">🙋 {dt(lang, "city_demand")}</h3>
+          <ul className="text-sm">
+            {demand.map((d) => (
+              <li key={`${d.city}-${d.uf}`} className="flex justify-between border-t border-black/5 py-1.5">
+                <span>{d.city}, {d.uf}</span>
+                <b>{d.n}</b>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <button type="button" className={`${btnPrimary} mb-4`} onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" /> {dt(lang, "new_mission")}
       </button>
+      <SponsorsPanel />
       <div className="grid gap-2.5">
         {missions.map((m) => (
           <div key={m.id} className={`${card} flex items-center gap-3 p-4 ${m.isActive ? "" : "opacity-60"}`}>
             <span className="text-2xl">{categoryEmoji[m.category] ?? "🌱"}</span>
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold text-slate-900">{localizedTitle(m, lang)}</p>
-              <p className="text-xs text-slate-500">{m.pointsReward} {t(lang, "reward_points")} · <FoneAmount amount={m.foneReward} size={12} className="align-middle" /> · {m.latitude.toFixed(4)}, {m.longitude.toFixed(4)}</p>
+              <p className="text-xs text-slate-500">{m.pointsReward} {t(lang, "reward_points")} · <FoneAmount amount={m.foneReward} size={12} className="align-middle" /> · {m.scope === "anywhere" ? `🌎 ${t(lang, "mission_anywhere")}` : m.city ? `📍 ${m.city}, ${m.stateCode}` : `${m.latitude.toFixed(4)}, ${m.longitude.toFixed(4)}`}</p>
             </div>
             <button
               type="button"
@@ -204,6 +355,27 @@ function MissionsTab() {
                 <input className={input} inputMode="decimal" value={form.longitude} onChange={set("longitude")} required />
               </div>
             </div>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={anywhere} onChange={(e) => setAnywhere(e.target.checked)} className="accent-emerald-600" />
+              🌎 {dt(lang, "field_anywhere")}
+            </label>
+            {sponsors.length > 0 && (
+              <div>
+                <label className={label}>💰 {dt(lang, "field_sponsor_pays")}</label>
+                <select className={input} value={form.sponsorId} onChange={set("sponsorId")} data-testid="mission-sponsor">
+                  <option value="">{dt(lang, "treasury_option")}</option>
+                  {sponsors.filter((sp) => sp.isActive).map((sp) => (
+                    <option key={sp.id} value={sp.id}>{sp.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {!form.sponsorId && (
+              <div>
+                <label className={label}>🤝 {dt(lang, "field_sponsor")}</label>
+                <input className={input} value={form.sponsor} onChange={set("sponsor")} maxLength={80} />
+              </div>
+            )}
             <button type="button" className={btnSecondary} onClick={useMyLocation} disabled={locating}>
               {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />} {dt(lang, "use_my_location")}
             </button>
@@ -270,48 +442,252 @@ function UsersTab({ me }: { me: User }) {
   );
 }
 
+function SponsorsPanel() {
+  const lang = useLang();
+  const state = useStore((s) => s);
+  const sponsors = state.sponsors ?? [];
+  const [name, setName] = useState("");
+  const [budget, setBudget] = useState("");
+  const [topUp, setTopUp] = useState<Record<string, string>>({});
+  return (
+    <div className={`${card} mb-4 p-4`} data-testid="sponsors-panel">
+      <h3 className="font-bold text-slate-900">🤝 {dt(lang, "sponsors_title")}</h3>
+      <p className="mb-3 text-xs text-slate-500">{dt(lang, "sponsors_hint")}</p>
+      <form
+        className="flex flex-wrap gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const result = createSponsor(name, budget);
+          if (result.error) return toast(errorText(lang, result.error), "error");
+          setName("");
+          setBudget("");
+        }}
+      >
+        <input className={`${input} min-w-0 flex-1`} placeholder={dt(lang, "sponsor_name")} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required />
+        <input className={`${input} w-32`} placeholder={dt(lang, "sponsor_budget")} inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value)} required />
+        <button type="submit" className={`${btnPrimary} !py-2 text-sm`}>{dt(lang, "sponsor_add")}</button>
+      </form>
+      <ul className="mt-3 grid gap-2">
+        {sponsors.map((sp) => {
+          const bal = sponsorBalance(state, sp.id);
+          const pct = bal.budgetCents ? Math.min(100, Math.round((bal.spentCents / bal.budgetCents) * 100)) : 100;
+          return (
+            <li key={sp.id} className="border-t border-black/5 pt-2" data-testid="sponsor-row">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-semibold text-slate-800">{sp.name}</span>
+                <span className="text-xs text-slate-500" data-testid="sponsor-balance">
+                  {dt(lang, "sponsor_left", { left: centsToFone(bal.remainingCents), budget: centsToFone(bal.budgetCents) })}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div className={`h-full ${pct >= 90 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${pct}%` }} />
+              </div>
+              <div className="mt-2 flex gap-2">
+                <input
+                  className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                  inputMode="decimal"
+                  placeholder="+ FONE"
+                  value={topUp[sp.id] ?? ""}
+                  onChange={(e) => setTopUp((v) => ({ ...v, [sp.id]: e.target.value }))}
+                />
+                <button
+                  type="button"
+                  className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white"
+                  onClick={() => {
+                    const result = topUpSponsor(sp.id, topUp[sp.id] ?? "");
+                    if (result.error) return toast(errorText(lang, result.error), "error");
+                    setTopUp((v) => ({ ...v, [sp.id]: "" }));
+                  }}
+                >
+                  {dt(lang, "sponsor_topup")}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function PayoutSettingsForm() {
+  const lang = useLang();
+  const settings = useStore((s) => payoutSettingsOf(s));
+  const [form, setForm] = useState(() => ({
+    minPayoutFone: settings.minPayoutFone.toFixed(2),
+    holdDays: String(settings.holdDays),
+    monthlyBudgetFone: settings.monthlyBudgetFone?.toFixed(2) ?? "",
+    maxFonePerUserMonth: settings.maxFonePerUserMonth?.toFixed(2) ?? "",
+  }));
+  const field = (key: keyof typeof form, labelKey: DemoKey, optional = false) => (
+    <label className="block text-sm">
+      <span className={label}>{dt(lang, labelKey)}</span>
+      <input
+        className={input}
+        inputMode="decimal"
+        name={key}
+        value={form[key]}
+        placeholder={optional ? dt(lang, "payout_no_limit") : undefined}
+        onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+      />
+    </label>
+  );
+  return (
+    <form
+      className={`${card} mt-4 p-4`}
+      data-testid="payout-settings"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const result = updatePayoutSettings(form);
+        if (result.error) toast(errorText(lang, result.error), "error");
+        else toast(`${dt(lang, "payout_saved")} ✓`);
+      }}
+    >
+      <h3 className="font-bold text-slate-900">{dt(lang, "payout_rules_title")}</h3>
+      <p className="mb-3 text-xs text-slate-500">{dt(lang, "payout_rules_hint")}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {field("minPayoutFone", "payout_min_label")}
+        {field("holdDays", "payout_hold_label")}
+        {field("monthlyBudgetFone", "payout_budget_label", true)}
+        {field("maxFonePerUserMonth", "payout_cap_label", true)}
+      </div>
+      <button type="submit" className={`${btnPrimary} mt-3`}>{dt(lang, "payout_save")}</button>
+    </form>
+  );
+}
+
 function RewardsTab() {
   const lang = useLang();
-  const rewards = useStore((s) => s.rewards);
-  const users = useStore((s) => s.users);
-  const sorted = [...rewards].sort((a, b) => (a.status === b.status ? b.createdAt.localeCompare(a.createdAt) : a.status === "pending" ? -1 : 1));
-  if (sorted.length === 0) return <p className="text-sm text-slate-500">{dt(lang, "no_rewards")}</p>;
+  const state = useStore((s) => s);
+  const settings = payoutSettingsOf(state);
+  const pendingUsers = [...new Set(state.rewards.filter((r) => r.status === "pending").map((r) => r.userId))];
+  const groups = pendingUsers
+    .map((userId) => {
+      const owner = state.users.find((u) => u.id === userId);
+      const split = userPayout(state, userId);
+      return { userId, owner, split, ready: isReadyToPay({ wallet: owner?.walletAddress ?? null, rewardIds: split.payable.map((r) => r.id), belowMinimum: split.belowMinimum }) };
+    })
+    .sort((a, b) => Number(b.ready) - Number(a.ready));
+  const paid = state.rewards.filter((r) => r.status === "paid").sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? ""));
+  const paidBatches = Object.values(
+    paid.reduce<Record<string, { tx: string; userId: string; cents: number; at: string }>>((acc, r) => {
+      const key = r.txHash ?? r.id;
+      acc[key] = { tx: key, userId: r.userId, cents: (acc[key]?.cents ?? 0) + Math.round(Number(r.foneAmount) * 100), at: r.paidAt ?? r.createdAt };
+      return acc;
+    }, {}),
+  );
+  const held = HOLD_REASONS.map((reason) => {
+    const list = state.rewards.filter((r) => r.status === "pending" && r.holdReason === reason);
+    return { reason, count: list.length, cents: list.reduce((sum, r) => sum + Math.round(Number(r.foneAmount) * 100), 0) };
+  }).filter((h) => h.count > 0);
+  const used = treasuryMonthCents(state);
+  const budget = settings.monthlyBudgetFone;
+  const pct = budget ? Math.min(100, Math.round((used / (budget * 100)) * 100)) : null;
+  const heldLabel = { budget: "held_budget", user_cap: "held_user_cap", sponsor_budget: "held_sponsor_budget" } as const;
+
   return (
     <>
       <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">⚠️ {dt(lang, "wallet_demo_note")}</p>
-      <div className="grid gap-2.5">
-        {sorted.map((r) => {
-          const owner = users.find((u) => u.id === r.userId);
-          return (
-            <div key={r.id} className={`${card} flex flex-wrap items-center gap-3 p-4`}>
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-50"><FoneMark size={24} /></div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-900"><FoneAmount amount={formatFone(r.foneAmount)} size={14} /> → {owner?.name ?? "—"}</p>
-                <p className="truncate text-xs text-slate-500">
-                  {r.status === "paid" && r.txHash ? `tx ${r.txHash.slice(0, 18)}… · ${formatDate(r.paidAt ?? r.createdAt, lang)}` : formatDate(r.createdAt, lang)}
-                </p>
-                {r.status === "pending" && !owner?.walletAddress && <p className="text-xs font-semibold text-red-600">{dt(lang, "no_wallet_warning")}</p>}
-              </div>
-              {r.status === "paid" ? (
-                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">{dt(lang, "reward_paid")}</span>
-              ) : (
+      <div className={`${card} mb-3 p-4 ${pct !== null && pct >= 100 ? "border-red-200 bg-red-50" : pct !== null && pct >= 80 ? "border-amber-200 bg-amber-50" : ""}`} data-testid="payout-budget">
+        <p className="text-xl font-extrabold text-slate-900">
+          {centsToFone(used)}
+          {budget !== null && <span className="text-sm font-semibold text-slate-500"> / {budget.toFixed(2)}</span>}
+        </p>
+        <p className="text-xs text-slate-500">{dt(lang, "payout_month_used")}</p>
+        {pct !== null && pct >= 80 && <p className="mt-1 text-xs font-semibold text-amber-800">{dt(lang, pct >= 100 ? "payout_budget_over" : "payout_budget_warn")}</p>}
+      </div>
+      {held.length > 0 && (
+        <div className={`${card} mb-3 border-amber-200 p-4`}>
+          <h3 className="mb-1 font-bold text-slate-900">✋ {dt(lang, "held_title")}</h3>
+          {held.map((h) => (
+            <div key={h.reason} className="flex items-center justify-between gap-2 border-t border-black/5 py-2 text-sm" data-testid={`held-${h.reason}`}>
+              <span>
+                {dt(lang, heldLabel[h.reason])}: <b>{centsToFone(h.cents)} FONE</b> ({h.count})
+              </span>
+              <button type="button" className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-bold text-slate-700" onClick={() => releaseHeldRewards(h.reason)}>
+                {dt(lang, "release")}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {groups.length === 0 ? (
+        <p className="text-sm text-slate-500">{dt(lang, "no_rewards")}</p>
+      ) : (
+        <div className="grid gap-2.5">
+          {groups.map(({ userId, owner, split, ready }) => (
+            <div key={userId} className={`${card} p-4`} data-testid="payout-group">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-50"><FoneMark size={24} /></div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-900">{owner?.name ?? "—"}</p>
+                  <p className="text-xs text-slate-500" data-testid="payout-payable">
+                    <FoneAmount amount={centsToFone(split.payableCents)} size={12} className="align-middle" />
+                  </p>
+                </div>
+                {split.payableCents > 0 && (
                 <button
                   type="button"
                   className={`${btnPrimary} !py-1.5 text-xs`}
-                  disabled={!owner?.walletAddress}
+                  disabled={!ready}
+                  data-testid="pay-now"
                   onClick={() => {
-                    const result = simulatePayout(r.id);
+                    const result = simulateUserPayout(userId);
                     if (result.error) toast(errorText(lang, result.error), "error");
                     else toast(`${dt(lang, "reward_paid")} ✓`);
                   }}
                 >
-                  {dt(lang, "simulate_payment")}
+                  {dt(lang, "pay_now", { fone: centsToFone(split.payableCents) })}
                 </button>
-              )}
+                )}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold">
+                {split.waiting.length > 0 && (
+                  <span className="rounded-full bg-sky-50 px-2 py-0.5 text-sky-800" data-testid="payout-waiting">
+                    {dt(lang, "payout_waiting_chip", { fone: centsToFone(split.waitingCents), date: split.nextReleaseAt ? formatDate(split.nextReleaseAt.toISOString(), lang) : "—" })}
+                  </span>
+                )}
+                {split.held.length > 0 && (
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-800">{dt(lang, "payout_held_chip", { fone: centsToFone(split.heldCents) })}</span>
+                )}
+                {split.belowMinimum && (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600" data-testid="payout-below-min">
+                    {dt(lang, "payout_min_chip", { min: settings.minPayoutFone.toFixed(2) })}
+                  </span>
+                )}
+                {split.feePercent !== null && !split.belowMinimum && (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{dt(lang, "payout_fee_chip", { pct: split.feePercent })}</span>
+                )}
+                {!owner?.walletAddress && <span className="text-red-600">{dt(lang, "no_wallet_warning")}</span>}
+              </div>
             </div>
-          );
-        })}
+          ))}
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button type="button" className={`${btnSecondary} text-xs`} onClick={() => skipHoldPeriod()} data-testid="skip-hold">
+          {dt(lang, "skip_hold")}
+        </button>
+        <span className="text-xs text-slate-500">{dt(lang, "skip_hold_hint")}</span>
       </div>
+      <PayoutSettingsForm />
+      {paidBatches.length > 0 && (
+        <div className={`${card} mt-4 p-4`}>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="font-bold text-slate-900">{dt(lang, "paid_recently")}</h3>
+            <Link to="/transparencia" className="text-xs font-semibold text-emerald-700 hover:underline">{dt(lang, "transparency_link")} →</Link>
+          </div>
+          <ul className="text-sm">
+            {paidBatches.slice(0, 10).map((b) => (
+              <li key={b.tx} className="flex flex-wrap justify-between gap-2 border-t border-black/5 py-1.5">
+                <span className="font-semibold text-slate-800">{state.users.find((u) => u.id === b.userId)?.name ?? "—"}</span>
+                <FoneAmount amount={centsToFone(b.cents)} size={12} />
+                <span className="truncate font-mono text-xs text-slate-500">{b.tx.slice(0, 14)}… · {formatDate(b.at, lang)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </>
   );
 }

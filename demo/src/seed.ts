@@ -1,11 +1,10 @@
-import type { ChatMessage, Mission, Notification, Reward, State, Submission, User } from "./store";
+import type { ChatMessage, DemoInvoice, DemoLead, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
 
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
-/** Bump when the stored shape changes: older saved data is replaced by a fresh seed. */
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 5;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -59,6 +58,9 @@ export function createSeed(): State {
   const missions: Mission[] = [
     {
       id: "m-boa-viagem",
+      scope: "local",
+      city: "Recife",
+      stateCode: "PE",
       title: "Mutirão de limpeza na Praia de Boa Viagem",
       titleEn: "Beach cleanup at Boa Viagem",
       titleEs: "Limpieza de la playa de Boa Viagem",
@@ -77,6 +79,9 @@ export function createSeed(): State {
     },
     {
       id: "m-jaqueira",
+      scope: "local",
+      city: "Recife",
+      stateCode: "PE",
       title: "Plantio de muda no Parque da Jaqueira",
       titleEn: "Plant a seedling at Jaqueira Park",
       titleEs: "Plantar un plantón en el Parque da Jaqueira",
@@ -95,6 +100,9 @@ export function createSeed(): State {
     },
     {
       id: "m-marco-zero",
+      scope: "local",
+      city: "Recife",
+      stateCode: "PE",
       title: "Entrega de recicláveis no Marco Zero",
       titleEn: "Drop off recyclables at Marco Zero",
       titleEs: "Entrega de reciclables en el Marco Zero",
@@ -113,6 +121,9 @@ export function createSeed(): State {
     },
     {
       id: "m-dona-lindu",
+      scope: "local",
+      city: "Recife",
+      stateCode: "PE",
       title: "Doação de roupas no Parque Dona Lindu",
       titleEn: "Clothing donation at Dona Lindu Park",
       titleEs: "Donación de ropa en el Parque Dona Lindu",
@@ -131,6 +142,9 @@ export function createSeed(): State {
     },
     {
       id: "m-capibaribe",
+      scope: "local",
+      city: "Recife",
+      stateCode: "PE",
       title: "Limpeza às margens do Capibaribe",
       titleEn: "Capibaribe riverbank cleanup",
       titleEs: "Limpieza en las orillas del Capibaribe",
@@ -149,6 +163,9 @@ export function createSeed(): State {
     },
     {
       id: "m-olinda-oleo",
+      scope: "local",
+      city: "Olinda",
+      stateCode: "PE",
       title: "Coleta de óleo de cozinha em Olinda",
       titleEn: "Cooking oil collection in Olinda",
       titleEs: "Recolección de aceite de cocina en Olinda",
@@ -164,6 +181,47 @@ export function createSeed(): State {
       foneReward: "18.00",
       isActive: true,
       createdAt: ago(5 * DAY),
+    },
+    // Can be done from home: shown in every region, no distance check.
+    {
+      id: "m-casa-reciclaveis",
+      scope: "anywhere",
+      title: "Separe o lixo reciclável em casa",
+      titleEn: "Sort recyclables at home",
+      titleEs: "Separa los reciclables en casa",
+      description: "Monte um ponto de separação em casa (plástico, papel, metal e vidro) e mostre os recicláveis limpos e separados.",
+      descriptionEn: "Set up a sorting spot at home (plastic, paper, metal and glass) and show the clean, sorted recyclables.",
+      descriptionEs: "Arma un punto de separación en casa (plástico, papel, metal y vidrio) y muestra los reciclables limpios y separados.",
+      context: "Fotografe os recicláveis limpos e separados por tipo (sacolas, caixas ou lixeiras diferentes).",
+      impact: "Material limpo e separado vale mais para as cooperativas de catadores e não vai para o aterro.",
+      latitude: -8.0476,
+      longitude: -34.877,
+      category: "recycling",
+      pointsReward: 20,
+      foneReward: "5.00",
+      isActive: true,
+      createdAt: ago(3 * DAY),
+    },
+    {
+      id: "m-casa-oleo",
+      scope: "anywhere",
+      sponsorName: "Cooperativa Recicla PE (exemplo)",
+      sponsorId: "sp-recicla",
+      title: "Guarde o óleo de cozinha usado",
+      titleEn: "Store used cooking oil",
+      titleEs: "Guarda el aceite de cocina usado",
+      description: "Em vez de jogar na pia, guarde o óleo usado frio numa garrafa PET fechada para levar a um ponto de coleta.",
+      descriptionEn: "Instead of pouring it down the sink, store cold used oil in a closed PET bottle to take to a collection point.",
+      descriptionEs: "En lugar de tirarlo al fregadero, guarda el aceite usado frío en una botella PET cerrada para llevarlo a un punto de recolección.",
+      context: "Fotografe a garrafa PET fechada com o óleo usado.",
+      impact: "Um litro de óleo pode contaminar milhares de litros de água e entupir a rede de esgoto.",
+      latitude: -8.0476,
+      longitude: -34.877,
+      category: "recycling",
+      pointsReward: 15,
+      foneReward: "3.00",
+      isActive: true,
+      createdAt: ago(2 * DAY),
     },
   ];
 
@@ -245,8 +303,8 @@ export function createSeed(): State {
       status: "approved",
       reviewedBy: DEMO_IDS.moderator,
       rejectionReason: null,
-      submittedAt: ago(3 * DAY),
-      reviewedAt: ago(2 * DAY),
+      submittedAt: ago(9 * DAY),
+      reviewedAt: ago(8 * DAY),
     }),
     sub({
       id: "s-maria-capibaribe",
@@ -292,7 +350,8 @@ export function createSeed(): State {
 
   const rewards: Reward[] = [
     { id: "r-maria-marco", userId: DEMO_IDS.citizen, submissionId: "s-maria-marco", foneAmount: "15.00", status: "paid", txHash: "demo-7c1e0b5d9a2f4e8c3b6a1d0f9e8c7b6a5d4c3b2a1f0e9d8c7b6a5d4c", createdAt: ago(11 * DAY), paidAt: ago(10 * DAY) },
-    { id: "r-maria-lindu", userId: DEMO_IDS.citizen, submissionId: "s-maria-lindu", foneAmount: "20.00", status: "pending", txHash: null, createdAt: ago(2 * DAY), paidAt: null },
+    // Past the 7-day hold period: Ana can pay it right away. Rafael's reward is still in the hold period.
+    { id: "r-maria-lindu", userId: DEMO_IDS.citizen, submissionId: "s-maria-lindu", foneAmount: "20.00", status: "pending", txHash: null, createdAt: ago(8 * DAY), paidAt: null },
     { id: "r-joao-jaqueira", userId: "u-bot-1", submissionId: "s-joao-jaqueira", foneAmount: "40.00", status: "paid", txHash: "demo-2b9d7f1a3c5e8b0d4f6a2c9e1b7d3f5a8c0e6b2d4f9a1c3e5b7d0f2a", createdAt: ago(8 * DAY), paidAt: ago(7 * DAY) },
     { id: "r-rafael-praia", userId: "u-bot-5", submissionId: "s-rafael-praia", foneAmount: "25.00", status: "pending", txHash: null, createdAt: ago(1 * DAY), paidAt: null },
   ];
@@ -305,6 +364,115 @@ export function createSeed(): State {
     { id: "c5", userId: "u-bot-5", message: "Primeira missão aprovada! Bora subir no ranking 💪🌱", replyToId: null, deleted: false, createdAt: ago(6 * 60 * 60 * 1000) },
   ];
 
+  /* SaaS: a school on a free trial (Carlos runs it, Maria takes part) and a paying company. */
+  const school: DemoOrg = {
+    id: "org-escola",
+    name: "Escola Técnica Exemplo",
+    slug: "escola-tecnica-exemplo",
+    type: "school",
+    city: "Recife",
+    plan: "school",
+    billingCycle: "monthly",
+    subscriptionStatus: "trialing",
+    currentPeriodEnd: new Date(Date.now() + 9 * DAY).toISOString(),
+    trialUsed: true,
+    inviteCode: "ESCOLA24",
+    ownerId: DEMO_IDS.moderator,
+    createdAt: ago(5 * DAY),
+  };
+  const company: DemoOrg = {
+    id: "org-recicla",
+    name: "Recicla Boa Viagem (exemplo)",
+    slug: "recicla-boa-viagem",
+    type: "business",
+    city: "Recife",
+    plan: "business",
+    billingCycle: "monthly",
+    subscriptionStatus: "active",
+    currentPeriodEnd: new Date(Date.now() + 18 * DAY).toISOString(),
+    trialUsed: true,
+    inviteCode: "RECICLA7",
+    ownerId: "u-bot-1",
+    createdAt: ago(45 * DAY),
+  };
+  const orgMember = (orgId: string, userId: string, role: DemoOrgMember["role"], days: number): DemoOrgMember => ({
+    id: `om-${orgId}-${userId}`,
+    orgId,
+    userId,
+    role,
+    joinedAt: ago(days * DAY),
+  });
+  const orgMembers: DemoOrgMember[] = [
+    orgMember(school.id, DEMO_IDS.moderator, "owner", 5),
+    orgMember(school.id, DEMO_IDS.citizen, "member", 4),
+    orgMember(school.id, "u-bot-2", "member", 4),
+    orgMember(school.id, "u-bot-3", "member", 3),
+    orgMember(school.id, "u-bot-4", "member", 3),
+    orgMember(company.id, "u-bot-1", "owner", 45),
+    orgMember(company.id, "u-bot-5", "member", 40),
+  ];
+  const orgMission = (id: string, title: string, description: string, category: Mission["category"], points: number, days: number): Mission => ({
+    id,
+    title,
+    description,
+    category,
+    pointsReward: points,
+    foneReward: "0.00",
+    latitude: -8.0476,
+    longitude: -34.877,
+    scope: "anywhere",
+    city: "Recife",
+    stateCode: "PE",
+    isActive: true,
+    createdAt: ago(days * DAY),
+    organizationId: school.id,
+  });
+  const schoolMissions = [
+    orgMission("m-org-pilhas", "Coleta de pilhas e baterias", "Traga pilhas usadas para a caixa de coleta da escola (bloco B) e fotografe a entrega.", "recycling", 30, 5),
+    orgMission("m-org-horta", "Cuide da horta da escola", "Regue, retire ervas daninhas ou plante uma muda na horta da escola. Foto mostrando o canteiro.", "planting", 40, 5),
+    orgMission("m-org-garrafa", "Semana da garrafa reutilizável", "Use sua garrafa reutilizável em vez de copos descartáveis durante a semana. Foto com a garrafa na escola.", "other", 20, 2),
+  ];
+  missions.push(...schoolMissions);
+  const orgSub = (id: string, userId: string, mission: Mission, days: number, emoji: string, caption: string): Submission =>
+    sub({
+      id,
+      userId,
+      missionId: mission.id,
+      at: mission,
+      photo: placeholderPhoto(emoji, "#34d399", "#0d9488", caption),
+      report: `${caption}. Atividade feita na escola junto com a turma, conforme as instruções da missão.`,
+      status: "approved",
+      reviewedBy: DEMO_IDS.moderator,
+      rejectionReason: null,
+      submittedAt: ago(days * DAY + 3600000),
+      reviewedAt: ago(days * DAY),
+      decidedBy: "human",
+    });
+  submissions.push(
+    orgSub("s-org-1", "u-bot-2", schoolMissions[0], 4, "🔋", "Entreguei 12 pilhas usadas"),
+    orgSub("s-org-2", "u-bot-3", schoolMissions[1], 3, "🌱", "Plantei duas mudas de alface"),
+    orgSub("s-org-3", "u-bot-2", schoolMissions[1], 2, "🌱", "Reguei e limpei o canteiro 3"),
+    orgSub("s-org-4", "u-bot-4", schoolMissions[0], 1, "🔋", "Trouxe as baterias do controle"),
+    orgSub("s-org-5", DEMO_IDS.citizen, schoolMissions[0], 1, "🔋", "Levei as pilhas lá de casa"),
+  );
+  const invoices: DemoInvoice[] = [
+    { id: "inv-recicla-1", orgId: company.id, plan: "business", billingCycle: "monthly", amountCents: 34900, status: "paid", reference: "EVDEMO2K7Q9X", reportedAt: ago(12 * DAY), createdAt: ago(12 * DAY), paidAt: ago(12 * DAY) },
+    { id: "inv-recicla-0", orgId: company.id, plan: "business", billingCycle: "monthly", amountCents: 34900, status: "paid", reference: "EVDEMO8M3T4R", reportedAt: ago(42 * DAY), createdAt: ago(42 * DAY), paidAt: ago(42 * DAY) },
+  ];
+  const leads: DemoLead[] = [
+    {
+      id: "lead-prefeitura",
+      name: "Secretaria de Meio Ambiente (exemplo)",
+      email: "meioambiente@exemplo.gov.br",
+      organization: "Prefeitura de Exemplo",
+      type: "government",
+      plan: "government",
+      message: "Queremos usar o EcoVerify na semana do meio ambiente com 20 escolas municipais.",
+      status: "new",
+      createdAt: ago(1 * DAY),
+    },
+  ];
+
   const notifications: Notification[] = [
     {
       id: "n-maria-lindu",
@@ -312,7 +480,7 @@ export function createSeed(): State {
       title: "Comprovação aprovada! 🎉",
       message: "Sua comprovação para \"Doação de roupas no Parque Dona Lindu\" foi aprovada. Você ganhou 40 pontos e 20.00 FONE entrou na fila de pagamento.",
       isRead: false,
-      createdAt: ago(2 * DAY),
+      createdAt: ago(8 * DAY),
     },
     {
       id: "n-maria-capibaribe",
@@ -334,6 +502,15 @@ export function createSeed(): State {
     rewards,
     notifications,
     chat,
+    region: null,
+    missionRequests: [],
+    seededCities: [],
+    payoutSettings: { minPayoutFone: 5, holdDays: 7, monthlyBudgetFone: 500, maxFonePerUserMonth: 100 },
+    orgs: [school, company],
+    orgMembers,
+    invoices,
+    leads,
+    sponsors: [{ id: "sp-recicla", name: "Cooperativa Recicla PE (exemplo)", budgetFone: "30.00", isActive: true, createdAt: ago(20 * DAY) }],
   };
 }
 

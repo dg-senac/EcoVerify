@@ -5,7 +5,9 @@ import {
   communityChat,
   messageFavorites,
   messageReports,
+  missionRequests,
   missions,
+  missionSuggestions,
   notifications,
   pointsLedger,
   rewardQueue,
@@ -25,7 +27,7 @@ export async function GET() {
     return NextResponse.json({ error: "too_many_attempts" }, { status: 429 });
   }
 
-  const [userSubmissions, ledger, rewards, userNotifications, messages, favorites, reports] = await Promise.all([
+  const [userSubmissions, ledger, rewards, userNotifications, messages, favorites, reports, requests, suggestions] = await Promise.all([
     db
       .select({
         id: submissions.id,
@@ -37,6 +39,20 @@ export async function GET() {
         latitude: submissions.latitude,
         longitude: submissions.longitude,
         rejectionReason: submissions.rejectionReason,
+        rejectionCode: submissions.rejectionCode,
+        decidedBy: submissions.decidedBy,
+        automaticVerification: {
+          status: submissions.aiStatus,
+          verdict: submissions.aiVerdict,
+          confidence: submissions.aiConfidence,
+          reasonCode: submissions.aiReasonCode,
+          explanation: submissions.aiSummary,
+          checks: submissions.aiChecks,
+          model: submissions.aiModel,
+          analyzedAt: submissions.aiAnalyzedAt,
+        },
+        appealedAt: submissions.appealedAt,
+        appealMessage: submissions.appealMessage,
         submittedAt: submissions.submittedAt,
         reviewedAt: submissions.reviewedAt,
       })
@@ -58,6 +74,7 @@ export async function GET() {
         walletAddress: rewardQueue.walletAddress,
         txHash: rewardQueue.txHash,
         paidAt: rewardQueue.paidAt,
+        holdReason: rewardQueue.holdReason,
         createdAt: rewardQueue.createdAt,
       })
       .from(rewardQueue)
@@ -96,6 +113,25 @@ export async function GET() {
       .select({ messageId: messageReports.messageId, reason: messageReports.reason, status: messageReports.status, createdAt: messageReports.createdAt })
       .from(messageReports)
       .where(eq(messageReports.reporterId, user.id)),
+    db
+      .select({ city: missionRequests.city, stateCode: missionRequests.stateCode, createdAt: missionRequests.createdAt })
+      .from(missionRequests)
+      .where(eq(missionRequests.userId, user.id)),
+    db
+      .select({
+        title: missionSuggestions.title,
+        description: missionSuggestions.description,
+        category: missionSuggestions.category,
+        latitude: missionSuggestions.latitude,
+        longitude: missionSuggestions.longitude,
+        city: missionSuggestions.city,
+        stateCode: missionSuggestions.stateCode,
+        status: missionSuggestions.status,
+        createdAt: missionSuggestions.createdAt,
+        reviewedAt: missionSuggestions.reviewedAt,
+      })
+      .from(missionSuggestions)
+      .where(eq(missionSuggestions.userId, user.id)),
   ]);
 
   const payload = {
@@ -115,6 +151,7 @@ export async function GET() {
       language: user.language,
       preferences: {
         fontSize: user.fontSize,
+        theme: user.theme,
         highContrast: user.highContrast,
         reducedMotion: user.reducedMotion,
         notificationsEnabled: user.notificationsEnabled,
@@ -138,6 +175,10 @@ export async function GET() {
     communityMessages: messages,
     favoriteMessages: favorites,
     reportsMade: reports,
+    missionRequests: requests,
+    missionSuggestions: suggestions,
+    regionNote:
+      "A região escolhida na tela de missões fica só num cookie do seu aparelho (cidade e coordenadas arredondadas), não no banco de dados.",
   };
 
   const date = new Date().toISOString().slice(0, 10);

@@ -8,7 +8,7 @@
  * Bump TERMS_VERSION whenever the texts change in a meaningful way: every user is asked
  * to accept the new version on their next visit.
  */
-export const TERMS_VERSION = "2026-11-01";
+export const TERMS_VERSION = "2026-11-15";
 
 /** Minimum age to create an account. Users under 18 need their guardian's authorisation. */
 export const MIN_AGE = 13;

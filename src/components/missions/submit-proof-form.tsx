@@ -36,6 +36,8 @@ export function SubmitProofForm({
     impact?: string | null;
     latitude: string | null;
     longitude: string | null;
+    scope?: "local" | "anywhere";
+    origin?: "admin" | "auto" | "suggestion";
     category: string;
     pointsReward: number;
     foneReward: string;
@@ -193,6 +195,9 @@ export function SubmitProofForm({
               <span className="text-lg">📍</span>
               {t(lang, "use_current_location")}
             </label>
+            {mission.scope === "anywhere" && (
+              <p className="text-xs text-slate-500" data-testid="anywhere-note">🌎 {t(lang, "anywhere_location_note")}</p>
+            )}
             <button
               type="button"
               onClick={handleLocate}
@@ -210,6 +215,7 @@ export function SubmitProofForm({
                 É necessário permitir a localização para confirmar que você está no local da missão.
               </p>
             )}
+            {mission.origin === "auto" && <p className="text-[10px] text-slate-400">{t(lang, "osm_attribution")}</p>}
           </div>
 
           {errorMessage && (

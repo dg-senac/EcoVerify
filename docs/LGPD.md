@@ -2,7 +2,7 @@
 
 Resumo técnico do que o EcoVerify faz para cumprir a LGPD (Lei 13.709/2018) e proteger as contas. Os textos públicos estão em `/termos` e `/privacidade`.
 
-> ⚖️ **Revisar com advogado antes de abrir ao público.** Os Termos e a Política foram escritos a partir dos fluxos reais de dados do app, mas são um texto-base, não um parecer jurídico. Pontos que merecem atenção especial: controlador (pessoa física ou jurídica), encarregado (DPO), menores de 13–17 anos, transferência internacional (Vercel/Supabase/Resend) e o tratamento tributário das recompensas em FONE.
+> ⚖️ **Revisar com advogado antes de abrir ao público.** Os Termos e a Política foram escritos a partir dos fluxos reais de dados do app, mas são um texto-base, não um parecer jurídico. Pontos que merecem atenção especial: controlador (pessoa física ou jurídica), encarregado (DPO), menores de 13–17 anos, transferência internacional (Vercel/Supabase/Resend/Google Gemini), decisões automatizadas (art. 20) e o uso de conteúdo pelo plano gratuito do Gemini e o tratamento tributário das recompensas em FONE.
 
 ## Configuração
 
@@ -45,7 +45,7 @@ Resumo técnico do que o EcoVerify faz para cumprir a LGPD (Lei 13.709/2018) e p
 |---|---|
 | Nome, e-mail, senha | Comprovações já analisadas (sem foto, relato nem GPS) |
 | Fotos e mídias (arquivos removidos do storage) | Hash das fotos (impede reaproveitar a mesma foto em outra conta) |
-| Relatos e localização | Histórico de pontos |
+| Relatos, localização, observações da verificação automática e mensagem de contestação | Histórico de pontos |
 | Mensagens do chat (e citações delas nas respostas de outras pessoas) | Pagamentos FONE já feitos (valor, carteira, hash: são públicos na blockchain) |
 | Carteira, pedido de verificação, declaração de 18+ | Carteira usada na verificação (`wallet_verification_tx`), para que a mesma transferência não prove posse de outra conta |
 | Comprovações pendentes e FONE ainda não pago | |
@@ -53,11 +53,17 @@ Resumo técnico do que o EcoVerify faz para cumprir a LGPD (Lei 13.709/2018) e p
 
 O último administrador não consegue excluir a própria conta (precisa promover outra pessoa antes). Contas excluídas somem do ranking, da lista de usuários do admin e não podem ser reativadas.
 
+**Revisão de decisões automatizadas (art. 20)**: rejeições feitas pela verificação automática podem ser contestadas em *Minhas Submissões*; a contestação vai para uma pessoa da moderação. Detalhes em [VERIFICACAO_IA.md](VERIFICACAO_IA.md).
+
+**Página pública de Transparência** (`/transparencia`): mostra só agregados (ações, pessoas, cidades, pontos, FONE) e os últimos pagamentos com data, valor, **endereço abreviado** e link da transação, que já são públicos na blockchain. Nunca nome, e-mail, foto ou localização. Patrocinadores aparecem com nome e orçamento (são pessoas jurídicas que aceitaram aparecer).
+
+**Metadados das fotos**: o EXIF (modelo do aparelho, GPS embutido, data) é removido antes de guardar a foto.
+
 **Correção**: nome e preferências pelo app; outros pedidos pelo contato de privacidade.
 
 ## Operadores (subprocessadores)
 
-Supabase (banco e arquivos), Vercel (hospedagem) e Resend (e-mails). Ao trocar algum, atualize a seção 2 da Política em `src/components/legal/privacy-content.tsx`.
+Supabase (banco e arquivos), Vercel (hospedagem), Resend (e-mails) e Google Gemini (verificação automática das fotos, ver [VERIFICACAO_IA.md](VERIFICACAO_IA.md)). Ao trocar algum, atualize as seções 2 e 3 da Política em `src/components/legal/privacy-content.tsx`.
 
 ## Pendências conhecidas
 

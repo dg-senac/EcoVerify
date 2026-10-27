@@ -4,8 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { missions, notifications, rewardQueue, sessions, users } from "@/db/schema";
+import { aiSettings, foneSettings, missions, notifications, rewardQueue, sessions, sponsorTopups, sponsors, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { placeOf } from "@/lib/municipalities";
+import { getPayoutSettings } from "@/lib/payouts";
+import { isHoldReason, splitOpenRewards } from "@/lib/payout-rules";
 import { centsToFone, foneToCents, isValidFoneAddress, isValidTxHash, normalizeHex, verifiedWallet } from "@/lib/fone";
 
 export type AdminActionState = { error?: string; success?: boolean };
@@ -41,8 +44,26 @@ export async function createMissionAction(
   const descriptionEs = String(formData.get("descriptionEs") ?? "").trim() || null;
   const context = String(formData.get("context") ?? "").trim() || null;
   const impact = String(formData.get("impact") ?? "").trim() || null;
-  const latitude = Number(formData.get("latitude"));
-  const longitude = Number(formData.get("longitude"));
+  const aiChecklist = String(formData.get("aiChecklist") ?? "").trim().slice(0, 500) || null;
+  const scope = formData.get("scope") === "anywhere" ? "anywhere" : "local";
+  let sponsorName = String(formData.get("sponsorName") ?? "").trim().slice(0, 80) || null;
+  // A registered sponsor pays the FONE of this mission from its own budget.
+  const sponsorIdInput = String(formData.get("sponsorId") ?? "").trim();
+  let sponsorId: string | null = null;
+  if (sponsorIdInput) {
+    if (!/^[0-9a-f-]{36}$/i.test(sponsorIdInput)) return { error: "invalid" };
+    const [sponsor] = await db.select({ id: sponsors.id, name: sponsors.name }).from(sponsors).where(eq(sponsors.id, sponsorIdInput)).limit(1);
+    if (!sponsor) return { error: "invalid" };
+    sponsorId = sponsor.id;
+    sponsorName = sponsor.name;
+  }
+  const coordinate = (name: string) => {
+    const raw = String(formData.get(name) ?? "").trim().replace(",", ".");
+    return raw === "" ? NaN : Number(raw);
+  };
+  const latitude = coordinate("latitude");
+  const longitude = coordinate("longitude");
+  const hasPoint = Number.isFinite(latitude) && Number.isFinite(longitude);
   const category = String(formData.get("category") ?? "other") as Category;
   const pointsReward = Number(formData.get("pointsReward") ?? 0);
   const foneRewardNumber = Number(String(formData.get("foneReward") ?? "0").replace(",", "."));
@@ -56,11 +77,13 @@ export async function createMissionAction(
   }
   const foneReward = foneRewardNumber.toFixed(2);
 
-  if (!title || !description || !context || !impact ||
-      !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
-      latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+  if (!title || !description || !context || !impact) return { error: "invalid" };
+  // Local missions need a point; "anywhere" missions may have one (shown as a reference only).
+  if (scope === "local" && !hasPoint) return { error: "invalid" };
+  if (hasPoint && (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)) {
     return { error: "invalid" };
   }
+  const place = hasPoint && scope === "local" ? placeOf(latitude, longitude) : null;
 
   await db.insert(missions).values({
     title,
@@ -71,8 +94,15 @@ export async function createMissionAction(
     descriptionEs,
     context,
     impact,
-    latitude: String(latitude),
-    longitude: String(longitude),
+    aiChecklist,
+    latitude: hasPoint ? String(latitude) : null,
+    longitude: hasPoint ? String(longitude) : null,
+    scope,
+    city: place?.city ?? null,
+    stateCode: place?.stateCode ?? null,
+    ibgeCode: place?.ibgeCode ?? null,
+    sponsorName,
+    sponsorId,
     category,
     pointsReward,
     foneReward,
@@ -89,6 +119,35 @@ export async function toggleMissionAction(missionId: string, isActive: boolean) 
   await db.update(missions).set({ isActive }).where(eq(missions.id, missionId));
   revalidatePath("/admin");
   revalidatePath("/missions");
+}
+
+/**
+ * Review of a mission created automatically (OpenStreetMap) or from a community suggestion.
+ * Until reviewed it pays points only; the admin can set a FONE reward, keep it points-only
+ * (it stays visible) or switch it off.
+ */
+export async function reviewMissionAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  await assertAdmin();
+  const missionId = String(formData.get("missionId") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  if (!missionId) return { error: "invalid" };
+  if (decision === "deactivate") {
+    await db.update(missions).set({ isActive: false, needsReview: false }).where(eq(missions.id, missionId));
+  } else if (decision === "points") {
+    await db.update(missions).set({ needsReview: false }).where(eq(missions.id, missionId));
+  } else if (decision === "fone") {
+    const fone = Number(String(formData.get("foneReward") ?? "").replace(",", "."));
+    if (!Number.isFinite(fone) || fone <= 0 || fone > MAX_FONE_REWARD) return { error: "invalid" };
+    await db
+      .update(missions)
+      .set({ needsReview: false, foneReward: fone.toFixed(2) })
+      .where(eq(missions.id, missionId));
+  } else {
+    return { error: "invalid" };
+  }
+  revalidatePath("/admin");
+  revalidatePath("/missions");
+  return { success: true };
 }
 
 export async function updateUserRoleAction(userId: string, role: Role) {
@@ -264,6 +323,7 @@ export async function payUserRewardsAction(_prev: AdminActionState, formData: Fo
   if (!userId || !rewardIds.length) return { error: "invalid" };
   if (!isValidTxHash(txHash)) return { error: "invalid_tx" };
 
+  const settings = await getPayoutSettings();
   const result = await db.transaction(async (tx) => {
     const [target] = await tx
       .select({ walletAddress: users.walletAddress, walletVerifiedAt: users.walletVerifiedAt })
@@ -286,6 +346,24 @@ export async function payUserRewardsAction(_prev: AdminActionState, formData: Fo
       .limit(1);
     if (usedByOther || usedByWallet) return { error: "tx_in_use" as const };
 
+    // Payout rules are enforced here too (not only on screen): only rewards past the hold
+    // period, not held by a budget, and only when they reach the minimum payout.
+    const open = await tx
+      .select({ id: rewardQueue.id, foneAmount: rewardQueue.foneAmount, createdAt: rewardQueue.createdAt, holdReason: rewardQueue.holdReason })
+      .from(rewardQueue)
+      .where(
+        and(
+          eq(rewardQueue.userId, userId),
+          inArray(rewardQueue.id, rewardIds),
+          inArray(rewardQueue.status, ["pending", "processing", "failed"]),
+        ),
+      );
+    if (!open.length) return { error: "nothing_to_pay" as const };
+    const split = splitOpenRewards(open, settings);
+    if (!split.payable.length) return { error: split.waiting.length ? ("in_hold" as const) : ("nothing_to_pay" as const) };
+    if (split.belowMinimum) return { error: "below_min" as const };
+    const payableIds = split.payable.map((reward) => reward.id);
+
     const paid = await tx
       .update(rewardQueue)
       .set({
@@ -300,8 +378,9 @@ export async function payUserRewardsAction(_prev: AdminActionState, formData: Fo
       .where(
         and(
           eq(rewardQueue.userId, userId),
-          inArray(rewardQueue.id, rewardIds),
+          inArray(rewardQueue.id, payableIds),
           inArray(rewardQueue.status, ["pending", "processing", "failed"]),
+          isNull(rewardQueue.holdReason),
         ),
       )
       .returning({ foneAmount: rewardQueue.foneAmount });
@@ -348,5 +427,160 @@ export async function setRewardsStatusAction(_prev: AdminActionState, formData: 
     );
 
   revalidatePath("/admin");
+  return { success: true };
+}
+
+/** Admin → IA: how the automatic photo verification behaves. */
+export async function updateAiSettingsAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const admin = await assertAdmin();
+  const modeInput = String(formData.get("mode") ?? "");
+  const mode = (["off", "suggest", "auto"] as const).find((value) => value === modeInput);
+  const approveMinConfidence = Number(formData.get("approveMinConfidence"));
+  const rejectMinConfidence = Number(formData.get("rejectMinConfidence"));
+  const maxFone = Number(String(formData.get("maxAutoApproveFone") ?? "").replace(",", "."));
+  const validConfidence = (value: number) => Number.isInteger(value) && value >= 50 && value <= 100;
+  if (!mode || !validConfidence(approveMinConfidence) || !validConfidence(rejectMinConfidence)) return { error: "invalid" };
+  if (!Number.isFinite(maxFone) || maxFone < 0 || maxFone > MAX_FONE_REWARD) return { error: "invalid" };
+
+  const values = {
+    mode,
+    approveMinConfidence,
+    rejectMinConfidence,
+    maxAutoApproveFone: maxFone.toFixed(2),
+    updatedBy: admin.id,
+    updatedAt: new Date(),
+  };
+  await db.insert(aiSettings).values({ id: 1, ...values }).onConflictDoUpdate({ target: aiSettings.id, set: values });
+
+  revalidatePath("/admin");
+  revalidatePath("/moderation");
+  return { success: true };
+}
+
+const money = (value: FormDataEntryValue | null) => {
+  const raw = String(value ?? "").trim().replace(",", ".");
+  return raw === "" ? null : Number(raw);
+};
+
+/** Admin → Recompensas: minimum payout, hold period, monthly budget and personal cap. */
+export async function updateFoneSettingsAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const admin = await assertAdmin();
+  const minPayout = money(formData.get("minPayoutFone"));
+  const holdDays = Number(formData.get("holdDays"));
+  const budget = money(formData.get("monthlyBudgetFone"));
+  const userCap = money(formData.get("maxFonePerUserMonth"));
+  const validAmount = (value: number | null) => value === null || (Number.isFinite(value) && value >= 0 && value <= MAX_FONE_REWARD);
+  if (minPayout === null || !validAmount(minPayout) || !validAmount(budget) || !validAmount(userCap)) return { error: "invalid" };
+  if (!Number.isInteger(holdDays) || holdDays < 0 || holdDays > 90) return { error: "invalid" };
+
+  const values = {
+    minPayoutFone: minPayout.toFixed(2),
+    holdDays,
+    monthlyBudgetFone: budget === null ? null : budget.toFixed(2),
+    maxFonePerUserMonth: userCap === null ? null : userCap.toFixed(2),
+    updatedBy: admin.id,
+    updatedAt: new Date(),
+  };
+  await db.insert(foneSettings).values({ id: 1, ...values }).onConflictDoUpdate({ target: foneSettings.id, set: values });
+  revalidatePath("/admin");
+  revalidatePath("/profile");
+  return { success: true };
+}
+
+/** Releases rewards held by a budget/cap (e.g. after a new month, a deposit or a sponsor top-up). */
+export async function releaseHeldRewardsAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  await assertAdmin();
+  const reason = String(formData.get("reason") ?? "");
+  if (!isHoldReason(reason)) return { error: "invalid" };
+  const released = await db
+    .update(rewardQueue)
+    .set({ holdReason: null, updatedAt: new Date() })
+    .where(and(eq(rewardQueue.holdReason, reason), inArray(rewardQueue.status, ["pending", "processing", "failed"])))
+    .returning({ userId: rewardQueue.userId, foneAmount: rewardQueue.foneAmount });
+  const byUser = new Map<string, number>();
+  for (const row of released) byUser.set(row.userId, (byUser.get(row.userId) ?? 0) + foneToCents(row.foneAmount));
+  if (byUser.size) {
+    await db.insert(notifications).values(
+      [...byUser].map(([userId, cents]) => ({
+        userId,
+        type: "system" as const,
+        title: "FONE liberado ✅",
+        message: `${centsToFone(cents)} FONE que estava em espera voltou para a fila de pagamento.`,
+      })),
+    );
+  }
+  revalidatePath("/admin");
+  revalidatePath("/profile");
+  return { success: true };
+}
+
+/** Service fee received in BRL ("R$ 1.234,56" or "1234.56") → cents; empty = 0, invalid = null. */
+function brlCents(raw: FormDataEntryValue | null): number | null {
+  const text = String(raw ?? "").replace(/[R$\s]/g, "");
+  if (!text) return 0;
+  const normalized = text.includes(",") ? text.replace(/\./g, "").replace(",", ".") : text;
+  const value = Number(normalized);
+  if (!Number.isFinite(value) || value < 0 || value > 10_000_000) return null;
+  return Math.round(value * 100);
+}
+
+/** Admin → Missões: register a sponsor (company, city hall, NGO) with a FONE budget. */
+export async function createSponsorAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const admin = await assertAdmin();
+  const name = String(formData.get("name") ?? "").trim().slice(0, 80);
+  const websiteRaw = String(formData.get("website") ?? "").trim();
+  const budget = money(formData.get("budgetFone"));
+  if (!name || budget === null || !Number.isFinite(budget) || budget < 0 || budget > MAX_FONE_REWARD) return { error: "invalid" };
+  let website: string | null = null;
+  if (websiteRaw) {
+    try {
+      const url = new URL(/^https?:\/\//i.test(websiteRaw) ? websiteRaw : `https://${websiteRaw}`);
+      if (url.protocol !== "https:" && url.protocol !== "http:") return { error: "invalid" };
+      website = url.toString();
+    } catch {
+      return { error: "invalid" };
+    }
+  }
+  const feeCents = brlCents(formData.get("feeBrl"));
+  if (feeCents === null) return { error: "invalid" };
+  await db.transaction(async (tx) => {
+    const [sponsor] = await tx.insert(sponsors).values({ name, website, budgetFone: budget.toFixed(2), createdBy: admin.id }).returning({ id: sponsors.id });
+    await tx.insert(sponsorTopups).values({ sponsorId: sponsor.id, budgetFone: budget.toFixed(2), feeCents, note: "orçamento inicial", createdBy: admin.id });
+  });
+  revalidatePath("/admin");
+  revalidatePath("/transparencia");
+  return { success: true };
+}
+
+/** Adds FONE to a sponsor's budget (after it deposits more in the treasury) or switches it on/off. */
+export async function updateSponsorAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const admin = await assertAdmin();
+  const sponsorId = String(formData.get("sponsorId") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(sponsorId)) return { error: "invalid" };
+  const intent = String(formData.get("intent") ?? "");
+  if (intent === "topup") {
+    const amount = money(formData.get("amount"));
+    if (amount === null || !Number.isFinite(amount) || amount <= 0 || amount > MAX_FONE_REWARD) return { error: "invalid" };
+    const [sponsor] = await db.select({ budget: sponsors.budgetFone }).from(sponsors).where(eq(sponsors.id, sponsorId)).limit(1);
+    if (!sponsor) return { error: "invalid" };
+    const feeCents = brlCents(formData.get("feeBrl"));
+    if (feeCents === null) return { error: "invalid" };
+    await db.transaction(async (tx) => {
+      await tx
+        .update(sponsors)
+        .set({ budgetFone: centsToFone(foneToCents(sponsor.budget) + foneToCents(amount)), updatedAt: new Date() })
+        .where(eq(sponsors.id, sponsorId));
+      await tx.insert(sponsorTopups).values({ sponsorId, budgetFone: amount.toFixed(2), feeCents, note: "recarga", createdBy: admin.id });
+    });
+  } else if (intent === "toggle") {
+    const [sponsor] = await db.select({ isActive: sponsors.isActive }).from(sponsors).where(eq(sponsors.id, sponsorId)).limit(1);
+    if (!sponsor) return { error: "invalid" };
+    await db.update(sponsors).set({ isActive: !sponsor.isActive, updatedAt: new Date() }).where(eq(sponsors.id, sponsorId));
+  } else {
+    return { error: "invalid" };
+  }
+  revalidatePath("/admin");
+  revalidatePath("/missions");
+  revalidatePath("/transparencia");
   return { success: true };
 }

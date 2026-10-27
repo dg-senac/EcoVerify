@@ -27,7 +27,7 @@ function withLinks(text: string, lang: Lang) {
 
 const initialState: ActionState = {};
 
-export function RegisterForm({ lang }: { lang: Lang }) {
+export function RegisterForm({ lang, next }: { lang: Lang; next?: string | null }) {
   const [state, formAction, pending] = useActionState(registerAction, initialState);
   const [password, setPassword] = useState("");
   const [currentLang, setCurrentLang] = useState<Lang>(lang);
@@ -121,6 +121,7 @@ export function RegisterForm({ lang }: { lang: Lang }) {
         </div>
 
         <input type="hidden" name="language" value={currentLang} />
+        {next && <input type="hidden" name="next" value={next} />}
         <label className="flex items-start gap-2.5 text-sm text-slate-600">
           <input type="checkbox" name="acceptTerms" required className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-600" />
           <span>{withLinks(t(currentLang, "register_accept_terms"), currentLang)}</span>
@@ -148,7 +149,7 @@ export function RegisterForm({ lang }: { lang: Lang }) {
 
       <p className="mt-6 text-center text-sm text-slate-500">
         {t(currentLang, "register_has_account")}{" "}
-        <Link href="/login" className="font-semibold text-emerald-600 hover:underline">
+        <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="font-semibold text-emerald-600 hover:underline">
           {t(currentLang, "register_login")}
         </Link>
       </p>

@@ -9,7 +9,7 @@ import { t, type Lang } from "@/lib/i18n";
  * Plain <img> on purpose: the same components run in Next.js and in the offline demo (Vite).
  * Next returns { src } for image imports and Vite returns a string, so normalise both.
  */
-function assetUrl(asset: unknown): string {
+export function assetUrl(asset: unknown): string {
   return typeof asset === "string" ? asset : (asset as { src: string }).src;
 }
 
@@ -53,18 +53,26 @@ export function FoneAmount({
   );
 }
 
-/** Full "FONE | Protocol" logo. Use variant "white" on dark or colored backgrounds. */
+/**
+ * Full "FONE | Protocol" logo. Use variant "white" on coloured backgrounds.
+ * The default variant follows the theme: dark artwork in light mode, white artwork in dark mode
+ * (both images are rendered and theme.css shows the right one, so there is no flash).
+ */
 export function FoneProtocolLogo({ height = 20, variant = "default" }: { height?: number; variant?: "default" | "white" }) {
+  const width = Math.round(height * LOGO_RATIO);
+  if (variant === "white") {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- shared with the Vite demo
+      <img src={assetUrl(foneLogoWhiteImg)} alt="Fone Protocol" width={width} height={height} className="inline-block select-none" draggable={false} />
+    );
+  }
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- shared with the Vite demo
-    <img
-      src={assetUrl(variant === "white" ? foneLogoWhiteImg : foneLogoImg)}
-      alt="Fone Protocol"
-      width={Math.round(height * LOGO_RATIO)}
-      height={height}
-      className="inline-block select-none"
-      draggable={false}
-    />
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element -- shared with the Vite demo */}
+      <img src={assetUrl(foneLogoImg)} alt="Fone Protocol" width={width} height={height} className="ev-on-light inline-block select-none" draggable={false} />
+      {/* eslint-disable-next-line @next/next/no-img-element -- shared with the Vite demo */}
+      <img src={assetUrl(foneLogoWhiteImg)} alt="Fone Protocol" width={width} height={height} className="ev-on-dark select-none" draggable={false} />
+    </>
   );
 }
 

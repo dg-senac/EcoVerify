@@ -11,8 +11,10 @@ export function LoginForm({
   lang,
   notice,
   showDemoAccounts = false,
+  next,
 }: {
   lang: Lang;
+  next?: string | null;
   notice?: "reset" | "deleted";
   showDemoAccounts?: boolean;
 }) {
@@ -74,6 +76,7 @@ export function LoginForm({
       )}
 
       <form action={formAction} className="mt-6 space-y-4">
+        {next && <input type="hidden" name="next" value={next} />}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-700">{t(currentLang, "login_email")}</label>
           <input
@@ -118,7 +121,7 @@ export function LoginForm({
 
       <p className="mt-6 text-center text-sm text-slate-500">
         {t(currentLang, "login_no_account")}{" "}
-        <Link href="/register" className="font-semibold text-emerald-600 hover:underline">
+        <Link href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"} className="font-semibold text-emerald-600 hover:underline">
           {t(currentLang, "login_create_account")}
         </Link>
       </p>

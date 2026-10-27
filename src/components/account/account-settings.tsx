@@ -38,7 +38,7 @@ function ChangePasswordForm({ lang }: { lang: Lang }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-60"
+          className="rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-500 disabled:opacity-60"
         >
           {t(lang, "save")}
         </button>
@@ -63,7 +63,7 @@ function DeleteAccountForm({ lang }: { lang: Lang }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+          className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-60"
         >
           {t(lang, "delete_button")}
         </button>
@@ -112,6 +112,9 @@ export function AccountSettings({
             </a>
             <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline">
               {t(lang, "privacy_policy")}
+            </a>
+            <a href="/transparencia" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline">
+              {t(lang, "transparency")}
             </a>
           </p>
         </div>

@@ -10,6 +10,8 @@ import {
   communityChat,
   messageFavorites,
   messageReports,
+  missionRequests,
+  missionSuggestions,
   notifications,
   rewardQueue,
   sessions,
@@ -18,6 +20,7 @@ import {
 } from "@/db/schema";
 import { SESSION_COOKIE, getCurrentUser, hashPassword, verifyPassword } from "@/lib/auth";
 import type { ActionState } from "@/lib/actions/auth";
+import { REGION_COOKIE } from "@/lib/regional/cookie";
 import { sendVerificationEmail } from "@/lib/account-email";
 import { consumeAuthToken, createAuthToken } from "@/lib/auth-tokens";
 import { appUrl, buildAccountEmail, emailMode, sendEmail } from "@/lib/email";
@@ -160,7 +163,16 @@ export async function deleteAccountAction(_prev: ActionState, formData: FormData
     await tx.delete(submissions).where(and(eq(submissions.userId, user.id), eq(submissions.status, "pending")));
     await tx
       .update(submissions)
-      .set({ photoUrl: "", report: "[removido a pedido do titular]", latitude: null, longitude: null })
+      .set({
+        photoUrl: "",
+        report: "[removido a pedido do titular]",
+        latitude: null,
+        longitude: null,
+        // The AI description and the appeal text describe the photo/the person: removed too.
+        aiSummary: null,
+        aiChecks: null,
+        appealMessage: null,
+      })
       .where(eq(submissions.userId, user.id));
 
     if (ownMessages.length) {
@@ -173,6 +185,11 @@ export async function deleteAccountAction(_prev: ActionState, formData: FormData
       .where(eq(communityChat.userId, user.id));
     await tx.delete(messageFavorites).where(eq(messageFavorites.userId, user.id));
     await tx.delete(messageReports).where(eq(messageReports.reporterId, user.id));
+    await tx.delete(missionRequests).where(eq(missionRequests.userId, user.id));
+    // Approved suggestions became public missions and stay (the link to the person is anonymised with the account).
+    await tx
+      .delete(missionSuggestions)
+      .where(and(eq(missionSuggestions.userId, user.id), ne(missionSuggestions.status, "approved")));
     await tx.delete(notifications).where(eq(notifications.userId, user.id));
     await tx.delete(authTokens).where(eq(authTokens.userId, user.id));
     await tx.delete(sessions).where(eq(sessions.userId, user.id));
@@ -205,5 +222,6 @@ export async function deleteAccountAction(_prev: ActionState, formData: FormData
 
   await Promise.all(files.map((url) => deleteStoredFile(url)));
   (await cookies()).delete(SESSION_COOKIE);
+  (await cookies()).delete(REGION_COOKIE);
   redirect("/login?deleted=1");
 }

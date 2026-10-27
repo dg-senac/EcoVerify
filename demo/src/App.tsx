@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { onStorageError, useCurrentUser, useLang, type User } from "./store";
+import { onStorageError, setGuestLanguage, updateSettings, useCurrentUser, useLang, type User } from "./store";
+import { startTour, TourPanel } from "./components/Tour";
 import { matchRoute, navigate, useRoute } from "./router";
 import { dt } from "./i18n";
 import { Shell } from "./components/Shell";
@@ -17,6 +18,13 @@ import { NotificationsScreen } from "./screens/Notifications";
 import { ProfileScreen } from "./screens/Profile";
 import { SettingsScreen } from "./screens/Settings";
 import { LegalScreen } from "./screens/Legal";
+import { TransparencyScreen } from "./screens/Transparency";
+import { LandingScreen } from "./screens/Landing";
+import { CertificateScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
+
+/** The APK opens straight on the profile picker; the website shows the public landing first. */
+const IN_APK = typeof window !== "undefined" && "Capacitor" in window;
+import { THEME_COLORS } from "@/lib/theme";
 
 /** Applies the user's accessibility settings to <html>, like src/app/layout.tsx. */
 function useHtmlSettings(user: User | null) {
@@ -29,6 +37,35 @@ function useHtmlSettings(user: User | null) {
     if (user?.highContrast) html.classList.add("high-contrast");
     if (user?.reducedMotion) html.classList.add("reduce-motion");
   }, [lang, user?.fontSize, user?.highContrast, user?.reducedMotion]);
+
+  // Theme: data-theme drives the CSS color-scheme (see src/app/theme.css); index.html applies it before the first paint.
+  const theme = user?.theme ?? "system";
+  useEffect(() => {
+    const html = document.documentElement;
+    html.dataset.theme = theme;
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const dark = theme === "dark" || (theme === "system" && window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+    if (meta) meta.content = dark ? THEME_COLORS.dark : THEME_COLORS.light;
+  }, [theme]);
+}
+
+/**
+ * Shareable links: ?lang=pt|en|es opens the demo in that language and ?tour=1 starts the
+ * presentation mode (e.g. https://…/?lang=en&tour=1). The parameters are removed afterwards.
+ */
+function useUrlOptions() {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const lang = params.get("lang");
+    const tour = params.get("tour");
+    if (!lang && !tour) return;
+    if (lang === "pt" || lang === "en" || lang === "es") {
+      setGuestLanguage(lang);
+      updateSettings({ language: lang });
+    }
+    if (tour === "1") startTour();
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
+  }, []);
 }
 
 function Redirect({ to }: { to: string }) {
@@ -40,6 +77,12 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
   const staff = user.role === "moderator" || user.role === "admin";
   const submit = matchRoute("/missions/:id/submit", path);
   if (submit) return <SubmitScreen key={submit.id} missionId={submit.id} />;
+  if (path === "/org") return <OrgListScreen user={user} />;
+  if (path === "/org/nova") return <OrgNewScreen user={user} />;
+  const org = matchRoute("/org/:slug", path) ?? matchRoute("/org/:slug/:tab", path);
+  if (org) return <OrgScreen key={org.slug} user={user} slug={org.slug} tab={org.tab} />;
+  const certificate = matchRoute("/certificado/:id", path);
+  if (certificate) return <CertificateScreen memberId={certificate.id} />;
 
   switch (path) {
     case "/missions":
@@ -72,22 +115,41 @@ export function App() {
   const path = useRoute();
   const lang = useLang();
   useHtmlSettings(user);
+  useUrlOptions();
 
   useEffect(() => {
     onStorageError(() => toast(dt(lang, "demo_storage_full"), "error"));
   }, [lang]);
 
+  // "See demo" on the landing page: start the guided tour.
+  useEffect(() => {
+    if (path !== "/tour") return;
+    startTour();
+    navigate("/entrar", { replace: true });
+  }, [path]);
+
   return (
     <>
       {path === "/termos" || path === "/privacidade" ? (
         <LegalScreen doc={path === "/termos" ? "terms" : "privacy"} />
+      ) : path === "/transparencia" ? (
+        <TransparencyScreen />
       ) : !user || user.isBanned ? (
-        path === "/register" ? <RegisterScreen /> : path === "/" ? <LoginScreen /> : <Redirect to="/" />
+        path === "/register" ? (
+          <RegisterScreen />
+        ) : path === "/" && !IN_APK ? (
+          <LandingScreen />
+        ) : path === "/entrar" || path === "/" ? (
+          <LoginScreen />
+        ) : path === "/tour" ? null : (
+          <Redirect to="/entrar" />
+        )
       ) : (
         <Shell user={user}>
           <AuthedRoutes user={user} path={path} />
         </Shell>
       )}
+      <TourPanel />
       <Toaster />
     </>
   );

@@ -4,10 +4,12 @@ import { db } from "@/db";
 import { rewardQueue, submissions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { initials, formatDate, levelForPoints } from "@/lib/utils";
-import { t } from "@/lib/i18n";
+import { t, tf } from "@/lib/i18n";
+import { getPayoutSettings } from "@/lib/payouts";
+import { splitOpenRewards } from "@/lib/payout-rules";
 import { WalletPanel } from "@/components/wallet/wallet-panel";
 import { getFoneConfig } from "@/lib/fone-config";
-import { explorerTxUrl, shortHex, verifiedWallet, walletRequestState } from "@/lib/fone";
+import { centsToFone, explorerTxUrl, shortHex, verifiedWallet, walletRequestState } from "@/lib/fone";
 import { logoutAction } from "@/lib/actions/auth";
 import { FoneAmount, FoneMark } from "@/components/brand/fone";
 
@@ -38,10 +40,13 @@ export default async function ProfilePage() {
 
   const { treasury, explorerUrl } = getFoneConfig();
   const verified = verifiedWallet(user);
-  const [queued] = await db
-    .select({ sum: sql<string>`coalesce(sum(${rewardQueue.foneAmount}), 0)::text` })
+  const openRewards = await db
+    .select({ id: rewardQueue.id, foneAmount: rewardQueue.foneAmount, createdAt: rewardQueue.createdAt, holdReason: rewardQueue.holdReason })
     .from(rewardQueue)
     .where(and(eq(rewardQueue.userId, user.id), inArray(rewardQueue.status, ["pending", "processing", "failed"])));
+  const payoutSettings = await getPayoutSettings();
+  const split = splitOpenRewards(openRewards, payoutSettings);
+  const queued = { sum: centsToFone(split.payableCents + split.waitingCents + split.heldCents) };
   const payouts = await db
     .select({
       txHash: rewardQueue.txHash,
@@ -122,10 +127,38 @@ export default async function ProfilePage() {
           <div className="mt-6 border-t border-slate-100 pt-5">
             <p className="mb-3 text-sm font-semibold text-slate-700">{t(user.language, "wallet_payouts_title")}</p>
             <ul className="space-y-2">
+              {verified && split.payableCents > 0 && (
+                <li className="rounded-xl bg-amber-50 px-3 py-2 text-sm" data-testid="profile-fone-ready">
+                  <div className="flex items-center justify-between">
+                    <FoneAmount amount={centsToFone(split.payableCents)} className="font-bold text-amber-800" />
+                    <span className="text-xs font-semibold text-amber-700">{t(user.language, "wallet_payout_queued")}</span>
+                  </div>
+                  {split.belowMinimum && (
+                    <p className="mt-1 text-[11px] text-amber-800" data-testid="profile-fone-min">
+                      {tf(user.language, "payout_below_min", { min: payoutSettings.minPayoutFone.toFixed(2) })}
+                    </p>
+                  )}
+                </li>
+              )}
+              {verified && split.waitingCents > 0 && (
+                <li className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-sky-50 px-3 py-2 text-sm" data-testid="profile-fone-waiting">
+                  <FoneAmount amount={centsToFone(split.waitingCents)} className="font-bold text-sky-800" />
+                  <span className="text-xs font-semibold text-sky-700">
+                    {tf(user.language, "payout_waiting", {
+                      date: split.nextReleaseAt ? formatDate(split.nextReleaseAt, user.language) : "—",
+                    })}
+                  </span>
+                </li>
+              )}
+              {verified && split.heldCents > 0 && (
+                <li className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm" data-testid="profile-fone-held">
+                  <FoneAmount amount={centsToFone(split.heldCents)} className="font-bold text-slate-700" />
+                  <span className="text-xs font-semibold text-slate-600">{t(user.language, "payout_held")}</span>
+                </li>
+              )}
               {verified && queuedFone > 0 && (
-                <li className="flex items-center justify-between rounded-xl bg-amber-50 px-3 py-2 text-sm">
-                  <FoneAmount amount={queued.sum} className="font-bold text-amber-800" />
-                  <span className="text-xs font-semibold text-amber-700">{t(user.language, "wallet_payout_queued")}</span>
+                <li className="px-1 text-[11px] text-slate-400">
+                  {tf(user.language, "payout_rules_note", { days: payoutSettings.holdDays, min: payoutSettings.minPayoutFone.toFixed(2) })}
                 </li>
               )}
               {payouts.map((payout) => (

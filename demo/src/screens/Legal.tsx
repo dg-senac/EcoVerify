@@ -48,6 +48,7 @@ export function LegalScreen({ doc }: { doc: LegalDoc }) {
         <nav className="mb-4 flex gap-4 text-sm font-semibold text-emerald-700">
           <Link to="/termos" className={doc === "terms" ? "underline" : ""}>{t(lang, "terms_of_use")}</Link>
           <Link to="/privacidade" className={doc === "privacy" ? "underline" : ""}>{t(lang, "privacy_policy")}</Link>
+          <Link to="/transparencia">{t(lang, "transparency")}</Link>
         </nav>
         <article className={`${card} p-5 md:p-8`}>
           <h1 className="text-2xl font-extrabold text-slate-900">{t(lang, doc === "terms" ? "terms_of_use" : "privacy_policy")}</h1>

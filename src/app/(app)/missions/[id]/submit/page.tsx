@@ -4,6 +4,7 @@ import { missions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { SubmitProofForm } from "@/components/missions/submit-proof-form";
+import { membershipRole } from "@/lib/saas/orgs";
 
 export default async function SubmitMissionPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -17,6 +18,8 @@ export default async function SubmitMissionPage({ params }: { params: Promise<{ 
   if (!mission || !mission.isActive) {
     notFound();
   }
+  // Organization missions are private to its members.
+  if (mission.organizationId && !(await membershipRole(mission.organizationId, user.id))) notFound();
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -31,6 +34,8 @@ export default async function SubmitMissionPage({ params }: { params: Promise<{ 
           impact: mission.impact,
           latitude: mission.latitude,
           longitude: mission.longitude,
+          scope: mission.scope,
+          origin: mission.origin,
           category: mission.category,
           pointsReward: mission.pointsReward,
           foneReward: mission.foneReward,

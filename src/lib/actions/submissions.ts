@@ -1,15 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { and, count, eq, gte, inArray } from "drizzle-orm";
 import crypto from "node:crypto";
 import { db } from "@/db";
 import { missions, submissions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { membershipRole } from "@/lib/saas/orgs";
 import { detectFileType } from "@/lib/file-type";
 import { saveFile } from "@/lib/storage";
 import { isUniqueViolation, startOfTodayUTC } from "@/lib/utils";
+import { prepareProofPhoto } from "@/lib/ai/photo";
+import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
 
 export type SubmissionActionState = { error?: string; success?: boolean };
 
@@ -41,8 +45,13 @@ export async function createSubmissionAction(
   const missionId = String(formData.get("missionId") ?? "");
   const report = String(formData.get("report") ?? "").trim();
   const photo = formData.get("photo");
-  const userLatitude = Number(formData.get("latitude"));
-  const userLongitude = Number(formData.get("longitude"));
+  // Number("") is 0: an empty field must not become the point 0,0.
+  const coordinate = (name: string) => {
+    const raw = String(formData.get(name) ?? "").trim();
+    return raw === "" ? NaN : Number(raw);
+  };
+  const userLatitude = coordinate("latitude");
+  const userLongitude = coordinate("longitude");
   const accuracyRaw = formData.get("accuracy");
   const accuracy = accuracyRaw === null || accuracyRaw === "" ? null : Number(accuracyRaw);
 
@@ -63,14 +72,22 @@ export async function createSubmissionAction(
   if (!mission || !mission.isActive) {
     return { error: "mission_not_found" };
   }
+  if (mission.organizationId && !(await membershipRole(mission.organizationId, user.id))) {
+    return { error: "mission_not_found" };
+  }
 
   // ---- Location: user must be at the mission point --------------------------
-  if (!mission.latitude || !mission.longitude) return { error: "mission_location_not_configured" };
+  // "Anywhere" missions (e.g. at home) still record a GPS reading, but have no distance check.
+  const anywhere = mission.scope === "anywhere";
+  if (!anywhere && (!mission.latitude || !mission.longitude)) return { error: "mission_location_not_configured" };
   if (!Number.isFinite(userLatitude) || !Number.isFinite(userLongitude)) return { error: "outside_mission_area" };
   if (accuracy !== null && (!Number.isFinite(accuracy) || accuracy > MAX_GPS_ACCURACY_METERS)) {
     return { error: "location_inaccurate" };
   }
-  if (distanceInMeters(userLatitude, userLongitude, Number(mission.latitude), Number(mission.longitude)) > MISSION_RADIUS_METERS) {
+  if (
+    !anywhere &&
+    distanceInMeters(userLatitude, userLongitude, Number(mission.latitude), Number(mission.longitude)) > MISSION_RADIUS_METERS
+  ) {
     return { error: "outside_mission_area" };
   }
 
@@ -114,27 +131,106 @@ export async function createSubmissionAction(
     return { error: "duplicate_photo" };
   }
 
-  const photoUrl = await saveFile("proofs", buffer, detected.extension, detected.contentType);
+  // Stored copy without EXIF (exact GPS, phone model, date) + perceptual hash for near-duplicates.
+  const prepared = await prepareProofPhoto(buffer);
+  if (!prepared) return { error: "invalid_photo" };
+  const photoUrl = await saveFile("proofs", prepared.buffer, prepared.extension, prepared.contentType);
 
+  const aiConfig = await getAiSettings();
+  let submissionId: string;
   try {
-    await db.insert(submissions).values({
-      userId: user.id,
-      missionId,
-      photoUrl,
-      photoHash,
-      report,
-      latitude: String(userLatitude),
-      longitude: String(userLongitude),
-    });
+    const [created] = await db
+      .insert(submissions)
+      .values({
+        userId: user.id,
+        missionId,
+        photoUrl,
+        photoHash,
+        photoPhash: prepared.phash,
+        report,
+        latitude: String(userLatitude),
+        longitude: String(userLongitude),
+        aiStatus: willAnalyzeWithModel(aiConfig) ? "queued" : null,
+      })
+      .returning({ id: submissions.id });
+    submissionId = created.id;
   } catch (error) {
     // The unique index on photo_hash also protects against two simultaneous uploads.
     if (isUniqueViolation(error)) return { error: "duplicate_photo" };
     throw error;
   }
 
+  // Automatic verification runs after the response, so the user does not wait for the AI.
+  if (aiConfig.mode !== "off") {
+    after(async () => {
+      try {
+        await runProofVerification(submissionId, prepared.buffer);
+      } catch (error) {
+        console.error("[ai] verification crashed:", error);
+      }
+    });
+  }
+
   revalidatePath("/submissions");
   revalidatePath("/moderation");
   revalidatePath("/missions");
 
+  return { success: true };
+}
+
+export type AppealActionState = { error?: string; success?: boolean };
+
+/**
+ * LGPD art. 20: a proof rejected by the automatic verification can be sent once to a human
+ * moderator. It goes back to the moderation queue (marked as an appeal) and the AI does not run again.
+ */
+export async function appealSubmissionAction(_prev: AppealActionState, formData: FormData): Promise<AppealActionState> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.isBanned) return { error: "banned" };
+
+  const submissionId = String(formData.get("submissionId") ?? "");
+  const message = String(formData.get("message") ?? "").trim();
+  if (message.length < 10 || message.length > 500) return { error: "appeal_length" };
+
+  const [submission] = await db
+    .select()
+    .from(submissions)
+    .where(and(eq(submissions.id, submissionId), eq(submissions.userId, user.id)))
+    .limit(1);
+  if (!submission || submission.status !== "rejected" || submission.decidedBy !== "ai") return { error: "appeal_not_allowed" };
+  if (submission.appealedAt) return { error: "appeal_already_sent" };
+
+  // A new proof for the same mission is already in progress (or approved): no double reward.
+  const [other] = await db
+    .select({ id: submissions.id })
+    .from(submissions)
+    .where(
+      and(
+        eq(submissions.userId, user.id),
+        eq(submissions.missionId, submission.missionId),
+        inArray(submissions.status, ["pending", "approved"]),
+      ),
+    )
+    .limit(1);
+  if (other) return { error: "appeal_other_active" };
+
+  const updated = await db
+    .update(submissions)
+    .set({
+      status: "pending",
+      appealedAt: new Date(),
+      appealMessage: message,
+      decidedBy: null,
+      reviewedAt: null,
+      rejectionReason: null,
+      rejectionCode: null,
+    })
+    .where(and(eq(submissions.id, submissionId), eq(submissions.status, "rejected")))
+    .returning({ id: submissions.id });
+  if (updated.length === 0) return { error: "appeal_not_allowed" };
+
+  revalidatePath("/submissions");
+  revalidatePath("/moderation");
   return { success: true };
 }

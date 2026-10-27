@@ -3,20 +3,29 @@
 import { useActionState, useState } from "react";
 import { rejectSubmissionAction, type ModerationActionState } from "@/lib/actions/moderation";
 import { t, type Lang } from "@/lib/i18n";
+import { REJECTION_CODES, REJECTION_REASONS, type RejectionCode } from "@/lib/ai/decision";
 
 const initialState: ModerationActionState = {};
 
 export function RejectModal({
   lang,
   submissionId,
+  suggestedCode = null,
   onDone,
 }: {
   lang: Lang;
   submissionId: string;
+  /** Reason suggested by the automatic verification, pre-selected. */
+  suggestedCode?: RejectionCode | null;
   onDone: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [reason, setReason] = useState("");
+  const [code, setCode] = useState<RejectionCode | null>(suggestedCode);
+  const [reason, setReason] = useState(suggestedCode ? REJECTION_REASONS[suggestedCode][lang] : "");
+  const pickCode = (value: RejectionCode) => {
+    setCode(value);
+    setReason(REJECTION_REASONS[value][lang]);
+  };
   const [state, formAction, pending] = useActionState(
     async (prev: ModerationActionState, formData: FormData) => {
       const result = await rejectSubmissionAction(prev, formData);
@@ -47,6 +56,24 @@ export function RejectModal({
             <h3 className="text-lg font-bold text-slate-900">{t(lang, "rejection_reason_title")}</h3>
             <form action={formAction} className="mt-4 space-y-3">
               <input type="hidden" name="submissionId" value={submissionId} />
+              <input type="hidden" name="reasonCode" value={code && reason === REJECTION_REASONS[code][lang] ? code : ""} />
+              <div>
+                <p className="mb-1.5 text-xs font-semibold text-slate-500">{t(lang, "reject_quick_reasons")}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {REJECTION_CODES.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => pickCode(value)}
+                      className={`rounded-full border px-2.5 py-1 text-left text-xs transition ${
+                        code === value ? "border-red-400 bg-red-50 text-red-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      {REJECTION_REASONS[value][lang].split(/[.!]/)[0]}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <textarea
                 name="reason"
                 required
