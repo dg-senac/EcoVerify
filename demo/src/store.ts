@@ -20,6 +20,10 @@ import {
   type HoldReason,
   type PayoutSettings,
 } from "@/lib/payout-rules";
+import { addPeriod, isPlanId, PAID_PLANS, planPrice, type BillingCycle, type PlanId, type SubscriptionStatus } from "@/lib/plans";
+import { canActivateMission, canAddMember, initialSubscription, isOrgType, newInviteCode, normalizeInviteCode, slugify, type OrgRole, type OrgType } from "@/lib/saas/org-rules";
+import { newInvoiceReference } from "@/lib/saas/pix";
+import { cleanLead, type CleanLead, type LeadInput } from "@/lib/saas/lead-input";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -89,6 +93,8 @@ export type Mission = {
   sponsorName?: string | null;
   /** Sponsor whose FONE budget pays this mission (null = EcoVerify treasury). */
   sponsorId?: string | null;
+  /** Private mission of an organization (points only, members only). */
+  organizationId?: string | null;
 };
 
 export type MissionRequest = { userId: string; ibge: number; city: string; uf: string; createdAt: string };
@@ -187,7 +193,42 @@ export type State = {
   /** Payout rules (minimum, hold period, budgets) — Admin → Recompensas. */
   payoutSettings?: PayoutSettings;
   sponsors?: Sponsor[];
+  /* SaaS: organizations, plans and sales (see src/lib/plans.ts). */
+  orgs?: DemoOrg[];
+  orgMembers?: DemoOrgMember[];
+  invoices?: DemoInvoice[];
+  leads?: DemoLead[];
 };
+
+export type DemoOrg = {
+  id: string;
+  name: string;
+  slug: string;
+  type: OrgType;
+  city: string | null;
+  plan: PlanId;
+  billingCycle: BillingCycle;
+  subscriptionStatus: SubscriptionStatus;
+  currentPeriodEnd: string | null;
+  trialUsed: boolean;
+  inviteCode: string;
+  ownerId: string;
+  createdAt: string;
+};
+export type DemoOrgMember = { id: string; orgId: string; userId: string; role: OrgRole; joinedAt: string };
+export type DemoInvoice = {
+  id: string;
+  orgId: string;
+  plan: PlanId;
+  billingCycle: BillingCycle;
+  amountCents: number;
+  status: "pending" | "paid" | "canceled";
+  reference: string;
+  reportedAt: string | null;
+  createdAt: string;
+  paidAt: string | null;
+};
+export type DemoLead = CleanLead & { id: string; status: "new" | "contacted" | "won" | "lost"; createdAt: string };
 
 const STORAGE_KEY = "ecoverify-demo";
 
@@ -460,6 +501,7 @@ export function submitProof(input: NewSubmission): Result {
   if (user.isBanned) return { error: "error_banned" };
   const mission = state.missions.find((m) => m.id === input.missionId && m.isActive);
   if (!mission) return { error: "error_generic" };
+  if (mission.organizationId && !orgRole(state, mission.organizationId, user.id)) return { error: "error_generic" };
   if (!input.photo) return { error: "error_photo_required" };
   const report = input.report.trim();
   if (report.length < 50 || report.length > 1000) return { error: "error_report_length" };
@@ -1095,4 +1137,280 @@ export function deleteMyAccount(confirmed: boolean): Result {
     };
   });
   return ok ? {} : { error: "storage" };
+}
+
+/* ------------------------------------------------------------------ */
+/* Organizations, plans and Pix (SaaS) — mirrors src/lib/actions/orgs.ts and billing.ts */
+/* ------------------------------------------------------------------ */
+
+/** Fake receiver: the demo never charges anyone. */
+export const DEMO_PIX = { key: "pix-demo@ecoverify.dev", name: "EcoVerify Demo", city: "Recife" };
+
+type OrgResult = { error?: string; success?: boolean; slug?: string };
+
+export function orgRole(s: State, orgId: string, userId: string): OrgRole | null {
+  return (s.orgMembers ?? []).find((m) => m.orgId === orgId && m.userId === userId)?.role ?? null;
+}
+
+export function myOrgs(s: State, userId: string) {
+  return (s.orgMembers ?? [])
+    .filter((m) => m.userId === userId)
+    .map((m) => ({ org: (s.orgs ?? []).find((o) => o.id === m.orgId)!, role: m.role, members: (s.orgMembers ?? []).filter((x) => x.orgId === m.orgId).length }))
+    .filter((x) => x.org);
+}
+
+/** Ranking and impact of an organization, computed from approved submissions of its missions. */
+export function orgStats(s: State, orgId: string) {
+  const missionIds = new Set(s.missions.filter((m) => m.organizationId === orgId).map((m) => m.id));
+  const approved = s.submissions.filter((x) => x.status === "approved" && missionIds.has(x.missionId));
+  const pointsOf = (missionId: string) => s.missions.find((m) => m.id === missionId)?.pointsReward ?? 0;
+  const ranking = (s.orgMembers ?? [])
+    .filter((m) => m.orgId === orgId)
+    .map((m) => {
+      const mine = approved.filter((x) => x.userId === m.userId);
+      return {
+        userId: m.userId,
+        memberId: m.id,
+        name: userById(m.userId, s)?.name ?? "—",
+        role: m.role,
+        joinedAt: m.joinedAt,
+        actions: mine.length,
+        points: mine.reduce((sum, x) => sum + pointsOf(x.missionId), 0),
+      };
+    })
+    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
+  const byCategory = new Map<string, number>();
+  const byMonth = new Map<string, number>();
+  for (const sub of approved) {
+    const mission = s.missions.find((m) => m.id === sub.missionId);
+    if (mission) byCategory.set(mission.category, (byCategory.get(mission.category) ?? 0) + 1);
+    const month = (sub.reviewedAt ?? sub.submittedAt).slice(0, 7);
+    byMonth.set(month, (byMonth.get(month) ?? 0) + 1);
+  }
+  const dates = approved.map((x) => x.reviewedAt ?? x.submittedAt).sort();
+  return {
+    ranking,
+    impact: {
+      actions: approved.length,
+      people: new Set(approved.map((x) => x.userId)).size,
+      points: approved.reduce((sum, x) => sum + pointsOf(x.missionId), 0),
+      byCategory: [...byCategory].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count),
+      byMonth: [...byMonth].map(([month, count]) => ({ month, count })).sort((a, b) => a.month.localeCompare(b.month)),
+      since: dates[0] ?? null,
+    },
+  };
+}
+
+function orgOf(s: State, orgId: string) {
+  return (s.orgs ?? []).find((o) => o.id === orgId) ?? null;
+}
+
+function isOwner(orgId: string) {
+  const user = me();
+  return !!user && orgRole(state, orgId, user.id) === "owner";
+}
+
+export function createOrg(input: { name: string; type: string; city: string; plan: string; cycle: string }): OrgResult {
+  const user = me();
+  if (!user) return { error: "invalid" };
+  const name = input.name.trim();
+  if (name.length < 3 || name.length > 80 || !isOrgType(input.type)) return { error: "invalid" };
+  const plan = isPlanId(input.plan) ? input.plan : "free";
+  const cycle: BillingCycle = input.cycle === "yearly" ? "yearly" : "monthly";
+  const trialUsed = (state.orgs ?? []).some((o) => o.ownerId === user.id && o.trialUsed);
+  const sub = initialSubscription(trialUsed ? "free" : plan, cycle);
+  let slug = slugify(name);
+  const taken = new Set((state.orgs ?? []).map((o) => o.slug));
+  for (let i = 2; taken.has(slug); i++) slug = `${slugify(name).slice(0, 44)}-${i}`;
+  const org: DemoOrg = {
+    id: uid(),
+    name,
+    slug,
+    type: input.type,
+    city: input.city.trim().slice(0, 80) || null,
+    plan: sub.plan,
+    billingCycle: sub.billingCycle,
+    subscriptionStatus: sub.subscriptionStatus,
+    currentPeriodEnd: sub.currentPeriodEnd ? sub.currentPeriodEnd.toISOString() : null,
+    trialUsed: sub.trialUsed,
+    inviteCode: newInviteCode(),
+    ownerId: user.id,
+    createdAt: now(),
+  };
+  const ok = commit((s) => ({
+    ...s,
+    orgs: [org, ...(s.orgs ?? [])],
+    orgMembers: [{ id: uid(), orgId: org.id, userId: user.id, role: "owner", joinedAt: now() }, ...(s.orgMembers ?? [])],
+  }));
+  return ok ? { success: true, slug } : { error: "invalid" };
+}
+
+export function joinOrg(rawCode: string): OrgResult {
+  const user = me();
+  if (!user) return { error: "invalid" };
+  const code = normalizeInviteCode(rawCode);
+  const org = (state.orgs ?? []).find((o) => o.inviteCode === code);
+  if (!org) return { error: "invalid_code" };
+  if (orgRole(state, org.id, user.id)) return { success: true, slug: org.slug };
+  const members = (state.orgMembers ?? []).filter((m) => m.orgId === org.id).length;
+  const limit = canAddMember(org, members);
+  if (limit) return { error: limit };
+  commit((s) => ({ ...s, orgMembers: [...(s.orgMembers ?? []), { id: uid(), orgId: org.id, userId: user.id, role: "member", joinedAt: now() }] }));
+  return { success: true, slug: org.slug };
+}
+
+export function leaveOrg(orgId: string): OrgResult {
+  const user = me();
+  if (!user || orgRole(state, orgId, user.id) === "owner") return { error: "owner_cannot_leave" };
+  commit((s) => ({ ...s, orgMembers: (s.orgMembers ?? []).filter((m) => !(m.orgId === orgId && m.userId === user.id)) }));
+  return { success: true };
+}
+
+export function regenerateOrgInvite(orgId: string): OrgResult {
+  if (!isOwner(orgId)) return { error: "forbidden" };
+  commit((s) => ({ ...s, orgs: (s.orgs ?? []).map((o) => (o.id === orgId ? { ...o, inviteCode: newInviteCode() } : o)) }));
+  return { success: true };
+}
+
+export function createOrgMission(orgId: string, input: { title: string; description: string; category: Category; points: number; scope: "local" | "anywhere" }): OrgResult {
+  const user = me();
+  const org = orgOf(state, orgId);
+  const role = user && orgRole(state, orgId, user.id);
+  if (!org || !(role === "owner" || role === "manager")) return { error: "forbidden" };
+  const title = input.title.trim();
+  const description = input.description.trim();
+  if (title.length < 4 || description.length < 10 || !Number.isInteger(input.points) || input.points < 5 || input.points > 200) return { error: "invalid" };
+  const active = state.missions.filter((m) => m.organizationId === orgId && m.isActive).length;
+  const limit = canActivateMission(org, active);
+  if (limit) return { error: limit };
+  const mission: Mission = {
+    id: uid(),
+    title,
+    description,
+    category: input.category,
+    pointsReward: input.points,
+    foneReward: "0.00",
+    latitude: -8.0476,
+    longitude: -34.877,
+    scope: "anywhere",
+    city: org.city,
+    isActive: true,
+    createdAt: now(),
+    organizationId: orgId,
+  };
+  commit((s) => ({ ...s, missions: [mission, ...s.missions] }));
+  return { success: true };
+}
+
+export function toggleOrgMission(missionId: string): OrgResult {
+  const mission = state.missions.find((m) => m.id === missionId);
+  const user = me();
+  const org = mission?.organizationId ? orgOf(state, mission.organizationId) : null;
+  const role = org && user ? orgRole(state, org.id, user.id) : null;
+  if (!mission || !org || !(role === "owner" || role === "manager")) return { error: "forbidden" };
+  if (!mission.isActive) {
+    const active = state.missions.filter((m) => m.organizationId === org.id && m.isActive).length;
+    const limit = canActivateMission(org, active);
+    if (limit) return { error: limit };
+  }
+  commit((s) => ({ ...s, missions: s.missions.map((m) => (m.id === missionId ? { ...m, isActive: !m.isActive } : m)) }));
+  return { success: true };
+}
+
+/* Billing (Pix) */
+
+export function createDemoInvoice(orgId: string, plan: PlanId, cycle: BillingCycle): OrgResult {
+  if (!isOwner(orgId)) return { error: "forbidden" };
+  const amountCents = PAID_PLANS.includes(plan) ? planPrice(plan, cycle) : null;
+  if (!amountCents) return { error: "invalid" };
+  const invoice: DemoInvoice = {
+    id: uid(),
+    orgId,
+    plan,
+    billingCycle: cycle,
+    amountCents,
+    status: "pending",
+    reference: newInvoiceReference(),
+    reportedAt: null,
+    createdAt: now(),
+    paidAt: null,
+  };
+  commit((s) => ({
+    ...s,
+    invoices: [invoice, ...(s.invoices ?? []).map((i) => (i.orgId === orgId && i.status === "pending" ? { ...i, status: "canceled" as const } : i))],
+  }));
+  return { success: true };
+}
+
+export function reportDemoInvoice(invoiceId: string): OrgResult {
+  const invoice = (state.invoices ?? []).find((i) => i.id === invoiceId && i.status === "pending");
+  if (!invoice || !isOwner(invoice.orgId)) return { error: "invalid" };
+  const org = orgOf(state, invoice.orgId)!;
+  commit((s) => {
+    const next: State = { ...s, invoices: (s.invoices ?? []).map((i) => (i.id === invoiceId ? { ...i, reportedAt: now() } : i)) };
+    let notifications = next.notifications;
+    for (const admin of s.users.filter((u) => u.role === "admin")) {
+      notifications = notify({ ...next, notifications }, admin.id, (l) => ({
+        title: l === "en" ? "💰 Pix payment reported" : l === "es" ? "💰 Pago por Pix informado" : "💰 Pagamento por Pix informado",
+        message: `${org.name} · ref. ${invoice.reference}`,
+      }));
+    }
+    return { ...next, notifications };
+  });
+  return { success: true };
+}
+
+export function cancelDemoInvoice(invoiceId: string): OrgResult {
+  const invoice = (state.invoices ?? []).find((i) => i.id === invoiceId && i.status === "pending");
+  if (!invoice || !isOwner(invoice.orgId)) return { error: "invalid" };
+  commit((s) => ({ ...s, invoices: (s.invoices ?? []).map((i) => (i.id === invoiceId ? { ...i, status: "canceled" as const } : i)) }));
+  return { success: true };
+}
+
+export function confirmDemoInvoice(invoiceId: string): OrgResult {
+  if (!isAdmin(me())) return { error: "forbidden" };
+  const invoice = (state.invoices ?? []).find((i) => i.id === invoiceId && i.status === "pending");
+  const org = invoice && orgOf(state, invoice.orgId);
+  if (!invoice || !org) return { error: "invalid" };
+  const nowDate = new Date();
+  const keeps = org.plan === invoice.plan && org.subscriptionStatus === "active" && org.currentPeriodEnd && new Date(org.currentPeriodEnd) > nowDate;
+  const end = addPeriod(keeps ? new Date(org.currentPeriodEnd!) : nowDate, invoice.billingCycle);
+  commit((s) => {
+    const next: State = {
+      ...s,
+      invoices: (s.invoices ?? []).map((i) => (i.id === invoiceId ? { ...i, status: "paid" as const, paidAt: now() } : i)),
+      orgs: (s.orgs ?? []).map((o) =>
+        o.id === org.id ? { ...o, plan: invoice.plan, billingCycle: invoice.billingCycle, subscriptionStatus: "active" as const, currentPeriodEnd: end.toISOString(), trialUsed: true } : o,
+      ),
+    };
+    const notifications = notify(next, org.ownerId, (l) => ({
+      title: l === "en" ? "✅ Payment confirmed" : l === "es" ? "✅ Pago confirmado" : "✅ Pagamento confirmado",
+      message: `${org.name} · ${end.toLocaleDateString(l === "pt" ? "pt-BR" : l)}`,
+    }));
+    return { ...next, notifications };
+  });
+  return { success: true };
+}
+
+export function grantDemoPlan(orgId: string, plan: string, months: number): OrgResult {
+  if (!isAdmin(me()) || !isPlanId(plan)) return { error: "invalid" };
+  const end = plan === "free" ? null : new Date(Date.now() + months * 30 * 86_400_000).toISOString();
+  commit((s) => ({ ...s, orgs: (s.orgs ?? []).map((o) => (o.id === orgId ? { ...o, plan, subscriptionStatus: "active" as const, currentPeriodEnd: end } : o)) }));
+  return { success: true };
+}
+
+/* Leads (contact form of the landing page) */
+
+export function submitDemoLead(input: LeadInput): OrgResult {
+  if (input.website) return { success: true };
+  const lead = cleanLead(input);
+  if (!lead) return { error: "invalid" };
+  commit((s) => ({ ...s, leads: [{ ...lead, id: uid(), status: "new", createdAt: now() }, ...(s.leads ?? [])] }));
+  return { success: true };
+}
+
+export function setDemoLeadStatus(leadId: string, status: DemoLead["status"]): OrgResult {
+  if (!isAdmin(me())) return { error: "forbidden" };
+  commit((s) => ({ ...s, leads: (s.leads ?? []).map((l) => (l.id === leadId ? { ...l, status } : l)) }));
+  return { success: true };
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { confirmInvoiceAction, grantPlanAction, updateLeadStatusAction } from "@/lib/actions/billing";
 import { formatBRL, PLAN_ORDER, type PlanId } from "@/lib/plans";
 import { MARKETING_TEXT } from "@/lib/marketing-text";
 
@@ -52,11 +51,21 @@ export interface BusinessData {
   }[];
 }
 
+type Result = { error?: string; success?: boolean };
+type LeadStatus = "new" | "contacted" | "won" | "lost";
+/** Server actions in the web app, local functions in the offline demo. */
+export interface BusinessActions {
+  confirmInvoice: (invoiceId: string) => Promise<Result>;
+  grantPlan: (orgId: string, plan: string, months: number) => Promise<Result>;
+  setLeadStatus: (leadId: string, status: LeadStatus) => Promise<Result>;
+}
+
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("pt-BR") : "—");
 
-export function BusinessTab({ data }: { data: BusinessData }) {
+export function BusinessTab({ data, actions, demoNote }: { data: BusinessData; actions: BusinessActions; demoNote?: string }) {
   return (
     <div className="grid gap-6" data-testid="business-tab">
+      {demoNote && <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">{demoNote}</p>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: "Receita recorrente (MRR)", value: formatBRL(data.mrrCents), hint: "planos ativos, anual ÷ 12" },
@@ -82,7 +91,7 @@ export function BusinessTab({ data }: { data: BusinessData }) {
         ) : (
           <ul className="mt-3 divide-y divide-slate-100" data-testid="pending-invoices">
             {data.pendingInvoices.map((inv) => (
-              <InvoiceRow key={inv.id} invoice={inv} />
+              <InvoiceRow key={inv.id} invoice={inv} onConfirm={actions.confirmInvoice} />
             ))}
           </ul>
         )}
@@ -123,7 +132,7 @@ export function BusinessTab({ data }: { data: BusinessData }) {
                     <td className="text-xs text-slate-500">{fmtDate(org.periodEnd)}</td>
                     <td>{org.members}</td>
                     <td>
-                      <GrantPlan orgId={org.id} current={org.plan} />
+                      <GrantPlan orgId={org.id} current={org.plan} onGrant={actions.grantPlan} />
                     </td>
                   </tr>
                 ))}
@@ -140,7 +149,7 @@ export function BusinessTab({ data }: { data: BusinessData }) {
         ) : (
           <ul className="mt-3 divide-y divide-slate-100" data-testid="lead-list">
             {data.leads.map((lead) => (
-              <LeadRow key={lead.id} lead={lead} />
+              <LeadRow key={lead.id} lead={lead} onStatus={actions.setLeadStatus} />
             ))}
           </ul>
         )}
@@ -149,7 +158,7 @@ export function BusinessTab({ data }: { data: BusinessData }) {
   );
 }
 
-function InvoiceRow({ invoice }: { invoice: BusinessData["pendingInvoices"][number] }) {
+function InvoiceRow({ invoice, onConfirm }: { invoice: BusinessData["pendingInvoices"][number]; onConfirm: BusinessActions["confirmInvoice"] }) {
   const [pending, start] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   return (
@@ -174,7 +183,7 @@ function InvoiceRow({ invoice }: { invoice: BusinessData["pendingInvoices"][numb
           onClick={() => {
             if (!window.confirm(`Confirmar que ${formatBRL(invoice.amountCents)} (ref. ${invoice.reference}) entrou na sua conta?`)) return;
             start(async () => {
-              const result = await confirmInvoiceAction(invoice.id);
+              const result = await onConfirm(invoice.id);
               setMessage(result.success ? "Confirmado ✓" : "Não foi possível confirmar");
             });
           }}
@@ -187,7 +196,7 @@ function InvoiceRow({ invoice }: { invoice: BusinessData["pendingInvoices"][numb
   );
 }
 
-function GrantPlan({ orgId, current }: { orgId: string; current: PlanId }) {
+function GrantPlan({ orgId, current, onGrant }: { orgId: string; current: PlanId; onGrant: BusinessActions["grantPlan"] }) {
   const [plan, setPlan] = useState<PlanId>(current);
   const [months, setMonths] = useState(12);
   const [pending, start] = useTransition();
@@ -217,7 +226,7 @@ function GrantPlan({ orgId, current }: { orgId: string; current: PlanId }) {
         disabled={pending}
         onClick={() =>
           start(async () => {
-            const result = await grantPlanAction(orgId, plan, plan === "free" ? 0 : months);
+            const result = await onGrant(orgId, plan, plan === "free" ? 0 : months);
             setDone(!!result.success);
           })
         }
@@ -229,7 +238,7 @@ function GrantPlan({ orgId, current }: { orgId: string; current: PlanId }) {
   );
 }
 
-function LeadRow({ lead }: { lead: BusinessData["leads"][number] }) {
+function LeadRow({ lead, onStatus }: { lead: BusinessData["leads"][number]; onStatus: BusinessActions["setLeadStatus"] }) {
   const [status, setStatus] = useState(lead.status);
   const [, start] = useTransition();
   return (
@@ -249,7 +258,7 @@ function LeadRow({ lead }: { lead: BusinessData["leads"][number] }) {
           const next = e.target.value as typeof status;
           setStatus(next);
           start(async () => {
-            await updateLeadStatusAction(lead.id, next);
+            await onStatus(lead.id, next);
           });
         }}
         className="h-fit rounded-lg border border-slate-200 px-2 py-1 text-sm"

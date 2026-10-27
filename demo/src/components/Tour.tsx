@@ -116,6 +116,18 @@ const STEPS: Step[] = [
     },
   },
   {
+    title: { pt: "6. Escolas, empresas e prefeituras", en: "6. Schools, companies and city halls", es: "6. Escuelas, empresas y alcaldías" },
+    text: {
+      pt: "Para o cidadão é sempre grátis. Quem paga são as organizações: Carlos coordena a Escola Técnica Exemplo, com missões só da escola, ranking da turma, relatório de impacto e certificados. O plano é pago por Pix (QR code) e a Ana confirma em Admin → Negócios. É assim que o EcoVerify se sustenta.",
+      en: "Citizens never pay. Organizations do: Carlos runs the Escola Técnica Exemplo, with school-only missions, class ranking, impact report and certificates. The plan is paid by Pix (QR code) and Ana confirms it in Admin → Business. That's how EcoVerify sustains itself.",
+      es: "Para el ciudadano siempre es gratis. Pagan las organizaciones: Carlos coordina la Escola Técnica Exemplo, con misiones solo de la escuela, ranking del grupo, informe de impacto y certificados. El plan se paga por Pix (código QR) y Ana lo confirma en Admin → Negocios. Así se sostiene EcoVerify.",
+    },
+    run: () => {
+      loginAs(DEMO_IDS.moderator);
+      navigate("/org/escola-tecnica-exemplo/plan");
+    },
+  },
+  {
     title: { pt: "Pronto!", en: "Done!", es: "¡Listo!" },
     text: {
       pt: "Esta é a página pública de Transparência: impacto, FONE pago e patrocinadores, sem nomes. Agora explore à vontade: troque de perfil no menu, escolha outra cidade em Missões ou envie uma foto de verdade. Tudo fica só neste aparelho.",

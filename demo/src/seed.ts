@@ -1,10 +1,10 @@
-import type { ChatMessage, Mission, Notification, Reward, State, Submission, User } from "./store";
+import type { ChatMessage, DemoInvoice, DemoLead, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
 
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -364,6 +364,115 @@ export function createSeed(): State {
     { id: "c5", userId: "u-bot-5", message: "Primeira missão aprovada! Bora subir no ranking 💪🌱", replyToId: null, deleted: false, createdAt: ago(6 * 60 * 60 * 1000) },
   ];
 
+  /* SaaS: a school on a free trial (Carlos runs it, Maria takes part) and a paying company. */
+  const school: DemoOrg = {
+    id: "org-escola",
+    name: "Escola Técnica Exemplo",
+    slug: "escola-tecnica-exemplo",
+    type: "school",
+    city: "Recife",
+    plan: "school",
+    billingCycle: "monthly",
+    subscriptionStatus: "trialing",
+    currentPeriodEnd: new Date(Date.now() + 9 * DAY).toISOString(),
+    trialUsed: true,
+    inviteCode: "ESCOLA24",
+    ownerId: DEMO_IDS.moderator,
+    createdAt: ago(5 * DAY),
+  };
+  const company: DemoOrg = {
+    id: "org-recicla",
+    name: "Recicla Boa Viagem (exemplo)",
+    slug: "recicla-boa-viagem",
+    type: "business",
+    city: "Recife",
+    plan: "business",
+    billingCycle: "monthly",
+    subscriptionStatus: "active",
+    currentPeriodEnd: new Date(Date.now() + 18 * DAY).toISOString(),
+    trialUsed: true,
+    inviteCode: "RECICLA7",
+    ownerId: "u-bot-1",
+    createdAt: ago(45 * DAY),
+  };
+  const orgMember = (orgId: string, userId: string, role: DemoOrgMember["role"], days: number): DemoOrgMember => ({
+    id: `om-${orgId}-${userId}`,
+    orgId,
+    userId,
+    role,
+    joinedAt: ago(days * DAY),
+  });
+  const orgMembers: DemoOrgMember[] = [
+    orgMember(school.id, DEMO_IDS.moderator, "owner", 5),
+    orgMember(school.id, DEMO_IDS.citizen, "member", 4),
+    orgMember(school.id, "u-bot-2", "member", 4),
+    orgMember(school.id, "u-bot-3", "member", 3),
+    orgMember(school.id, "u-bot-4", "member", 3),
+    orgMember(company.id, "u-bot-1", "owner", 45),
+    orgMember(company.id, "u-bot-5", "member", 40),
+  ];
+  const orgMission = (id: string, title: string, description: string, category: Mission["category"], points: number, days: number): Mission => ({
+    id,
+    title,
+    description,
+    category,
+    pointsReward: points,
+    foneReward: "0.00",
+    latitude: -8.0476,
+    longitude: -34.877,
+    scope: "anywhere",
+    city: "Recife",
+    stateCode: "PE",
+    isActive: true,
+    createdAt: ago(days * DAY),
+    organizationId: school.id,
+  });
+  const schoolMissions = [
+    orgMission("m-org-pilhas", "Coleta de pilhas e baterias", "Traga pilhas usadas para a caixa de coleta da escola (bloco B) e fotografe a entrega.", "recycling", 30, 5),
+    orgMission("m-org-horta", "Cuide da horta da escola", "Regue, retire ervas daninhas ou plante uma muda na horta da escola. Foto mostrando o canteiro.", "planting", 40, 5),
+    orgMission("m-org-garrafa", "Semana da garrafa reutilizável", "Use sua garrafa reutilizável em vez de copos descartáveis durante a semana. Foto com a garrafa na escola.", "other", 20, 2),
+  ];
+  missions.push(...schoolMissions);
+  const orgSub = (id: string, userId: string, mission: Mission, days: number, emoji: string, caption: string): Submission =>
+    sub({
+      id,
+      userId,
+      missionId: mission.id,
+      at: mission,
+      photo: placeholderPhoto(emoji, "#34d399", "#0d9488", caption),
+      report: `${caption}. Atividade feita na escola junto com a turma, conforme as instruções da missão.`,
+      status: "approved",
+      reviewedBy: DEMO_IDS.moderator,
+      rejectionReason: null,
+      submittedAt: ago(days * DAY + 3600000),
+      reviewedAt: ago(days * DAY),
+      decidedBy: "human",
+    });
+  submissions.push(
+    orgSub("s-org-1", "u-bot-2", schoolMissions[0], 4, "🔋", "Entreguei 12 pilhas usadas"),
+    orgSub("s-org-2", "u-bot-3", schoolMissions[1], 3, "🌱", "Plantei duas mudas de alface"),
+    orgSub("s-org-3", "u-bot-2", schoolMissions[1], 2, "🌱", "Reguei e limpei o canteiro 3"),
+    orgSub("s-org-4", "u-bot-4", schoolMissions[0], 1, "🔋", "Trouxe as baterias do controle"),
+    orgSub("s-org-5", DEMO_IDS.citizen, schoolMissions[0], 1, "🔋", "Levei as pilhas lá de casa"),
+  );
+  const invoices: DemoInvoice[] = [
+    { id: "inv-recicla-1", orgId: company.id, plan: "business", billingCycle: "monthly", amountCents: 34900, status: "paid", reference: "EVDEMO2K7Q9X", reportedAt: ago(12 * DAY), createdAt: ago(12 * DAY), paidAt: ago(12 * DAY) },
+    { id: "inv-recicla-0", orgId: company.id, plan: "business", billingCycle: "monthly", amountCents: 34900, status: "paid", reference: "EVDEMO8M3T4R", reportedAt: ago(42 * DAY), createdAt: ago(42 * DAY), paidAt: ago(42 * DAY) },
+  ];
+  const leads: DemoLead[] = [
+    {
+      id: "lead-prefeitura",
+      name: "Secretaria de Meio Ambiente (exemplo)",
+      email: "meioambiente@exemplo.gov.br",
+      organization: "Prefeitura de Exemplo",
+      type: "government",
+      plan: "government",
+      message: "Queremos usar o EcoVerify na semana do meio ambiente com 20 escolas municipais.",
+      status: "new",
+      createdAt: ago(1 * DAY),
+    },
+  ];
+
   const notifications: Notification[] = [
     {
       id: "n-maria-lindu",
@@ -397,6 +506,10 @@ export function createSeed(): State {
     missionRequests: [],
     seededCities: [],
     payoutSettings: { minPayoutFone: 5, holdDays: 7, monthlyBudgetFone: 500, maxFonePerUserMonth: 100 },
+    orgs: [school, company],
+    orgMembers,
+    invoices,
+    leads,
     sponsors: [{ id: "sp-recicla", name: "Cooperativa Recicla PE (exemplo)", budgetFone: "30.00", isActive: true, createdAt: ago(20 * DAY) }],
   };
 }

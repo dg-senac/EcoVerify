@@ -5,6 +5,9 @@ import { formatDate, formatFone } from "@/lib/utils";
 import type { Role } from "@/lib/nav";
 import { dt, errorText, type DemoKey } from "../i18n";
 import {
+  confirmDemoInvoice,
+  grantDemoPlan,
+  setDemoLeadStatus,
   createMission,
   localizedTitle,
   reviewMission,
@@ -34,9 +37,62 @@ import { FoneAmount, FoneMark } from "@/components/brand/fone";
 import { centsToFone } from "@/lib/fone";
 import { HOLD_REASONS, isReadyToPay } from "@/lib/payout-rules";
 import { Link } from "../router";
+import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
+import { PLANS } from "@/lib/plans";
+import { orgPlan } from "@/lib/saas/org-rules";
+import { monthStart } from "@/lib/payout-rules";
 
-type Tab = "metrics" | "missions" | "users" | "rewards";
+type Tab = "metrics" | "business" | "missions" | "users" | "rewards";
 export const ADMIN_TAB_KEY = "ecoverify-admin-tab";
+const BUSINESS_LABEL = { pt: "Negócios", en: "Business", es: "Negocios" };
+
+/** Same panel as the web app (src/components/admin/business-tab.tsx), fed by the local store. */
+function DemoBusinessTab() {
+  const data = useStore<BusinessData>((s) => {
+    const orgs = (s.orgs ?? []).map((o) => ({ ...o, effective: orgPlan(o) }));
+    const paying = orgs.filter((o) => o.effective !== "free" && o.subscriptionStatus === "active");
+    const paid = (s.invoices ?? []).filter((i) => i.status === "paid");
+    const month = monthStart(new Date()).getTime();
+    return {
+      mrrCents: paying.reduce((sum, o) => sum + (o.billingCycle === "yearly" && PLANS[o.effective].yearlyCents ? Math.round(PLANS[o.effective].yearlyCents! / 12) : (PLANS[o.effective].monthlyCents ?? 0)), 0),
+      receivedMonthCents: paid.filter((i) => i.paidAt && new Date(i.paidAt).getTime() >= month).reduce((sum, i) => sum + i.amountCents, 0),
+      receivedTotalCents: paid.reduce((sum, i) => sum + i.amountCents, 0),
+      payingOrgs: paying.length,
+      trialOrgs: orgs.filter((o) => o.effective !== "free" && o.subscriptionStatus === "trialing").length,
+      totalOrgs: orgs.length,
+      pendingInvoices: (s.invoices ?? [])
+        .filter((i) => i.status === "pending")
+        .map((i) => {
+          const org = orgs.find((o) => o.id === i.orgId);
+          return { id: i.id, orgName: org?.name ?? "—", orgSlug: org?.slug ?? "", plan: i.plan, cycle: i.billingCycle, amountCents: i.amountCents, reference: i.reference, reportedAt: i.reportedAt, createdAt: i.createdAt };
+        }),
+      orgs: orgs.map((o) => ({
+        id: o.id,
+        name: o.name,
+        slug: o.slug,
+        type: o.type,
+        plan: o.plan,
+        effectivePlan: o.effective,
+        status: o.subscriptionStatus,
+        periodEnd: o.currentPeriodEnd,
+        members: (s.orgMembers ?? []).filter((m) => m.orgId === o.id).length,
+        ownerEmail: s.users.find((u) => u.id === o.ownerId)?.email ?? null,
+      })),
+      leads: (s.leads ?? []).map((l) => ({ ...l })),
+    };
+  });
+  return (
+    <BusinessTab
+      data={data}
+      demoNote="Demonstração: os valores e o Pix são fictícios. No app real, o dinheiro dos planos cai direto na chave Pix configurada (PIX_KEY) e você confirma aqui."
+      actions={{
+        confirmInvoice: async (id) => confirmDemoInvoice(id),
+        grantPlan: async (orgId, plan, months) => grantDemoPlan(orgId, plan, months),
+        setLeadStatus: async (id, status) => setDemoLeadStatus(id, status),
+      }}
+    />
+  );
+}
 
 export function AdminScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -44,10 +100,12 @@ export function AdminScreen({ user }: { user: User }) {
     // The presentation tour opens the Rewards tab directly.
     const wanted = sessionStorage.getItem(ADMIN_TAB_KEY);
     sessionStorage.removeItem(ADMIN_TAB_KEY);
-    return wanted === "rewards" || wanted === "missions" || wanted === "users" ? wanted : "metrics";
+    return wanted === "rewards" || wanted === "missions" || wanted === "users" || wanted === "business" ? wanted : "metrics";
   });
-  const tabs: { id: Tab; key: "admin_tab_metrics" | "admin_tab_missions" | "admin_tab_users" | "admin_tab_rewards" }[] = [
+  const businessBadge = useStore((st) => (st.invoices ?? []).filter((i) => i.status === "pending" && i.reportedAt).length + (st.leads ?? []).filter((l) => l.status === "new").length);
+  const tabs: { id: Tab; key: "admin_tab_metrics" | "admin_tab_missions" | "admin_tab_users" | "admin_tab_rewards" | null }[] = [
     { id: "metrics", key: "admin_tab_metrics" },
+    { id: "business", key: null },
     { id: "missions", key: "admin_tab_missions" },
     { id: "users", key: "admin_tab_users" },
     { id: "rewards", key: "admin_tab_rewards" },
@@ -63,11 +121,12 @@ export function AdminScreen({ user }: { user: User }) {
             onClick={() => setTab(tb.id)}
             className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition ${tab === tb.id ? "bg-emerald-500 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}
           >
-            {t(lang, tb.key)}
+            {tb.key ? t(lang, tb.key) : `💼 ${BUSINESS_LABEL[lang]}${businessBadge ? ` (${businessBadge})` : ""}`}
           </button>
         ))}
       </div>
       {tab === "metrics" && <MetricsTab />}
+      {tab === "business" && <DemoBusinessTab />}
       {tab === "missions" && <MissionsTab />}
       {tab === "users" && <UsersTab me={user} />}
       {tab === "rewards" && <RewardsTab />}

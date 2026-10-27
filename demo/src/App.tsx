@@ -19,6 +19,11 @@ import { ProfileScreen } from "./screens/Profile";
 import { SettingsScreen } from "./screens/Settings";
 import { LegalScreen } from "./screens/Legal";
 import { TransparencyScreen } from "./screens/Transparency";
+import { LandingScreen } from "./screens/Landing";
+import { CertificateScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
+
+/** The APK opens straight on the profile picker; the website shows the public landing first. */
+const IN_APK = typeof window !== "undefined" && "Capacitor" in window;
 import { THEME_COLORS } from "@/lib/theme";
 
 /** Applies the user's accessibility settings to <html>, like src/app/layout.tsx. */
@@ -72,6 +77,12 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
   const staff = user.role === "moderator" || user.role === "admin";
   const submit = matchRoute("/missions/:id/submit", path);
   if (submit) return <SubmitScreen key={submit.id} missionId={submit.id} />;
+  if (path === "/org") return <OrgListScreen user={user} />;
+  if (path === "/org/nova") return <OrgNewScreen user={user} />;
+  const org = matchRoute("/org/:slug", path) ?? matchRoute("/org/:slug/:tab", path);
+  if (org) return <OrgScreen key={org.slug} user={user} slug={org.slug} tab={org.tab} />;
+  const certificate = matchRoute("/certificado/:id", path);
+  if (certificate) return <CertificateScreen memberId={certificate.id} />;
 
   switch (path) {
     case "/missions":
@@ -110,6 +121,13 @@ export function App() {
     onStorageError(() => toast(dt(lang, "demo_storage_full"), "error"));
   }, [lang]);
 
+  // "See demo" on the landing page: start the guided tour.
+  useEffect(() => {
+    if (path !== "/tour") return;
+    startTour();
+    navigate("/entrar", { replace: true });
+  }, [path]);
+
   return (
     <>
       {path === "/termos" || path === "/privacidade" ? (
@@ -117,7 +135,15 @@ export function App() {
       ) : path === "/transparencia" ? (
         <TransparencyScreen />
       ) : !user || user.isBanned ? (
-        path === "/register" ? <RegisterScreen /> : path === "/" ? <LoginScreen /> : <Redirect to="/" />
+        path === "/register" ? (
+          <RegisterScreen />
+        ) : path === "/" && !IN_APK ? (
+          <LandingScreen />
+        ) : path === "/entrar" || path === "/" ? (
+          <LoginScreen />
+        ) : path === "/tour" ? null : (
+          <Redirect to="/entrar" />
+        )
       ) : (
         <Shell user={user}>
           <AuthedRoutes user={user} path={path} />

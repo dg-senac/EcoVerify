@@ -5,7 +5,7 @@ import { Award, ExternalLink, FileBarChart, Users } from "lucide-react";
 import { db } from "@/db";
 import { invoices, missions, submissions, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { categoryEmoji, categoryLabels } from "@/lib/i18n";
+import { categoryEmoji, categoryLabels, t } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import type { AiChecks } from "@/lib/ai/decision";
 import { ORG_TEXT } from "@/lib/saas/org-text";
@@ -162,8 +162,8 @@ export default async function OrganizationPage({
                           {done.has(m.id) ? (
                             <span className="text-xs font-bold text-emerald-700">✓</span>
                           ) : (
-                            <Link href={`/missions/${m.id}/submit`} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-600">
-                              →
+                            <Link href={`/missions/${m.id}/submit`} className="shrink-0 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-600">
+                              {t(lang, "send_proof")}
                             </Link>
                           )}
                         </li>

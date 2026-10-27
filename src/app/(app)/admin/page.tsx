@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { invoices, leads, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, users } from "@/db/schema";
 import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
+import { confirmInvoiceAction, grantPlanAction, updateLeadStatusAction } from "@/lib/actions/billing";
 import { PLANS } from "@/lib/plans";
 import { orgPlan } from "@/lib/saas/org-rules";
 import { municipalityByIbge } from "@/lib/municipalities";
@@ -337,7 +338,7 @@ export default async function AdminPage() {
               key: "business",
               label: businessBadge ? `Negócios (${businessBadge})` : "Negócios",
               icon: "💼",
-              content: <BusinessTab data={business} />,
+              content: <BusinessTab data={business} actions={{ confirmInvoice: confirmInvoiceAction, grantPlan: grantPlanAction, setLeadStatus: updateLeadStatusAction }} />,
             },
             { key: "missions", label: missionsToReview ? `Missões (${missionsToReview})` : "Missões", icon: "🌱", content: (
                 <MissionsTab

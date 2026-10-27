@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Sprout } from "lucide-react";
 import { t, tf } from "@/lib/i18n";
 import { groupMissionsByRegion, MIN_LOCAL_MISSIONS } from "@/lib/region";
-import { requestMissionsHere, seedExampleMissions, useLang, useStore, type Mission, type User, type SubmissionStatus } from "../store";
+import { myOrgs, requestMissionsHere, seedExampleMissions, useLang, useStore, type Mission, type User, type SubmissionStatus } from "../store";
+import { ORG_TEXT } from "@/lib/saas/org-text";
+import { Link } from "../router";
 import { MissionCard } from "../components/MissionCard";
 import { RegionBar } from "../components/RegionBar";
 import { EmptyState, PageHeader, btnPrimary } from "../components/ui";
@@ -26,7 +28,10 @@ export function MissionsScreen({ user }: { user: User }) {
   const region = useStore((s) => s.region ?? null);
   const requests = useStore((s) => s.missionRequests ?? []);
   const seeded = useStore((s) => s.seededCities ?? []);
-  const active = missions.filter((m) => m.isActive);
+  const orgs = useStore((s) => myOrgs(s, user.id));
+  const active = missions.filter((m) => m.isActive && !m.organizationId);
+  const orgIds = new Set(orgs.map((o) => o.org.id));
+  const orgMissions = missions.filter((m) => m.isActive && m.organizationId && orgIds.has(m.organizationId));
   const [seeding, setSeeding] = useState(false);
 
   // Latest status of my submission for each mission (a rejected one can be resent).
@@ -52,7 +57,33 @@ export function MissionsScreen({ user }: { user: User }) {
     };
   }, [needsSupply, region]);
 
-  const header = <PageHeader title={t(lang, "missions_title")} subtitle={t(lang, "missions_subtitle")} icon={Sprout} />;
+  const orgText = ORG_TEXT[lang];
+  const header = (
+    <>
+      <PageHeader title={t(lang, "missions_title")} subtitle={t(lang, "missions_subtitle")} icon={Sprout} />
+      {orgMissions.length > 0 && (
+        <section className="mb-8" data-testid="section-org">
+          <h2 className="text-lg font-bold text-slate-900">
+            🏫 {orgText.sectionMine} <span className="text-sm font-semibold text-slate-400">({orgMissions.length})</span>
+          </h2>
+          <p className="mb-3 text-sm text-slate-500">
+            {orgs
+              .filter((o) => orgMissions.some((m) => m.organizationId === o.org.id))
+              .map((o, i) => (
+                <span key={o.org.id}>
+                  {i > 0 && " · "}
+                  <Link to={`/org/${o.org.slug}`} className="font-semibold text-emerald-700 hover:underline">
+                    {o.org.name}
+                  </Link>
+                </span>
+              ))}{" "}
+            · {orgText.privateBadge}
+          </p>
+          <Grid items={orgMissions} myStatus={myStatus} />
+        </section>
+      )}
+    </>
+  );
 
   if (!region || !grouped) {
     return (
