@@ -66,7 +66,7 @@ export function RegionBar({ lang, region }: { lang: Lang; region: Region | null 
     }
   };
 
-  const useRecife = async () => {
+  const chooseRecife = async () => {
     const m = (await loadMunicipalities()).find((x) => x[0] === RECIFE);
     if (m) choose(m, "manual");
   };
@@ -81,7 +81,7 @@ export function RegionBar({ lang, region }: { lang: Lang; region: Region | null 
         <button type="button" onClick={() => setSearching((v) => !v)} className={btnSecondary}>
           🏙️ {t(lang, "region_pick_city")}
         </button>
-        <button type="button" onClick={useRecife} className={btnSecondary}>
+        <button type="button" onClick={chooseRecife} className={btnSecondary}>
           {dt(lang, "demo_region_recife")}
         </button>
       </div>

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { onStorageError, useCurrentUser, useLang, type User } from "./store";
+import { onStorageError, setGuestLanguage, updateSettings, useCurrentUser, useLang, type User } from "./store";
+import { startTour, TourPanel } from "./components/Tour";
 import { matchRoute, navigate, useRoute } from "./router";
 import { dt } from "./i18n";
 import { Shell } from "./components/Shell";
@@ -40,6 +41,25 @@ function useHtmlSettings(user: User | null) {
     const dark = theme === "dark" || (theme === "system" && window.matchMedia?.("(prefers-color-scheme: dark)").matches);
     if (meta) meta.content = dark ? THEME_COLORS.dark : THEME_COLORS.light;
   }, [theme]);
+}
+
+/**
+ * Shareable links: ?lang=pt|en|es opens the demo in that language and ?tour=1 starts the
+ * presentation mode (e.g. https://…/?lang=en&tour=1). The parameters are removed afterwards.
+ */
+function useUrlOptions() {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const lang = params.get("lang");
+    const tour = params.get("tour");
+    if (!lang && !tour) return;
+    if (lang === "pt" || lang === "en" || lang === "es") {
+      setGuestLanguage(lang);
+      updateSettings({ language: lang });
+    }
+    if (tour === "1") startTour();
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
+  }, []);
 }
 
 function Redirect({ to }: { to: string }) {
@@ -83,6 +103,7 @@ export function App() {
   const path = useRoute();
   const lang = useLang();
   useHtmlSettings(user);
+  useUrlOptions();
 
   useEffect(() => {
     onStorageError(() => toast(dt(lang, "demo_storage_full"), "error"));
@@ -99,6 +120,7 @@ export function App() {
           <AuthedRoutes user={user} path={path} />
         </Shell>
       )}
+      <TourPanel />
       <Toaster />
     </>
   );

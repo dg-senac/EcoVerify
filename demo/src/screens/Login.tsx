@@ -8,6 +8,7 @@ import { register, setGuestLanguage, useLang } from "../store";
 import { DemoBanner } from "../components/Shell";
 import { ProfileList } from "../components/ProfileSwitcher";
 import { btnPrimary, card, input, label, Modal } from "../components/ui";
+import { TourStartButton } from "../components/Tour";
 import { PoweredByFone } from "@/components/brand/fone";
 import { LegalDocument, type LegalDoc } from "./Legal";
 
@@ -62,7 +63,10 @@ export function LoginScreen() {
       <div className={`${card} p-5 animate-slide-up`}>
         <h1 className="text-2xl font-extrabold text-slate-900">{dt(lang, "demo_login_title")}</h1>
         <p className="mb-5 mt-1 text-sm text-slate-500">{dt(lang, "demo_login_subtitle")}</p>
-        <ProfileList />
+        <TourStartButton />
+        <div className="mt-4">
+          <ProfileList />
+        </div>
         <div className="mt-5 border-t border-slate-100 pt-4 text-center">
           <Link to="/register" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:underline">
             <UserPlus className="h-4 w-4" /> {dt(lang, "demo_or_create")}
