@@ -1,8 +1,10 @@
-import { eq, and, not, inArray, count } from "drizzle-orm";
+import { eq, and, not, inArray, count, isNull } from "drizzle-orm";
 import { after } from "next/server";
 import Link from "next/link";
 import { db } from "@/db";
-import { missionRequests, missions, submissions } from "@/db/schema";
+import { missionRequests, missions, organizations, submissions } from "@/db/schema";
+import { myOrganizationIds } from "@/lib/saas/orgs";
+import { ORG_TEXT } from "@/lib/saas/org-text";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { t, tf, type Lang } from "@/lib/i18n";
@@ -67,17 +69,42 @@ export default async function MissionsPage() {
 
   const completedMissionIds = userSubmissions.map((s) => s.missionId);
 
+  const notDone = completedMissionIds.length > 0 ? not(inArray(missions.id, completedMissionIds)) : undefined;
+  // Public missions only; organization missions are listed separately for their members.
   const activeMissions = await db
     .select()
     .from(missions)
-    .where(
-      and(
-        eq(missions.isActive, true),
-        completedMissionIds.length > 0
-          ? not(inArray(missions.id, completedMissionIds))
-          : undefined
-      )
-    );
+    .where(and(eq(missions.isActive, true), isNull(missions.organizationId), notDone));
+
+  const orgIds = await myOrganizationIds(user.id);
+  const orgMissionRows = orgIds.length
+    ? await db
+        .select({ mission: missions, orgName: organizations.name, orgSlug: organizations.slug })
+        .from(missions)
+        .innerJoin(organizations, eq(organizations.id, missions.organizationId))
+        .where(and(eq(missions.isActive, true), inArray(missions.organizationId, orgIds), notDone))
+    : [];
+  const orgText = ORG_TEXT[lang];
+  const orgSection =
+    orgMissionRows.length > 0 ? (
+      <section className="mt-6" data-testid="section-org">
+        <h2 className="text-lg font-bold text-slate-900">
+          🏫 {orgText.sectionMine} <span className="text-sm font-semibold text-slate-400">({orgMissionRows.length})</span>
+        </h2>
+        <p className="text-sm text-slate-500">
+          {[...new Map(orgMissionRows.map((r) => [r.orgSlug, r.orgName])).entries()].map(([slug, name], i) => (
+            <span key={slug}>
+              {i > 0 && " · "}
+              <Link href={`/org/${slug}`} className="font-semibold text-emerald-700 hover:underline">
+                {name}
+              </Link>
+            </span>
+          ))}{" "}
+          · {orgText.privateBadge}
+        </p>
+        <Grid lang={lang} items={orgMissionRows.map((r) => r.mission)} />
+      </section>
+    ) : null;
 
   const sponsorLeft: SponsorLeft = new Map();
   if (activeMissions.some((mission) => mission.sponsorId)) {
@@ -108,7 +135,8 @@ export default async function MissionsPage() {
     return (
       <div>
         {header}
-        {activeMissions.length === 0 ? (
+        {orgSection}
+        {activeMissions.length === 0 && !orgSection ? (
           <div className="mt-10 rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-slate-400">
             <Sprout className="h-16 w-16 mx-auto" />
             <p className="mt-3 text-sm font-medium">{t(lang, "missions_empty")}</p>
@@ -128,7 +156,7 @@ export default async function MissionsPage() {
   // Count all local missions of the region (including ones this user already did) to decide
   // whether it needs automatic supply.
   const regionalTotal = groupMissionsByRegion(
-    (await db.select().from(missions).where(and(eq(missions.isActive, true), eq(missions.scope, "local")))),
+    (await db.select().from(missions).where(and(eq(missions.isActive, true), eq(missions.scope, "local"), isNull(missions.organizationId)))),
     region,
   ).nearby.length;
   let seeding = false;
@@ -165,6 +193,7 @@ export default async function MissionsPage() {
   return (
     <div>
       {header}
+      {orgSection}
 
       <section className="mt-6" data-testid="section-nearby">
         <h2 className="text-lg font-bold text-slate-900">

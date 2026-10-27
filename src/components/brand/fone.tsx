@@ -9,7 +9,7 @@ import { t, type Lang } from "@/lib/i18n";
  * Plain <img> on purpose: the same components run in Next.js and in the offline demo (Vite).
  * Next returns { src } for image imports and Vite returns a string, so normalise both.
  */
-function assetUrl(asset: unknown): string {
+export function assetUrl(asset: unknown): string {
   return typeof asset === "string" ? asset : (asset as { src: string }).src;
 }
 

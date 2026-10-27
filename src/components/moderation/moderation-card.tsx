@@ -16,10 +16,13 @@ export function ModerationCard({
   moderatorId,
   canRetryAi,
   submission,
+  showHistory = true,
 }: {
   lang: Lang;
   moderatorId: string;
   canRetryAi: boolean;
+  /** The user's full history is for platform staff only (organization managers don't see it). */
+  showHistory?: boolean;
   submission: AiPanelData & {
     appealedAt: Date | null;
     appealMessage: string | null;
@@ -62,7 +65,7 @@ export function ModerationCard({
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
           <span>por</span>
-          <HistoryPanel lang={lang} userId={submission.authorId} userName={submission.authorName} />
+          {showHistory && <HistoryPanel lang={lang} userId={submission.authorId} userName={submission.authorName} />}
           <span>·</span>
           <span>{formatDate(submission.submittedAt, lang)}</span>
         </div>

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { isUniqueViolation } from "@/lib/utils";
+import { isUniqueViolation, safeNextPath } from "@/lib/utils";
 import { headers } from "next/headers";
 import { createSession, destroySession, hashPassword, verifyPassword } from "@/lib/auth";
 import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
@@ -53,7 +53,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   }
 
   await createSession(user.id);
-  redirect("/missions");
+  redirect(safeNextPath(formData.get("next")) ?? "/missions");
 }
 
 export async function registerAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -98,7 +98,7 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
   await createSession(user.id);
   // A failure to send must not block the sign-up: the user can resend from Settings.
   await sendVerificationEmail(user).catch((error) => console.error("[email] verification", error));
-  redirect("/wallet-setup");
+  redirect(safeNextPath(formData.get("next")) ?? "/wallet-setup");
 }
 
 export async function logoutAction() {

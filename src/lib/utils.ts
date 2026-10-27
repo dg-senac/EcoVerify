@@ -39,6 +39,13 @@ export function levelForPoints(points: number, lang: Lang) {
   return { emoji: level.emoji, name: level[lang] };
 }
 
+/** Only same-site paths are accepted as a post-login destination (no open redirects). */
+export function safeNextPath(raw: unknown): string | null {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\") || value.length > 300) return null;
+  return value;
+}
+
 export function formatDate(date: Date | string, lang: Lang) {
   const d = typeof date === "string" ? new Date(date) : date;
   const locale = lang === "pt" ? "pt-BR" : lang === "es" ? "es-ES" : "en-US";

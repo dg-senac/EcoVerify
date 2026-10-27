@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 import { db } from "@/db";
 import { missions, submissions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { membershipRole } from "@/lib/saas/orgs";
 import { detectFileType } from "@/lib/file-type";
 import { saveFile } from "@/lib/storage";
 import { isUniqueViolation, startOfTodayUTC } from "@/lib/utils";
@@ -69,6 +70,9 @@ export async function createSubmissionAction(
 
   const [mission] = await db.select().from(missions).where(eq(missions.id, missionId)).limit(1);
   if (!mission || !mission.isActive) {
+    return { error: "mission_not_found" };
+  }
+  if (mission.organizationId && !(await membershipRole(mission.organizationId, user.id))) {
     return { error: "mission_not_found" };
   }
 

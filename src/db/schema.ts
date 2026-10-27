@@ -155,6 +155,8 @@ export const missions = pgTable("missions", {
   sponsorName: varchar("sponsor_name", { length: 80 }),
   /** Sponsor whose FONE budget pays this mission's rewards (null = EcoVerify treasury). */
   sponsorId: uuid("sponsor_id").references((): AnyPgColumn => sponsors.id, { onDelete: "set null" }),
+  /** Private mission of an organization (only its members see it). null = public mission. */
+  organizationId: uuid("organization_id").references((): AnyPgColumn => organizations.id),
   category: categoryEnum("category").notNull(),
   /** Optional: what the proof photo must show, used by the automatic verification. */
   aiChecklist: text("ai_checklist"),
@@ -166,6 +168,7 @@ export const missions = pgTable("missions", {
 }, (table) => [
   uniqueIndex("missions_osm_ref_unique").on(table.osmRef),
   index("missions_ibge_idx").on(table.ibgeCode),
+  index("missions_org_idx").on(table.organizationId),
 ]);
 
 /**
@@ -422,3 +425,97 @@ export const messageReports = pgTable("message_reports", {
 }, (table) => [
   uniqueIndex("message_reports_unique").on(table.messageId, table.reporterId),
 ]);
+
+/* ------------------------------------------------------------------ */
+/* EcoVerify for organizations (SaaS). Plans and limits: src/lib/plans.ts */
+/* ------------------------------------------------------------------ */
+
+export const leadStatusEnum = pgEnum("lead_status", ["new", "contacted", "won", "lost"]);
+export const orgTypeEnum = pgEnum("org_type", ["school", "business", "government", "ngo", "other"]);
+export const planEnum = pgEnum("plan", ["free", "school", "business", "government"]);
+export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "yearly"]);
+export const subscriptionStatusEnum = pgEnum("subscription_status", ["trialing", "active", "past_due", "canceled"]);
+export const orgRoleEnum = pgEnum("org_role", ["owner", "manager", "member"]);
+export const invoiceStatusEnum = pgEnum("invoice_status", ["pending", "paid", "canceled"]);
+
+/** Contact form of the public site (schools, companies, city halls, brands). */
+export const leads = pgTable("leads", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 80 }).notNull(),
+  email: varchar("email", { length: 160 }).notNull(),
+  organization: varchar("organization", { length: 120 }).notNull(),
+  type: varchar("type", { length: 20 }).notNull(),
+  plan: varchar("plan", { length: 20 }),
+  message: text("message"),
+  language: languageEnum("language").notNull().default("pt"),
+  status: leadStatusEnum("status").notNull().default("new"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("leads_created_idx").on(table.createdAt)]);
+
+export const organizations = pgTable("organizations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 80 }).notNull(),
+  slug: varchar("slug", { length: 60 }).notNull(),
+  type: orgTypeEnum("type").notNull().default("other"),
+  city: varchar("city", { length: 80 }),
+  stateCode: varchar("state_code", { length: 2 }),
+  /** Hex colour used on the organization's pages (branding feature). */
+  brandColor: varchar("brand_color", { length: 7 }),
+  /** Code people use to join (shareable link /org/entrar/CODE). */
+  inviteCode: varchar("invite_code", { length: 12 }).notNull(),
+  plan: planEnum("plan").notNull().default("free"),
+  billingCycle: billingCycleEnum("billing_cycle").notNull().default("monthly"),
+  subscriptionStatus: subscriptionStatusEnum("subscription_status").notNull().default("active"),
+  /** End of the paid/trial period (null for the free plan). */
+  currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+  trialUsed: boolean("trial_used").notNull().default(false),
+  ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("organizations_slug_unique").on(table.slug),
+  uniqueIndex("organizations_invite_unique").on(table.inviteCode),
+]);
+
+export const organizationMembers = pgTable("organization_members", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: orgRoleEnum("role").notNull().default("member"),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("organization_members_unique").on(table.organizationId, table.userId),
+  index("organization_members_user_idx").on(table.userId),
+]);
+
+/** Plan charges paid by Pix and confirmed by an admin (automatic confirmation: future PSP adapter). */
+export const invoices = pgTable("invoices", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  plan: planEnum("plan").notNull(),
+  billingCycle: billingCycleEnum("billing_cycle").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  status: invoiceStatusEnum("status").notNull().default("pending"),
+  /** Pix transaction id (txid) embedded in the QR code, so the payment is easy to match. */
+  reference: varchar("reference", { length: 25 }).notNull(),
+  /** When the customer clicked "I've paid". */
+  reportedAt: timestamp("reported_at", { withTimezone: true }),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  confirmedBy: uuid("confirmed_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+}, (table) => [
+  uniqueIndex("invoices_reference_unique").on(table.reference),
+  index("invoices_org_idx").on(table.organizationId),
+]);
+
+/** Each sponsor top-up and the service fee EcoVerify charged on it (brand campaigns). */
+export const sponsorTopups = pgTable("sponsor_topups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sponsorId: uuid("sponsor_id").notNull().references(() => sponsors.id, { onDelete: "cascade" }),
+  budgetFone: numeric("budget_fone", { precision: 12, scale: 2 }).notNull(),
+  /** Service fee received in BRL (cents) — e.g. paid by Pix or bank invoice. */
+  feeCents: integer("fee_cents").notNull().default(0),
+  note: varchar("note", { length: 160 }),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -6,11 +6,41 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { missions, submissions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { membershipRole } from "@/lib/saas/orgs";
+import { canManage } from "@/lib/saas/org-rules";
 import { approveSubmission, rejectSubmission } from "@/lib/review";
 import { isRejectionCode, REJECTION_REASONS } from "@/lib/ai/decision";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
 
 export type ModerationActionState = { error?: string; success?: boolean };
+
+/**
+ * Platform staff review everything; organization owners/managers review the proofs of their
+ * organization's missions.
+ */
+async function assertReviewer(submissionId: string) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.role === "moderator" || user.role === "admin") return user;
+  const [row] = await db
+    .select({ orgId: missions.organizationId })
+    .from(submissions)
+    .innerJoin(missions, eq(missions.id, submissions.missionId))
+    .where(eq(submissions.id, submissionId))
+    .limit(1);
+  if (row?.orgId && canManage(await membershipRole(row.orgId, user.id))) return user;
+  redirect("/missions");
+}
+
+async function revalidateOrgPages(submissionId: string) {
+  const [row] = await db
+    .select({ slug: sql<string | null>`(select o.slug from organizations o where o.id = ${missions.organizationId})` })
+    .from(submissions)
+    .innerJoin(missions, eq(missions.id, submissions.missionId))
+    .where(eq(submissions.id, submissionId))
+    .limit(1);
+  if (row?.slug) revalidatePath(`/org/${row.slug}`);
+}
 
 async function assertModerator() {
   const user = await getCurrentUser();
@@ -23,9 +53,9 @@ export async function approveSubmissionAction(
   _prev: ModerationActionState,
   formData: FormData,
 ): Promise<ModerationActionState> {
-  const moderator = await assertModerator();
   const submissionId = String(formData.get("submissionId") ?? "");
   if (!submissionId) return { error: "not_found" };
+  const moderator = await assertReviewer(submissionId);
 
   const [submission] = await db.select().from(submissions).where(eq(submissions.id, submissionId)).limit(1);
   if (!submission) return { error: "not_found" };
@@ -42,6 +72,7 @@ export async function approveSubmissionAction(
   revalidatePath("/profile");
   revalidatePath("/admin");
   revalidatePath("/notifications");
+  await revalidateOrgPages(submissionId);
 
   return { success: true };
 }
@@ -50,8 +81,9 @@ export async function rejectSubmissionAction(
   _prev: ModerationActionState,
   formData: FormData,
 ): Promise<ModerationActionState> {
-  const moderator = await assertModerator();
   const submissionId = String(formData.get("submissionId") ?? "");
+  if (!submissionId) return { error: "not_found" };
+  const moderator = await assertReviewer(submissionId);
   const codeInput = String(formData.get("reasonCode") ?? "");
   const code = isRejectionCode(codeInput) ? codeInput : null;
   const reason = String(formData.get("reason") ?? "").trim() || (code ? REJECTION_REASONS[code].pt : "");
@@ -73,6 +105,7 @@ export async function rejectSubmissionAction(
   revalidatePath("/submissions");
   revalidatePath("/notifications");
   revalidatePath("/missions");
+  await revalidateOrgPages(submissionId);
 
   return { success: true };
 }
