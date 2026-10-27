@@ -37,8 +37,10 @@ export function TermsContent({ info }: { info: LegalInfo }) {
           items={[
             "Envie apenas comprovações verdadeiras: a ação precisa ter sido feita por você, no local da missão, e a foto precisa ser sua e atual.",
             "O app usa a localização do aparelho no momento da comprovação para conferir se você está no local da missão.",
-            "Moderadores analisam cada comprovação e podem aprová-la ou rejeitá-la. Fotos repetidas, montagens, localização falsificada ou qualquer tentativa de fraude levam à rejeição e podem levar ao banimento e ao cancelamento de recompensas.",
-            "Ao enviar uma foto, você autoriza o EcoVerify a armazená-la e exibi-la à equipe de moderação para análise. Não publicamos sua foto fora do app sem a sua autorização.",
+            "Cada comprovação passa por uma verificação automática (regras do app e um modelo de inteligência artificial) e pela equipe de moderação. Casos claros podem ser aprovados ou rejeitados automaticamente, sempre com o motivo informado; os demais são decididos por uma pessoa.",
+            "Se uma comprovação sua for rejeitada automaticamente, você pode contestar em Minhas Submissões: a contestação é sempre analisada por uma pessoa da moderação.",
+            "Fotos repetidas, montagens, fotos de tela, localização falsificada ou qualquer tentativa de fraude levam à rejeição e podem levar ao banimento e ao cancelamento de recompensas.",
+            "Ao enviar uma foto, você autoriza o EcoVerify a armazená-la, a exibi-la à equipe de moderação e a enviá-la, reduzida e sem dados pessoais, ao serviço de verificação automática. Não publicamos sua foto fora do app sem a sua autorização. Evite fotografar rostos de outras pessoas.",
           ]}
         />
       </LegalSection>

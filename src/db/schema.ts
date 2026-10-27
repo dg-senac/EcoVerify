@@ -6,6 +6,7 @@ import {
   numeric,
   boolean,
   timestamp,
+  jsonb,
   pgEnum,
   uuid,
   index,
@@ -26,6 +27,12 @@ export const submissionStatusEnum = pgEnum("submission_status", [
   "approved",
   "rejected",
 ]);
+/** Automatic photo verification (src/lib/ai). */
+export const aiStatusEnum = pgEnum("ai_status", ["queued", "done", "failed"]);
+export const aiVerdictEnum = pgEnum("ai_verdict", ["approve", "reject", "review"]);
+export const aiModeEnum = pgEnum("ai_mode", ["off", "suggest", "auto"]);
+/** Who made the final decision on a proof. */
+export const decisionSourceEnum = pgEnum("decision_source", ["human", "ai"]);
 export const rewardStatusEnum = pgEnum("reward_status", [
   "pending",
   "processing",
@@ -37,8 +44,14 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "admin",
   "alert",
 ]);
+/** "anywhere" missions can be done from any place (e.g. at home): no distance check. */
+export const missionScopeEnum = pgEnum("mission_scope", ["local", "anywhere"]);
+/** admin = created in the panel; auto = generated from OpenStreetMap; suggestion = proposed by a user. */
+export const missionOriginEnum = pgEnum("mission_origin", ["admin", "auto", "suggestion"]);
+export const suggestionStatusEnum = pgEnum("suggestion_status", ["pending", "approved", "rejected"]);
 export const fontSizeEnum = pgEnum("font_size", ["small", "medium", "large"]);
 export const languageEnum = pgEnum("language", ["pt", "en", "es"]);
+export const themeEnum = pgEnum("theme", ["system", "light", "dark"]);
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -73,6 +86,8 @@ export const users = pgTable("users", {
   language: languageEnum("language").notNull().default("pt"),
   fontSize: fontSizeEnum("font_size").notNull().default("medium"),
   highContrast: boolean("high_contrast").notNull().default(false),
+  /** Colour theme: "system" follows the device setting. */
+  theme: themeEnum("theme").notNull().default("system"),
   reducedMotion: boolean("reduced_motion").notNull().default(false),
   notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -123,13 +138,81 @@ export const missions = pgTable("missions", {
   impact: text("impact"),
   latitude: numeric("latitude", { precision: 10, scale: 6 }),
   longitude: numeric("longitude", { precision: 10, scale: 6 }),
+  scope: missionScopeEnum("scope").notNull().default("local"),
+  /** Municipality of the mission point (filled automatically), for labels and regional metrics. */
+  city: varchar("city", { length: 80 }),
+  stateCode: varchar("state_code", { length: 2 }),
+  ibgeCode: integer("ibge_code"),
+  origin: missionOriginEnum("origin").notNull().default("admin"),
+  /**
+   * Auto-generated and suggested missions pay points only until an admin reviews them
+   * (sets the FONE reward or keeps it at zero).
+   */
+  needsReview: boolean("needs_review").notNull().default(false),
+  /** OpenStreetMap element ("node/123") an auto mission came from: avoids duplicates. */
+  osmRef: varchar("osm_ref", { length: 40 }),
+  /** Local partner that supports the mission (shown on the card). */
+  sponsorName: varchar("sponsor_name", { length: 80 }),
   category: categoryEnum("category").notNull(),
+  /** Optional: what the proof photo must show, used by the automatic verification. */
+  aiChecklist: text("ai_checklist"),
   pointsReward: integer("points_reward").notNull(),
   foneReward: numeric("fone_reward", { precision: 12, scale: 2 }).notNull(),
   isActive: boolean("is_active").notNull().default(true),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("missions_osm_ref_unique").on(table.osmRef),
+  index("missions_ibge_idx").on(table.ibgeCode),
+]);
+
+/** One automatic OpenStreetMap search per municipality (and per retry window). */
+export const regionSeeds = pgTable("region_seeds", {
+  ibgeCode: integer("ibge_code").primaryKey(),
+  city: varchar("city", { length: 80 }).notNull(),
+  stateCode: varchar("state_code", { length: 2 }).notNull(),
+  status: varchar("status", { length: 16 }).notNull(), // running | done | failed
+  missionsCreated: integer("missions_created").notNull().default(0),
+  error: text("error"),
+  attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** "I want more missions here": demand signal per municipality (no coordinates stored). */
+export const missionRequests = pgTable("mission_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  ibgeCode: integer("ibge_code").notNull(),
+  city: varchar("city", { length: 80 }).notNull(),
+  stateCode: varchar("state_code", { length: 2 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("mission_requests_user_city_unique").on(table.userId, table.ibgeCode),
+  index("mission_requests_city_idx").on(table.ibgeCode),
+]);
+
+/** Community-proposed actions (e.g. a clean-up), reviewed by moderators before becoming missions. */
+export const missionSuggestions = pgTable("mission_suggestions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 120 }).notNull(),
+  description: text("description").notNull(),
+  category: categoryEnum("category").notNull(),
+  latitude: numeric("latitude", { precision: 10, scale: 6 }).notNull(),
+  longitude: numeric("longitude", { precision: 10, scale: 6 }).notNull(),
+  city: varchar("city", { length: 80 }),
+  stateCode: varchar("state_code", { length: 2 }),
+  ibgeCode: integer("ibge_code"),
+  status: suggestionStatusEnum("status").notNull().default("pending"),
+  reviewedBy: uuid("reviewed_by").references(() => users.id),
+  reviewNote: text("review_note"),
+  missionId: uuid("mission_id").references(() => missions.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+}, (table) => [index("mission_suggestions_status_idx").on(table.status)]);
 
 export const submissions = pgTable("submissions", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -140,20 +223,61 @@ export const submissions = pgTable("submissions", {
     .notNull()
     .references(() => missions.id),
   photoUrl: text("photo_url").notNull(),
+  /** SHA-256 of the uploaded bytes: blocks exact re-uploads. */
   photoHash: varchar("photo_hash", { length: 64 }).notNull(),
+  /** 64-bit perceptual hash (hex) of the photo: finds the same picture re-saved, cropped or resized. */
+  photoPhash: varchar("photo_phash", { length: 16 }),
   report: text("report").notNull(),
   latitude: numeric("latitude", { precision: 10, scale: 6 }),
   longitude: numeric("longitude", { precision: 10, scale: 6 }),
   status: submissionStatusEnum("status").notNull().default("pending"),
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   rejectionReason: text("rejection_reason"),
+  /** "ai" when the automatic verification approved/rejected on its own (LGPD art. 20: the user can appeal). */
+  decidedBy: decisionSourceEnum("decided_by"),
+  /** Catalogued reason (src/lib/ai/reasons.ts) for rejections, shown translated to the user. */
+  rejectionCode: varchar("rejection_code", { length: 40 }),
+  // ---- Automatic verification -------------------------------------------------
+  aiStatus: aiStatusEnum("ai_status"),
+  aiVerdict: aiVerdictEnum("ai_verdict"),
+  /** 0-100 */
+  aiConfidence: integer("ai_confidence"),
+  aiReasonCode: varchar("ai_reason_code", { length: 40 }),
+  /** Short explanation written by the model (Portuguese). */
+  aiSummary: text("ai_summary"),
+  /** Structured checks returned by the model and the local rules (see AiChecks). */
+  aiChecks: jsonb("ai_checks"),
+  aiModel: varchar("ai_model", { length: 80 }),
+  aiAnalyzedAt: timestamp("ai_analyzed_at", { withTimezone: true }),
+  aiError: text("ai_error"),
+  // ---- Appeal of an automatic decision ---------------------------------------
+  appealedAt: timestamp("appealed_at", { withTimezone: true }),
+  appealMessage: text("appeal_message"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
 }, (table) => [
   uniqueIndex("submissions_photo_hash_unique").on(table.photoHash),
   index("submissions_user_submitted_idx").on(table.userId, table.submittedAt),
   index("submissions_status_idx").on(table.status),
+  index("submissions_mission_idx").on(table.missionId),
 ]);
+
+/**
+ * Settings of the automatic verification, edited in Admin → IA. A single row (id = 1).
+ * The API key is not here: it stays in the GEMINI_API_KEY environment variable.
+ */
+export const aiSettings = pgTable("ai_settings", {
+  id: integer("id").primaryKey().default(1),
+  mode: aiModeEnum("mode").notNull().default("auto"),
+  /** Minimum confidence (0-100) to approve without a moderator. */
+  approveMinConfidence: integer("approve_min_confidence").notNull().default(85),
+  /** Minimum confidence (0-100) to reject without a moderator. */
+  rejectMinConfidence: integer("reject_min_confidence").notNull().default(90),
+  /** Missions paying more FONE than this always go to a moderator. */
+  maxAutoApproveFone: numeric("max_auto_approve_fone", { precision: 12, scale: 2 }).notNull().default("50"),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const pointsLedger = pgTable("points_ledger", {
   id: uuid("id").defaultRandom().primaryKey(),

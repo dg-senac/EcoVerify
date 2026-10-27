@@ -4,6 +4,7 @@
 /* Only scan the demo sources and the shared components it reuses. */
 @source "./";
 @source "../../src/components/logo.tsx";
+@source "../../src/components/moderation/ai-panel.tsx";
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Ubuntu, sans-serif;

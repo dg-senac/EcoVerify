@@ -5,7 +5,12 @@ import { dt, botReplies } from "./i18n";
 import { createSeed, STATE_VERSION } from "./seed";
 import { centsToFone, foneToCents, isValidFoneAddress, normalizeHex, pickChallengeCents } from "@/lib/fone";
 import { TERMS_VERSION } from "@/lib/legal";
+import type { Theme } from "@/lib/theme";
 import { distanceMeters, fakeTxHash, MAX_DISTANCE_METERS, MAX_GPS_ACCURACY_METERS, uid } from "./media";
+import { decideProof, DEFAULT_AI_SETTINGS, rejectionReasonText, type AiChecks, type AiVerdict, type RejectionCode } from "@/lib/ai/decision";
+import { simulateAnalysis, type SampleKind } from "./demoAi";
+import type { Region, RegionRadius } from "@/lib/region";
+import { OSM_TEMPLATES, type OsmKind } from "@/lib/regional/templates";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -38,6 +43,8 @@ export type User = {
   isDemoProfile?: boolean;
   language: Lang;
   fontSize: FontSize;
+  /** Colour theme (missing in older saved demos = "system"). */
+  theme?: Theme;
   highContrast: boolean;
   reducedMotion: boolean;
   notificationsEnabled: boolean;
@@ -62,7 +69,18 @@ export type Mission = {
   foneReward: string;
   isActive: boolean;
   createdAt: string;
+  /** "anywhere" = can be done from home: no distance check. */
+  scope?: "local" | "anywhere";
+  city?: string | null;
+  stateCode?: string | null;
+  /** auto = example place generated for a city without missions (OpenStreetMap in the real app). */
+  origin?: "admin" | "auto";
+  /** Pays points only until an admin reviews it. */
+  needsReview?: boolean;
+  sponsorName?: string | null;
 };
+
+export type MissionRequest = { userId: string; ibge: number; city: string; uf: string; createdAt: string };
 
 export type SubmissionStatus = "pending" | "approved" | "rejected";
 
@@ -82,6 +100,17 @@ export type Submission = {
   rejectionReason: string | null;
   submittedAt: string;
   reviewedAt: string | null;
+  /* Simulated automatic verification (optional: older saved demos don't have it). */
+  aiStatus?: "done" | null;
+  aiVerdict?: AiVerdict | null;
+  aiConfidence?: number | null;
+  aiReasonCode?: RejectionCode | null;
+  aiSummary?: string | null;
+  aiChecks?: AiChecks | null;
+  decidedBy?: "ai" | "human" | null;
+  rejectionCode?: RejectionCode | null;
+  appealedAt?: string | null;
+  appealMessage?: string | null;
 };
 
 export type Reward = {
@@ -126,6 +155,12 @@ export type State = {
   rewards: Reward[];
   notifications: Notification[];
   chat: ChatMessage[];
+  /** Region chosen on the missions screen (device only, like the cookie of the real app). */
+  region?: Region | null;
+  /** "I want more missions here". */
+  missionRequests?: MissionRequest[];
+  /** Cities (IBGE code) that already got example missions. */
+  seededCities?: number[];
 };
 
 const STORAGE_KEY = "ecoverify-demo";
@@ -367,7 +402,7 @@ export function simulateWalletVerification(): Result {
   return {};
 }
 
-export function updateSettings(patch: Partial<Pick<User, "language" | "fontSize" | "highContrast" | "reducedMotion" | "notificationsEnabled">>) {
+export function updateSettings(patch: Partial<Pick<User, "language" | "fontSize" | "theme" | "highContrast" | "reducedMotion" | "notificationsEnabled">>) {
   const user = me();
   if (!user) return;
   commit((s) => ({ ...s, users: s.users.map((u) => (u.id === user.id ? { ...u, ...patch } : u)) }));
@@ -388,6 +423,8 @@ export type NewSubmission = {
   longitude: number;
   accuracy: number;
   simulatedLocation: boolean;
+  /** Sample photo picked in the demo (drives the simulated AI). null = camera/gallery photo. */
+  sample?: SampleKind | null;
 };
 
 /** Returns an i18n DictKey suffix (error_*) on failure. */
@@ -402,7 +439,10 @@ export function submitProof(input: NewSubmission): Result {
   if (report.length < 50 || report.length > 1000) return { error: "error_report_length" };
 
   if (!(input.accuracy <= MAX_GPS_ACCURACY_METERS)) return { error: "error_location_inaccurate" };
-  if (distanceMeters(input.latitude, input.longitude, mission.latitude, mission.longitude) > MAX_DISTANCE_METERS) {
+  if (
+    mission.scope !== "anywhere" &&
+    distanceMeters(input.latitude, input.longitude, mission.latitude, mission.longitude) > MAX_DISTANCE_METERS
+  ) {
     return { error: "error_outside_mission_area" };
   }
 
@@ -415,6 +455,9 @@ export function submitProof(input: NewSubmission): Result {
   }
   if (state.submissions.some((s) => s.photoHash === input.photoHash)) return { error: "error_duplicate_photo" };
 
+  const lang = user.language;
+  const analysis = simulateAnalysis(input.sample ?? null, mission.category, lang);
+  const decision = decideProof({ settings: DEFAULT_AI_SETTINGS, analysis, similar: null, foneReward: Number(mission.foneReward) });
   const submission: Submission = {
     id: uid(),
     userId: user.id,
@@ -431,8 +474,99 @@ export function submitProof(input: NewSubmission): Result {
     rejectionReason: null,
     submittedAt: now(),
     reviewedAt: null,
+    aiStatus: analysis ? "done" : null,
+    aiVerdict: analysis ? decision.verdict : null,
+    aiConfidence: analysis ? decision.confidence : null,
+    aiReasonCode: decision.reasonCode,
+    aiSummary: analysis ? analysis.explanation : null,
+    aiChecks: analysis ? { ...analysis } : null,
   };
-  const ok = commit((s) => ({ ...s, submissions: [submission, ...s.submissions] }));
+  const ok = commit((s) => {
+    const next: State = { ...s, submissions: [submission, ...s.submissions] };
+    if (decision.action === "approve") return applyApproval(next, submission.id, null);
+    if (decision.action === "reject" && decision.reasonCode) return applyRejection(next, submission.id, null, decision.reasonCode, "");
+    return next;
+  });
+  return ok ? {} : { error: "storage" };
+}
+
+/* ------------------------------------------------------------------ */
+/* Approve / reject (shared by the moderators and the simulated AI)    */
+/* ------------------------------------------------------------------ */
+
+/** reviewerId null = automatic verification. */
+function applyApproval(s: State, submissionId: string, reviewerId: string | null): State {
+  const sub = s.submissions.find((x) => x.id === submissionId);
+  const mission = sub && s.missions.find((m) => m.id === sub.missionId);
+  if (!sub || !mission || sub.status !== "pending") return s;
+  const reviewedAt = now();
+  const next: State = {
+    ...s,
+    submissions: s.submissions.map((x) =>
+      x.id === sub.id ? { ...x, status: "approved", reviewedBy: reviewerId, reviewedAt, decidedBy: reviewerId ? "human" : "ai", rejectionCode: null } : x,
+    ),
+    users: s.users.map((u) => (u.id === sub.userId ? { ...u, totalPoints: u.totalPoints + mission.pointsReward } : u)),
+    rewards: [
+      { id: uid(), userId: sub.userId, submissionId: sub.id, foneAmount: mission.foneReward, status: "pending", txHash: null, createdAt: reviewedAt, paidAt: null },
+      ...s.rewards,
+    ],
+  };
+  const vars = (l: Lang) => ({ mission: localizedTitle(mission, l), points: mission.pointsReward, fone: mission.foneReward });
+  return {
+    ...next,
+    notifications: notify(next, sub.userId, (l) => ({
+      title: dt(l, "notif_approved_title"),
+      message: dt(l, reviewerId ? "notif_approved_msg" : "notif_ai_approved_msg", vars(l)),
+    })),
+  };
+}
+
+function applyRejection(s: State, submissionId: string, reviewerId: string | null, code: RejectionCode | null, reason: string): State {
+  const sub = s.submissions.find((x) => x.id === submissionId);
+  if (!sub || sub.status !== "pending") return s;
+  const mission = s.missions.find((m) => m.id === sub.missionId);
+  const author = userById(sub.userId, s);
+  const storedReason = reason || rejectionReasonText(code, author?.language ?? "pt") || "";
+  const next: State = {
+    ...s,
+    submissions: s.submissions.map((x) =>
+      x.id === sub.id
+        ? { ...x, status: "rejected", reviewedBy: reviewerId, rejectionReason: storedReason, rejectionCode: code, reviewedAt: now(), decidedBy: reviewerId ? "human" : "ai" }
+        : x,
+    ),
+  };
+  return {
+    ...next,
+    notifications: notify(next, sub.userId, (l) => {
+      const title = mission ? localizedTitle(mission, l) : "";
+      const text = reason || rejectionReasonText(code, l) || "";
+      return reviewerId
+        ? { title: dt(l, "notif_rejected_title"), message: dt(l, "notif_rejected_msg", { mission: title, reason: text }) }
+        : { title: dt(l, "notif_ai_rejected_title"), message: dt(l, "notif_ai_rejected_msg", { mission: title, reason: text }) };
+    }),
+  };
+}
+
+/** LGPD art. 20: a proof rejected by the automatic verification goes back to a human moderator. */
+export function appealSubmission(submissionId: string, message: string): Result {
+  const user = me();
+  if (!user) return { error: "appeal_error_generic" };
+  const text = message.trim();
+  if (text.length < 10 || text.length > 500) return { error: "appeal_error_appeal_length" };
+  const sub = state.submissions.find((x) => x.id === submissionId && x.userId === user.id);
+  if (!sub || sub.status !== "rejected" || sub.decidedBy !== "ai") return { error: "appeal_error_generic" };
+  if (sub.appealedAt) return { error: "appeal_error_appeal_already_sent" };
+  if (state.submissions.some((x) => x.userId === user.id && x.missionId === sub.missionId && x.status !== "rejected")) {
+    return { error: "appeal_error_appeal_other_active" };
+  }
+  const ok = commit((s) => ({
+    ...s,
+    submissions: s.submissions.map((x) =>
+      x.id === sub.id
+        ? { ...x, status: "pending", appealedAt: now(), appealMessage: text, decidedBy: null, reviewedAt: null }
+        : x,
+    ),
+  }));
   return ok ? {} : { error: "storage" };
 }
 
@@ -450,32 +584,12 @@ export function approveSubmission(submissionId: string): Result {
   const sub = state.submissions.find((s) => s.id === submissionId);
   if (!sub || sub.status !== "pending") return { error: "error_generic" };
   if (sub.userId === reviewer.id) return { error: "own_submission_warning" };
-  const mission = state.missions.find((m) => m.id === sub.missionId);
-  if (!mission) return { error: "error_generic" };
-
-  commit((s) => {
-    const reviewedAt = now();
-    const next: State = {
-      ...s,
-      submissions: s.submissions.map((x) => (x.id === sub.id ? { ...x, status: "approved", reviewedBy: reviewer.id, reviewedAt } : x)),
-      users: s.users.map((u) => (u.id === sub.userId ? { ...u, totalPoints: u.totalPoints + mission.pointsReward } : u)),
-      rewards: [
-        { id: uid(), userId: sub.userId, submissionId: sub.id, foneAmount: mission.foneReward, status: "pending", txHash: null, createdAt: reviewedAt, paidAt: null },
-        ...s.rewards,
-      ],
-    };
-    return {
-      ...next,
-      notifications: notify(next, sub.userId, (l) => ({
-        title: dt(l, "notif_approved_title"),
-        message: dt(l, "notif_approved_msg", { mission: localizedTitle(mission, l), points: mission.pointsReward, fone: mission.foneReward }),
-      })),
-    };
-  });
+  if (!state.missions.some((m) => m.id === sub.missionId)) return { error: "error_generic" };
+  commit((s) => applyApproval(s, sub.id, reviewer.id));
   return {};
 }
 
-export function rejectSubmission(submissionId: string, reason: string): Result {
+export function rejectSubmission(submissionId: string, reason: string, code: RejectionCode | null = null): Result {
   const reviewer = me();
   if (!canModerate(reviewer)) return { error: "error_generic" };
   const cleanReason = reason.trim();
@@ -483,23 +597,7 @@ export function rejectSubmission(submissionId: string, reason: string): Result {
   const sub = state.submissions.find((s) => s.id === submissionId);
   if (!sub || sub.status !== "pending") return { error: "error_generic" };
   if (sub.userId === reviewer.id) return { error: "own_submission_warning" };
-  const mission = state.missions.find((m) => m.id === sub.missionId);
-
-  commit((s) => {
-    const next: State = {
-      ...s,
-      submissions: s.submissions.map((x) =>
-        x.id === sub.id ? { ...x, status: "rejected", reviewedBy: reviewer.id, rejectionReason: cleanReason, reviewedAt: now() } : x,
-      ),
-    };
-    return {
-      ...next,
-      notifications: notify(next, sub.userId, (l) => ({
-        title: dt(l, "notif_rejected_title"),
-        message: dt(l, "notif_rejected_msg", { mission: mission ? localizedTitle(mission, l) : "", reason: cleanReason }),
-      })),
-    };
-  });
+  commit((s) => applyRejection(s, sub.id, reviewer.id, code, cleanReason));
   return {};
 }
 
@@ -538,6 +636,92 @@ export function createMission(input: NewMission): Result {
     createdAt: now(),
   };
   commit((s) => ({ ...s, missions: [mission, ...s.missions] }));
+  return {};
+}
+
+/* ------------------------------------------------------------------ */
+/* Regional missions                                                   */
+/* ------------------------------------------------------------------ */
+
+export function setRegion(region: Region | null) {
+  commit((s) => ({ ...s, region }));
+}
+
+export function setRegionRadius(radiusKm: RegionRadius) {
+  commit((s) => (s.region ? { ...s, region: { ...s.region, radiusKm } } : s));
+}
+
+export function requestMissionsHere(): Result {
+  const user = me();
+  const region = state.region;
+  if (!user || !region) return { error: "error_generic" };
+  const list = state.missionRequests ?? [];
+  if (list.some((r) => r.userId === user.id && r.ibge === region.ibge)) return {};
+  commit((s) => ({
+    ...s,
+    missionRequests: [...(s.missionRequests ?? []), { userId: user.id, ibge: region.ibge, city: region.city, uf: region.uf, createdAt: now() }],
+  }));
+  return {};
+}
+
+/**
+ * Offline stand-in for the OpenStreetMap search of the real app: creates example places
+ * around the city centre (points only, waiting for review). Runs once per city.
+ */
+export function seedExampleMissions(region: Region): number {
+  if ((state.seededCities ?? []).includes(region.ibge)) return 0;
+  const picks: { kind: OsmKind; dLat: number; dLng: number }[] = [
+    { kind: "park", dLat: 0.008, dLng: -0.006 },
+    { kind: "recycling", dLat: -0.005, dLng: 0.009 },
+    { kind: "cooking_oil", dLat: 0.012, dLng: 0.011 },
+  ];
+  const created: Mission[] = picks.map(({ kind, dLat, dLng }, index) => {
+    const template = OSM_TEMPLATES[kind];
+    const name = (lang: "pt" | "en" | "es") => `${template.fallbackName[lang]} (${lang === "pt" ? "exemplo" : lang === "en" ? "example" : "ejemplo"})`;
+    return {
+      id: `auto-${region.ibge}-${index}`,
+      title: template.title(name("pt")).pt,
+      titleEn: template.title(name("en")).en,
+      titleEs: template.title(name("es")).es,
+      description: template.description.pt,
+      descriptionEn: template.description.en,
+      descriptionEs: template.description.es,
+      context: template.context,
+      impact: template.impact,
+      latitude: region.lat + dLat,
+      longitude: region.lng + dLng,
+      category: template.category,
+      pointsReward: template.points,
+      foneReward: "0.00",
+      isActive: true,
+      createdAt: now(),
+      scope: "local",
+      city: region.city,
+      stateCode: region.uf,
+      origin: "auto",
+      needsReview: true,
+    };
+  });
+  commit((s) => ({ ...s, missions: [...created, ...s.missions], seededCities: [...(s.seededCities ?? []), region.ibge] }));
+  return created.length;
+}
+
+/** Admin review of an auto mission: set FONE, keep points only, or switch it off. */
+export function reviewMission(missionId: string, decision: "fone" | "points" | "deactivate", fone?: number): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  if (decision === "fone" && !(typeof fone === "number" && Number.isFinite(fone) && fone > 0 && fone <= 100000)) return { error: "invalid_form" };
+  commit((s) => ({
+    ...s,
+    missions: s.missions.map((m) =>
+      m.id !== missionId
+        ? m
+        : decision === "deactivate"
+          ? { ...m, isActive: false, needsReview: false }
+          : decision === "fone"
+            ? { ...m, needsReview: false, foneReward: (fone as number).toFixed(2) }
+            : { ...m, needsReview: false },
+    ),
+  }));
   return {};
 }
 
@@ -661,6 +845,7 @@ export function exportMyData(): string | null {
       language: user.language,
       preferences: {
         fontSize: user.fontSize,
+        theme: user.theme ?? "system",
         highContrast: user.highContrast,
         reducedMotion: user.reducedMotion,
         notificationsEnabled: user.notificationsEnabled,
@@ -679,12 +864,20 @@ export function exportMyData(): string | null {
       latitude: x.latitude,
       longitude: x.longitude,
       rejectionReason: x.rejectionReason,
+      rejectionCode: x.rejectionCode ?? null,
+      decidedBy: x.decidedBy ?? null,
+      automaticVerification: x.aiStatus
+        ? { simulated: true, verdict: x.aiVerdict, confidence: x.aiConfidence, reasonCode: x.aiReasonCode, summary: x.aiSummary }
+        : null,
+      appealedAt: x.appealedAt ?? null,
+      appealMessage: x.appealMessage ?? null,
       submittedAt: x.submittedAt,
       reviewedAt: x.reviewedAt,
     })),
     foneRewards: state.rewards.filter((r) => r.userId === user.id),
     notifications: state.notifications.filter((n) => n.userId === user.id),
     communityMessages: state.chat.filter((c) => c.userId === user.id && !c.deleted),
+    missionRequests: (state.missionRequests ?? []).filter((r) => r.userId === user.id).map(({ city, uf, createdAt }) => ({ city, uf, createdAt })),
   };
   return JSON.stringify(payload, null, 2);
 }
@@ -709,9 +902,11 @@ export function deleteMyAccount(confirmed: boolean): Result {
       guestLanguage: lang,
       submissions: s.submissions
         .filter((x) => !pendingIds.has(x.id))
-        .map((x) => (x.userId === user.id ? { ...x, photo: "", report: "", latitude: 0, longitude: 0 } : x)),
+        .map((x) => (x.userId === user.id ? { ...x, photo: "", report: "", latitude: 0, longitude: 0, aiSummary: null, aiChecks: null, appealMessage: null } : x)),
       rewards: s.rewards.filter((r) => !(r.userId === user.id && r.status !== "paid")),
       notifications: s.notifications.filter((n) => n.userId !== user.id),
+      missionRequests: (s.missionRequests ?? []).filter((r) => r.userId !== user.id),
+      region: null,
       chat: s.chat.map((c) => (c.userId === user.id ? { ...c, message: "", deleted: true } : c)),
       users: s.users.map((u) =>
         u.id === user.id

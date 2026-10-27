@@ -1,7 +1,9 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { missions, pointsLedger, rewardQueue, submissions, users } from "@/db/schema";
+import { missionRequests, missions, pointsLedger, regionSeeds, rewardQueue, submissions, users } from "@/db/schema";
+import { municipalityByIbge } from "@/lib/municipalities";
+import { formatDate } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 import { MetricsTab } from "@/components/admin/metrics-tab";
@@ -9,6 +11,9 @@ import { MissionsTab } from "@/components/admin/missions-tab";
 import { UsersTab } from "@/components/admin/users-tab";
 import { RewardsTab, type PaidBatch } from "@/components/admin/rewards-tab";
 import { WalletsTab } from "@/components/admin/wallets-tab";
+import { AiTab } from "@/components/admin/ai-tab";
+import { getAiSettings } from "@/lib/ai/pipeline";
+import { geminiApiKey, geminiModel } from "@/lib/ai/gemini";
 import type { PayoutGroup } from "@/components/admin/payout-row";
 import { getFoneConfig } from "@/lib/fone-config";
 import { emailMode } from "@/lib/email";
@@ -44,7 +49,37 @@ export default async function AdminPage() {
     .orderBy(desc(users.totalPoints))
     .limit(5);
 
-  const allMissions = await db.select().from(missions).orderBy(desc(missions.createdAt));
+  const allMissions = await db.select().from(missions).orderBy(desc(missions.needsReview), desc(missions.createdAt));
+  const [demandRows, seedRows] = await Promise.all([
+    db
+      .select({
+        ibgeCode: missionRequests.ibgeCode,
+        city: missionRequests.city,
+        stateCode: missionRequests.stateCode,
+        requests: sql<number>`count(*)::int`,
+      })
+      .from(missionRequests)
+      .groupBy(missionRequests.ibgeCode, missionRequests.city, missionRequests.stateCode)
+      .orderBy(desc(sql`count(*)`))
+      .limit(15),
+    db.select().from(regionSeeds).orderBy(desc(regionSeeds.attemptedAt)).limit(20),
+  ]);
+  const missionsToReview = allMissions.filter((m) => m.needsReview && m.isActive).length;
+  const cityDemand = demandRows.map((row) => ({
+    ...row,
+    missions: allMissions.filter((m) => m.isActive && m.ibgeCode === row.ibgeCode).length,
+  }));
+  const seedLog = seedRows.map((row) => {
+    const municipality = municipalityByIbge(row.ibgeCode);
+    return {
+      ibgeCode: row.ibgeCode,
+      city: municipality ? `${municipality[1]}, ${municipality[2]}` : null,
+      status: row.status,
+      missionsCreated: row.missionsCreated,
+      error: row.error,
+      attemptedAt: formatDate(row.attemptedAt, "pt"),
+    };
+  });
 
   const allUsers = await db
     .select({
@@ -138,6 +173,19 @@ export default async function AdminPage() {
     .orderBy(desc(sql`max(coalesce(${rewardQueue.paidAt}, ${rewardQueue.updatedAt}))`))
     .limit(50);
 
+  const aiConfig = await getAiSettings();
+  const [aiStats] = await db
+    .select({
+      analyzed: sql<number>`count(*) filter (where ${submissions.aiStatus} = 'done')::int`,
+      failed: sql<number>`count(*) filter (where ${submissions.aiStatus} = 'failed')::int`,
+      autoApproved: sql<number>`count(*) filter (where ${submissions.decidedBy} = 'ai' and ${submissions.status} = 'approved')::int`,
+      autoRejected: sql<number>`count(*) filter (where ${submissions.decidedBy} = 'ai' and ${submissions.status} = 'rejected')::int`,
+      sentToHumans: sql<number>`count(*) filter (where ${submissions.aiStatus} is not null and ${submissions.decidedBy} is distinct from 'ai')::int`,
+      appeals: sql<number>`count(*) filter (where ${submissions.appealedAt} is not null)::int`,
+      appealsOverturned: sql<number>`count(*) filter (where ${submissions.appealedAt} is not null and ${submissions.status} = 'approved')::int`,
+    })
+    .from(submissions);
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">📊 Painel Administrativo</h1>
@@ -172,7 +220,7 @@ export default async function AdminPage() {
                 />
               ),
             },
-            { key: "missions", label: "Missões", icon: "🌱", content: <MissionsTab missions={allMissions} /> },
+            { key: "missions", label: missionsToReview ? `Missões (${missionsToReview})` : "Missões", icon: "🌱", content: <MissionsTab missions={allMissions} demand={cityDemand} seeds={seedLog} /> },
             { key: "users", label: "Usuários", icon: "👥", content: <UsersTab users={allUsers} currentUserId={user.id} /> },
             {
               key: "wallets",
@@ -204,6 +252,12 @@ export default async function AdminPage() {
               label: "Recompensas",
               icon: "💸",
               content: <RewardsTab groups={payoutGroups} paid={paidBatches} explorerUrl={explorerUrl} />,
+            },
+            {
+              key: "ai",
+              label: "IA",
+              icon: "🤖",
+              content: <AiTab settings={aiConfig} stats={aiStats} model={geminiModel()} hasKey={!!geminiApiKey()} />,
             },
           ]}
         />

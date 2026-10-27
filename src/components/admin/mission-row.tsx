@@ -15,6 +15,10 @@ export function MissionRow({
     pointsReward: number;
     foneReward: string;
     isActive: boolean;
+    scope?: "local" | "anywhere";
+    city?: string | null;
+    stateCode?: string | null;
+    needsReview?: boolean;
   };
 }) {
   const [active, setActive] = useState(mission.isActive);
@@ -28,6 +32,9 @@ export function MissionRow({
         <p className="text-xs text-slate-400">
           {categoryLabels[mission.category]?.pt} · ⭐ {mission.pointsReward} ·{" "}
           <FoneAmount amount={mission.foneReward} size={14} className="align-middle" />
+          {" · "}
+          {mission.scope === "anywhere" ? "🌎 qualquer lugar" : mission.city ? `📍 ${mission.city}${mission.stateCode ? `, ${mission.stateCode}` : ""}` : "📍"}
+          {mission.needsReview ? " · 🔎 revisar" : ""}
         </p>
       </div>
       <button

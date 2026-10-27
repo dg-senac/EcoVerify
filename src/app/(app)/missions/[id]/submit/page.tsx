@@ -31,6 +31,8 @@ export default async function SubmitMissionPage({ params }: { params: Promise<{ 
           impact: mission.impact,
           latitude: mission.latitude,
           longitude: mission.longitude,
+          scope: mission.scope,
+          origin: mission.origin,
           category: mission.category,
           pointsReward: mission.pointsReward,
           foneReward: mission.foneReward,

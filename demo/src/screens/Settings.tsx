@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Download, Settings as SettingsIcon, Trash2 } from "lucide-react";
+import { Download, Monitor, Moon, Settings as SettingsIcon, Sun, Trash2 } from "lucide-react";
+import { THEMES } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { deleteMyAccount, exportMyData, updateSettings, useLang, type FontSize, type User } from "../store";
 import { PageHeader, btnDanger, btnSecondary, card, toast } from "../components/ui";
@@ -124,6 +125,21 @@ export function SettingsScreen({ user }: { user: User }) {
               </button>
             ))}
           </div>
+        </div>
+        <div>
+          <h3 className="mb-2 text-sm font-bold text-slate-900">{t(lang, "settings_theme")}</h3>
+          <div className="flex flex-wrap gap-2">
+            {THEMES.map((id) => {
+              const Icon = id === "system" ? Monitor : id === "light" ? Sun : Moon;
+              return (
+                <button key={id} type="button" className={`${chip((user.theme ?? "system") === id)} inline-flex items-center gap-1.5`} onClick={() => updateSettings({ theme: id })}>
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                  {t(lang, id === "system" ? "theme_system" : id === "light" ? "theme_light" : "theme_dark")}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">{t(lang, "theme_system_hint")}</p>
         </div>
         <div className="divide-y divide-slate-100">
           <Toggle label={t(lang, "settings_high_contrast")} checked={user.highContrast} onChange={(v) => updateSettings({ highContrast: v })} />

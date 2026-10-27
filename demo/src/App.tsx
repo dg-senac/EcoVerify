@@ -17,6 +17,7 @@ import { NotificationsScreen } from "./screens/Notifications";
 import { ProfileScreen } from "./screens/Profile";
 import { SettingsScreen } from "./screens/Settings";
 import { LegalScreen } from "./screens/Legal";
+import { THEME_COLORS } from "@/lib/theme";
 
 /** Applies the user's accessibility settings to <html>, like src/app/layout.tsx. */
 function useHtmlSettings(user: User | null) {
@@ -29,6 +30,16 @@ function useHtmlSettings(user: User | null) {
     if (user?.highContrast) html.classList.add("high-contrast");
     if (user?.reducedMotion) html.classList.add("reduce-motion");
   }, [lang, user?.fontSize, user?.highContrast, user?.reducedMotion]);
+
+  // Theme: data-theme drives the CSS color-scheme (see src/app/theme.css); index.html applies it before the first paint.
+  const theme = user?.theme ?? "system";
+  useEffect(() => {
+    const html = document.documentElement;
+    html.dataset.theme = theme;
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const dark = theme === "dark" || (theme === "system" && window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+    if (meta) meta.content = dark ? THEME_COLORS.dark : THEME_COLORS.light;
+  }, [theme]);
 }
 
 function Redirect({ to }: { to: string }) {

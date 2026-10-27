@@ -9,7 +9,7 @@
  */
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 async function main() {
   if (process.env.NODE_ENV === "production" && process.env.SEED_ALLOW_PRODUCTION !== "true") {
@@ -45,6 +45,7 @@ async function main() {
     console.log(`✓ usuário criado: ${demo.email} (${demo.role})`);
   }
 
+  const RECIFE = { scope: "local" as const, city: "Recife", stateCode: "PE", ibgeCode: 2611606 };
   const demoMissions = [
     {
       title: "Mutirão de limpeza na Praia de Boa Viagem",
@@ -57,6 +58,7 @@ async function main() {
       impact: "Resíduos plásticos na praia acabam no mar e afetam tartarugas e peixes.",
       latitude: "-8.119600",
       longitude: "-34.895600",
+      ...RECIFE,
       category: "cleanup" as const,
       pointsReward: 50,
       foneReward: "25.00",
@@ -72,6 +74,7 @@ async function main() {
       impact: "Árvores reduzem ilhas de calor e melhoram a qualidade do ar no Recife.",
       latitude: "-8.037600",
       longitude: "-34.903500",
+      ...RECIFE,
       category: "planting" as const,
       pointsReward: 80,
       foneReward: "40.00",
@@ -87,6 +90,7 @@ async function main() {
       impact: "A reciclagem gera renda para cooperativas de catadores e reduz o lixo em aterros.",
       latitude: "-8.063100",
       longitude: "-34.871100",
+      ...RECIFE,
       category: "recycling" as const,
       pointsReward: 30,
       foneReward: "15.00",
@@ -102,15 +106,58 @@ async function main() {
       impact: "Reaproveitar roupas reduz o descarte têxtil e ajuda famílias da comunidade.",
       latitude: "-8.136600",
       longitude: "-34.900800",
+      ...RECIFE,
       category: "donation" as const,
       pointsReward: 40,
       foneReward: "20.00",
+    },
+    // "Anywhere" missions: available in every region (no distance check), so no city is ever empty.
+    {
+      title: "Separe o lixo reciclável em casa",
+      titleEn: "Sort recyclables at home",
+      titleEs: "Separa los reciclables en casa",
+      description: "Monte um ponto de separação em casa (plástico, papel, metal e vidro) e mostre os recicláveis limpos e separados.",
+      descriptionEn: "Set up a sorting spot at home (plastic, paper, metal and glass) and show the clean, sorted recyclables.",
+      descriptionEs: "Arma un punto de separación en casa (plástico, papel, metal y vidrio) y muestra los reciclables limpios y separados.",
+      context: "Fotografe os recicláveis limpos e separados por tipo (sacolas, caixas ou lixeiras diferentes).",
+      impact: "Material limpo e separado vale mais para as cooperativas de catadores e não vai para o aterro.",
+      aiChecklist: "recicláveis limpos separados por tipo em sacolas, caixas ou lixeiras diferentes",
+      latitude: null,
+      longitude: null,
+      scope: "anywhere" as const,
+      category: "recycling" as const,
+      pointsReward: 20,
+      foneReward: "5.00",
+    },
+    {
+      title: "Guarde o óleo de cozinha usado",
+      titleEn: "Store used cooking oil",
+      titleEs: "Guarda el aceite de cocina usado",
+      description: "Em vez de jogar na pia, guarde o óleo usado frio numa garrafa PET fechada para levar a um ponto de coleta.",
+      descriptionEn: "Instead of pouring it down the sink, store cold used oil in a closed PET bottle to take to a collection point.",
+      descriptionEs: "En lugar de tirarlo al fregadero, guarda el aceite usado frío en una botella PET cerrada para llevarlo a un punto de recolección.",
+      context: "Fotografe a garrafa PET fechada com o óleo usado.",
+      impact: "Um litro de óleo pode contaminar milhares de litros de água e entupir a rede de esgoto.",
+      aiChecklist: "garrafa PET fechada com óleo de cozinha usado dentro",
+      latitude: null,
+      longitude: null,
+      scope: "anywhere" as const,
+      category: "recycling" as const,
+      pointsReward: 15,
+      foneReward: "3.00",
     },
   ];
 
   for (const mission of demoMissions) {
     const [existing] = await db.select({ id: missions.id }).from(missions).where(eq(missions.title, mission.title)).limit(1);
     if (existing) {
+      // Older databases: fill in the region fields added later.
+      if (mission.scope === "local" && "city" in mission) {
+        await db
+          .update(missions)
+          .set({ city: mission.city, stateCode: mission.stateCode, ibgeCode: mission.ibgeCode })
+          .where(and(eq(missions.id, existing.id), isNull(missions.ibgeCode)));
+      }
       console.log(`• missão já existe: ${mission.title}`);
       continue;
     }

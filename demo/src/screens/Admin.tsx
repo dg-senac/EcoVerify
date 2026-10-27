@@ -7,6 +7,7 @@ import { dt, errorText, type DemoKey } from "../i18n";
 import {
   createMission,
   localizedTitle,
+  reviewMission,
   setUserBan,
   setUserRole,
   simulatePayout,
@@ -14,8 +15,10 @@ import {
   useLang,
   useStore,
   type Category,
+  type Mission,
   type User,
 } from "../store";
+import { placeOf } from "../municipalities";
 import { getCurrentPosition } from "../media";
 import { Avatar, Modal, PageHeader, btnPrimary, btnSecondary, card, input, label, toast } from "../components/ui";
 import { FoneAmount, FoneMark } from "@/components/brand/fone";
@@ -100,33 +103,75 @@ function MetricsTab() {
   );
 }
 
-const emptyForm = { title: "", description: "", category: "cleanup" as Category, points: "50", fone: "25", latitude: "-8.0631", longitude: "-34.8711" };
+const emptyForm = { title: "", description: "", category: "cleanup" as Category, points: "50", fone: "25", latitude: "-8.0631", longitude: "-34.8711", sponsor: "" };
+
+function ReviewItem({ mission }: { mission: Mission }) {
+  const lang = useLang();
+  const [fone, setFone] = useState("");
+  const decide = (decision: "fone" | "points" | "deactivate") => {
+    const result = reviewMission(mission.id, decision, Number(fone.replace(",", ".")));
+    if (result.error) toast(errorText(lang, result.error), "error");
+  };
+  return (
+    <div className="rounded-xl border border-black/5 p-3" data-testid="mission-review">
+      <p className="font-semibold text-slate-800">
+        {categoryEmoji[mission.category]} {localizedTitle(mission, lang)}
+      </p>
+      <p className="text-xs text-slate-500">
+        ✨ OpenStreetMap · ⭐ {mission.pointsReward} · {mission.city}, {mission.stateCode}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" inputMode="decimal" placeholder="FONE" value={fone} onChange={(e) => setFone(e.target.value)} aria-label="FONE" />
+        <button type="button" onClick={() => decide("fone")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">{dt(lang, "review_fone")}</button>
+        <button type="button" onClick={() => decide("points")} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">{dt(lang, "review_points")}</button>
+        <button type="button" onClick={() => decide("deactivate")} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600">{dt(lang, "review_off")}</button>
+      </div>
+    </div>
+  );
+}
 
 function MissionsTab() {
   const lang = useLang();
   const missions = useStore((s) => s.missions);
+  const requests = useStore((s) => s.missionRequests ?? []);
   const [open, setOpen] = useState(false);
+  const [anywhere, setAnywhere] = useState(false);
+  const toReview = missions.filter((m) => m.needsReview && m.isActive);
+  const demand = Object.values(
+    requests.reduce<Record<number, { city: string; uf: string; n: number }>>((acc, r) => {
+      acc[r.ibge] = { city: r.city, uf: r.uf, n: (acc[r.ibge]?.n ?? 0) + 1 };
+      return acc;
+    }, {}),
+  ).sort((a, b) => b.n - a.n);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
 
   const set = (key: keyof typeof emptyForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
+    const latitude = Number(form.latitude.replace(",", "."));
+    const longitude = Number(form.longitude.replace(",", "."));
+    const place = !anywhere && Number.isFinite(latitude) && Number.isFinite(longitude) ? await placeOf(latitude, longitude) : null;
     const result = createMission({
+      scope: anywhere ? "anywhere" : "local",
+      city: place?.city ?? null,
+      stateCode: place?.stateCode ?? null,
+      sponsorName: form.sponsor.trim().slice(0, 80) || null,
       title: form.title,
       description: form.description,
       category: form.category,
       pointsReward: Number(form.points),
       // Accept "25,50" (pt-BR keyboards) as well as "25.50".
       foneReward: form.fone.replace(",", "."),
-      latitude: Number(form.latitude.replace(",", ".")),
-      longitude: Number(form.longitude.replace(",", ".")),
+      latitude,
+      longitude,
     });
     if (result.error) return setError(errorText(lang, result.error));
     toast(dt(lang, "mission_created"));
     setForm(emptyForm);
+    setAnywhere(false);
     setError(null);
     setOpen(false);
   };
@@ -145,6 +190,30 @@ function MissionsTab() {
 
   return (
     <>
+      {toReview.length > 0 && (
+        <div className={`${card} mb-4 border-sky-200 p-4`} data-testid="missions-review">
+          <h3 className="font-bold text-slate-900">🔎 {dt(lang, "review_title")} ({toReview.length})</h3>
+          <p className="mb-3 text-sm text-slate-500">{dt(lang, "review_hint")}</p>
+          <div className="grid gap-2">
+            {toReview.map((m) => (
+              <ReviewItem key={m.id} mission={m} />
+            ))}
+          </div>
+        </div>
+      )}
+      {demand.length > 0 && (
+        <div className={`${card} mb-4 p-4`} data-testid="city-demand">
+          <h3 className="mb-2 font-bold text-slate-900">🙋 {dt(lang, "city_demand")}</h3>
+          <ul className="text-sm">
+            {demand.map((d) => (
+              <li key={`${d.city}-${d.uf}`} className="flex justify-between border-t border-black/5 py-1.5">
+                <span>{d.city}, {d.uf}</span>
+                <b>{d.n}</b>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <button type="button" className={`${btnPrimary} mb-4`} onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" /> {dt(lang, "new_mission")}
       </button>
@@ -154,7 +223,7 @@ function MissionsTab() {
             <span className="text-2xl">{categoryEmoji[m.category] ?? "🌱"}</span>
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold text-slate-900">{localizedTitle(m, lang)}</p>
-              <p className="text-xs text-slate-500">{m.pointsReward} {t(lang, "reward_points")} · <FoneAmount amount={m.foneReward} size={12} className="align-middle" /> · {m.latitude.toFixed(4)}, {m.longitude.toFixed(4)}</p>
+              <p className="text-xs text-slate-500">{m.pointsReward} {t(lang, "reward_points")} · <FoneAmount amount={m.foneReward} size={12} className="align-middle" /> · {m.scope === "anywhere" ? `🌎 ${t(lang, "mission_anywhere")}` : m.city ? `📍 ${m.city}, ${m.stateCode}` : `${m.latitude.toFixed(4)}, ${m.longitude.toFixed(4)}`}</p>
             </div>
             <button
               type="button"
@@ -203,6 +272,14 @@ function MissionsTab() {
                 <label className={label}>{dt(lang, "field_longitude")}</label>
                 <input className={input} inputMode="decimal" value={form.longitude} onChange={set("longitude")} required />
               </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={anywhere} onChange={(e) => setAnywhere(e.target.checked)} className="accent-emerald-600" />
+              🌎 {dt(lang, "field_anywhere")}
+            </label>
+            <div>
+              <label className={label}>🤝 {dt(lang, "field_sponsor")}</label>
+              <input className={input} value={form.sponsor} onChange={set("sponsor")} maxLength={80} />
             </div>
             <button type="button" className={btnSecondary} onClick={useMyLocation} disabled={locating}>
               {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />} {dt(lang, "use_my_location")}

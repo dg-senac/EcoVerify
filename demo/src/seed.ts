@@ -3,9 +3,8 @@ import { placeholderPhoto } from "./media";
 
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
-/** Bump when the stored shape changes: older saved data is replaced by a fresh seed. */
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -59,6 +58,9 @@ export function createSeed(): State {
   const missions: Mission[] = [
     {
       id: "m-boa-viagem",
+      scope: "local",
+      city: "Recife",
+      stateCode: "PE",
       title: "Mutirão de limpeza na Praia de Boa Viagem",
       titleEn: "Beach cleanup at Boa Viagem",
       titleEs: "Limpieza de la playa de Boa Viagem",
@@ -77,6 +79,9 @@ export function createSeed(): State {
     },
     {
       id: "m-jaqueira",
+      scope: "local",
+      city: "Recife",
+      stateCode: "PE",
       title: "Plantio de muda no Parque da Jaqueira",
       titleEn: "Plant a seedling at Jaqueira Park",
       titleEs: "Plantar un plantón en el Parque da Jaqueira",
@@ -95,6 +100,9 @@ export function createSeed(): State {
     },
     {
       id: "m-marco-zero",
+      scope: "local",
+      city: "Recife",
+      stateCode: "PE",
       title: "Entrega de recicláveis no Marco Zero",
       titleEn: "Drop off recyclables at Marco Zero",
       titleEs: "Entrega de reciclables en el Marco Zero",
@@ -113,6 +121,9 @@ export function createSeed(): State {
     },
     {
       id: "m-dona-lindu",
+      scope: "local",
+      city: "Recife",
+      stateCode: "PE",
       title: "Doação de roupas no Parque Dona Lindu",
       titleEn: "Clothing donation at Dona Lindu Park",
       titleEs: "Donación de ropa en el Parque Dona Lindu",
@@ -131,6 +142,9 @@ export function createSeed(): State {
     },
     {
       id: "m-capibaribe",
+      scope: "local",
+      city: "Recife",
+      stateCode: "PE",
       title: "Limpeza às margens do Capibaribe",
       titleEn: "Capibaribe riverbank cleanup",
       titleEs: "Limpieza en las orillas del Capibaribe",
@@ -149,6 +163,9 @@ export function createSeed(): State {
     },
     {
       id: "m-olinda-oleo",
+      scope: "local",
+      city: "Olinda",
+      stateCode: "PE",
       title: "Coleta de óleo de cozinha em Olinda",
       titleEn: "Cooking oil collection in Olinda",
       titleEs: "Recolección de aceite de cocina en Olinda",
@@ -164,6 +181,46 @@ export function createSeed(): State {
       foneReward: "18.00",
       isActive: true,
       createdAt: ago(5 * DAY),
+    },
+    // Can be done from home: shown in every region, no distance check.
+    {
+      id: "m-casa-reciclaveis",
+      scope: "anywhere",
+      title: "Separe o lixo reciclável em casa",
+      titleEn: "Sort recyclables at home",
+      titleEs: "Separa los reciclables en casa",
+      description: "Monte um ponto de separação em casa (plástico, papel, metal e vidro) e mostre os recicláveis limpos e separados.",
+      descriptionEn: "Set up a sorting spot at home (plastic, paper, metal and glass) and show the clean, sorted recyclables.",
+      descriptionEs: "Arma un punto de separación en casa (plástico, papel, metal y vidrio) y muestra los reciclables limpios y separados.",
+      context: "Fotografe os recicláveis limpos e separados por tipo (sacolas, caixas ou lixeiras diferentes).",
+      impact: "Material limpo e separado vale mais para as cooperativas de catadores e não vai para o aterro.",
+      latitude: -8.0476,
+      longitude: -34.877,
+      category: "recycling",
+      pointsReward: 20,
+      foneReward: "5.00",
+      isActive: true,
+      createdAt: ago(3 * DAY),
+    },
+    {
+      id: "m-casa-oleo",
+      scope: "anywhere",
+      sponsorName: "Cooperativa Recicla PE (exemplo)",
+      title: "Guarde o óleo de cozinha usado",
+      titleEn: "Store used cooking oil",
+      titleEs: "Guarda el aceite de cocina usado",
+      description: "Em vez de jogar na pia, guarde o óleo usado frio numa garrafa PET fechada para levar a um ponto de coleta.",
+      descriptionEn: "Instead of pouring it down the sink, store cold used oil in a closed PET bottle to take to a collection point.",
+      descriptionEs: "En lugar de tirarlo al fregadero, guarda el aceite usado frío en una botella PET cerrada para llevarlo a un punto de recolección.",
+      context: "Fotografe a garrafa PET fechada com o óleo usado.",
+      impact: "Um litro de óleo pode contaminar milhares de litros de água e entupir a rede de esgoto.",
+      latitude: -8.0476,
+      longitude: -34.877,
+      category: "recycling",
+      pointsReward: 15,
+      foneReward: "3.00",
+      isActive: true,
+      createdAt: ago(2 * DAY),
     },
   ];
 
@@ -334,6 +391,9 @@ export function createSeed(): State {
     rewards,
     notifications,
     chat,
+    region: null,
+    missionRequests: [],
+    seededCities: [],
   };
 }
 

@@ -86,6 +86,10 @@ O `npm run db:push` cria a tabela `auth_tokens` (enum `auth_token_purpose`) e as
 - Usuários existentes verão a tela **"Atualizamos nossos termos"** uma vez.
 - Configure `RESEND_API_KEY`, `EMAIL_FROM` e `APP_URL`. Quando o envio estiver ativo, usuários antigos verão o banner para confirmar o e-mail e precisarão confirmá-lo para vincular uma carteira nova (carteiras já verificadas continuam recebendo).
 
+### Atualizando para a 1.4 (modo noturno, IA e missões por região)
+
+O `npm run db:push` cria as colunas de tema, verificação por IA e região, e as tabelas `ai_settings`, `region_seeds`, `mission_requests` e `mission_suggestions`. Missões antigas continuam valendo como "em um local"; para aparecerem com o nome da cidade, rode `npm run db:seed` (preenche as de exemplo) ou edite-as. Usuários verão os Termos atualizados uma vez (IA e região).
+
 ## Carteira e pagamentos FONE
 
 O EcoVerify **não guarda chaves nem cria carteiras**: o usuário usa o app oficial **Fone Wallet** ([Android](https://play.google.com/store/apps/details?id=com.cloud.earning) · [iPhone](https://apps.apple.com/us/app/fone-network/id1665915235)) e só informa o endereço.
@@ -105,9 +109,27 @@ Em **Admin → Recompensas**, as recompensas aprovadas aparecem **agrupadas por 
 
 **Limitações atuais**: a conferência no explorer é manual, porque a Fone ainda não publicou o SDK nem uma API pública do explorer. Toda a lógica específica da rede fica em [`src/lib/fone.ts`](src/lib/fone.ts), pronta para automatizar a verificação e os envios quando o SDK sair. O formato do endereço foi observado no explorer: confirme com a Fone antes de abrir para o público.
 
+## Verificação automática das fotos (IA)
+
+- Toda comprovação recebe uma análise: **foto repetida** (hash perceptual, pega até foto redimensionada/recomprimida) e, com `GEMINI_API_KEY`, um modelo de visão (Gemini, plano gratuito no piloto) que diz se a foto combina com a missão, se é foto de tela, gerada/editada, imprópria ou escura demais.
+- Casos claros são **aprovados ou rejeitados sozinhos**, sempre com um **motivo padronizado** (PT/EN/ES); o resto vai para a moderação com a **sugestão da IA** no card. Rejeições automáticas podem ser **contestadas** (revisão humana, LGPD art. 20).
+- **Admin → 🤖 IA**: modo automático / só sugestão / desligada, limites de confiança, valor máximo de FONE que a IA aprova sozinha e métricas.
+- Só sai do servidor a foto reduzida e sem EXIF + a missão + o relato (nunca nome, e-mail ou GPS). As fotos passam a ser guardadas **sem EXIF**.
+
+Detalhes, limites do plano gratuito e como trocar de provedor: [`docs/VERIFICACAO_IA.md`](docs/VERIFICACAO_IA.md).
+
+## Missões por região
+
+- A tela de missões pergunta **onde você está**: pelo GPS (só para descobrir a cidade, com coordenadas arredondadas guardadas num cookie do aparelho) ou digitando a cidade. Mostra **"Perto de você"** (raio de 10, 30 ou 100 km, mais perto primeiro), **"Em qualquer lugar"** (missões feitas de casa, sem conferir distância) e quantas missões existem em outras regiões.
+- O nome da cidade vem de uma **lista offline dos 5.570 municípios** (`src/data/municipios-br.json`, IBGE), sem mandar a posição para serviços externos.
+- **Cidade sem missões**: o servidor busca praias, parques e pontos de coleta no **OpenStreetMap** e cria missões que dão **só pontos até um admin revisar** (Admin → Missões → Para revisar: aprovar com FONE, manter só pontos ou desativar). As pessoas também podem apertar **"Quero mais missões aqui"** (o admin vê a lista de cidades) e **sugerir uma ação**, que a moderação transforma em missão.
+- Missões podem ter um **apoio local** (nome do patrocinador no cartão).
+
+Detalhes: [`docs/MISSOES_REGIONAIS.md`](docs/MISSOES_REGIONAIS.md).
+
 ## Conta, privacidade e LGPD
 
-- **Termos de Uso** (`/termos`) e **Política de Privacidade** (`/privacidade`) públicos, escritos a partir dos fluxos reais do app: bases legais, operadores (Supabase, Vercel, Resend), blockchain pública e irreversível, regras para menores e direitos do titular.
+- **Termos de Uso** (`/termos`) e **Política de Privacidade** (`/privacidade`) públicos, escritos a partir dos fluxos reais do app: bases legais, operadores (Supabase, Vercel, Resend, Google Gemini), decisões automatizadas e contestação, blockchain pública e irreversível, regras para menores e direitos do titular.
 - Cadastro com aceite obrigatório (data e versão gravadas) e declaração de idade: **13+ para usar, 18+ para receber FONE**. Ao mudar `TERMS_VERSION`, todos aceitam a nova versão no próximo acesso.
 - Confirmação de e-mail, "Esqueci minha senha" e troca de senha, com tokens de uso único (só o hash fica no banco).
 - Em **Configurações → Privacidade e dados**: baixar todos os dados em JSON e **excluir a conta** (anonimização: apaga dados pessoais, fotos e mensagens; mantém sem identificação o que é necessário contra fraude e os pagamentos já feitos).
@@ -155,4 +177,5 @@ Veja [`BUILD_ANDROID.md`](BUILD_ANDROID.md). O app declara as permissões de **l
 - [ ] Hash da comprovação registrado on‑chain (rastreabilidade pública)
 - [ ] Antifraude avançado: hash perceptual, EXIF, foto só pela câmera do app, pré‑triagem com IA
 - [ ] Validação comunitária com reputação
+- [x] Missões por região (GPS ou cidade), missões "em qualquer lugar", abastecimento automático pelo OpenStreetMap, sugestões da comunidade
 - [ ] Painel de patrocinadores e página pública de impacto

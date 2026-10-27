@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { missions, notifications, rewardQueue, sessions, users } from "@/db/schema";
+import { aiSettings, missions, notifications, rewardQueue, sessions, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { placeOf } from "@/lib/municipalities";
 import { centsToFone, foneToCents, isValidFoneAddress, isValidTxHash, normalizeHex, verifiedWallet } from "@/lib/fone";
 
 export type AdminActionState = { error?: string; success?: boolean };
@@ -41,8 +42,16 @@ export async function createMissionAction(
   const descriptionEs = String(formData.get("descriptionEs") ?? "").trim() || null;
   const context = String(formData.get("context") ?? "").trim() || null;
   const impact = String(formData.get("impact") ?? "").trim() || null;
-  const latitude = Number(formData.get("latitude"));
-  const longitude = Number(formData.get("longitude"));
+  const aiChecklist = String(formData.get("aiChecklist") ?? "").trim().slice(0, 500) || null;
+  const scope = formData.get("scope") === "anywhere" ? "anywhere" : "local";
+  const sponsorName = String(formData.get("sponsorName") ?? "").trim().slice(0, 80) || null;
+  const coordinate = (name: string) => {
+    const raw = String(formData.get(name) ?? "").trim().replace(",", ".");
+    return raw === "" ? NaN : Number(raw);
+  };
+  const latitude = coordinate("latitude");
+  const longitude = coordinate("longitude");
+  const hasPoint = Number.isFinite(latitude) && Number.isFinite(longitude);
   const category = String(formData.get("category") ?? "other") as Category;
   const pointsReward = Number(formData.get("pointsReward") ?? 0);
   const foneRewardNumber = Number(String(formData.get("foneReward") ?? "0").replace(",", "."));
@@ -56,11 +65,13 @@ export async function createMissionAction(
   }
   const foneReward = foneRewardNumber.toFixed(2);
 
-  if (!title || !description || !context || !impact ||
-      !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
-      latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+  if (!title || !description || !context || !impact) return { error: "invalid" };
+  // Local missions need a point; "anywhere" missions may have one (shown as a reference only).
+  if (scope === "local" && !hasPoint) return { error: "invalid" };
+  if (hasPoint && (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)) {
     return { error: "invalid" };
   }
+  const place = hasPoint && scope === "local" ? placeOf(latitude, longitude) : null;
 
   await db.insert(missions).values({
     title,
@@ -71,8 +82,14 @@ export async function createMissionAction(
     descriptionEs,
     context,
     impact,
-    latitude: String(latitude),
-    longitude: String(longitude),
+    aiChecklist,
+    latitude: hasPoint ? String(latitude) : null,
+    longitude: hasPoint ? String(longitude) : null,
+    scope,
+    city: place?.city ?? null,
+    stateCode: place?.stateCode ?? null,
+    ibgeCode: place?.ibgeCode ?? null,
+    sponsorName,
     category,
     pointsReward,
     foneReward,
@@ -89,6 +106,35 @@ export async function toggleMissionAction(missionId: string, isActive: boolean) 
   await db.update(missions).set({ isActive }).where(eq(missions.id, missionId));
   revalidatePath("/admin");
   revalidatePath("/missions");
+}
+
+/**
+ * Review of a mission created automatically (OpenStreetMap) or from a community suggestion.
+ * Until reviewed it pays points only; the admin can set a FONE reward, keep it points-only
+ * (it stays visible) or switch it off.
+ */
+export async function reviewMissionAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  await assertAdmin();
+  const missionId = String(formData.get("missionId") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  if (!missionId) return { error: "invalid" };
+  if (decision === "deactivate") {
+    await db.update(missions).set({ isActive: false, needsReview: false }).where(eq(missions.id, missionId));
+  } else if (decision === "points") {
+    await db.update(missions).set({ needsReview: false }).where(eq(missions.id, missionId));
+  } else if (decision === "fone") {
+    const fone = Number(String(formData.get("foneReward") ?? "").replace(",", "."));
+    if (!Number.isFinite(fone) || fone <= 0 || fone > MAX_FONE_REWARD) return { error: "invalid" };
+    await db
+      .update(missions)
+      .set({ needsReview: false, foneReward: fone.toFixed(2) })
+      .where(eq(missions.id, missionId));
+  } else {
+    return { error: "invalid" };
+  }
+  revalidatePath("/admin");
+  revalidatePath("/missions");
+  return { success: true };
 }
 
 export async function updateUserRoleAction(userId: string, role: Role) {
@@ -348,5 +394,32 @@ export async function setRewardsStatusAction(_prev: AdminActionState, formData: 
     );
 
   revalidatePath("/admin");
+  return { success: true };
+}
+
+/** Admin → IA: how the automatic photo verification behaves. */
+export async function updateAiSettingsAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const admin = await assertAdmin();
+  const modeInput = String(formData.get("mode") ?? "");
+  const mode = (["off", "suggest", "auto"] as const).find((value) => value === modeInput);
+  const approveMinConfidence = Number(formData.get("approveMinConfidence"));
+  const rejectMinConfidence = Number(formData.get("rejectMinConfidence"));
+  const maxFone = Number(String(formData.get("maxAutoApproveFone") ?? "").replace(",", "."));
+  const validConfidence = (value: number) => Number.isInteger(value) && value >= 50 && value <= 100;
+  if (!mode || !validConfidence(approveMinConfidence) || !validConfidence(rejectMinConfidence)) return { error: "invalid" };
+  if (!Number.isFinite(maxFone) || maxFone < 0 || maxFone > MAX_FONE_REWARD) return { error: "invalid" };
+
+  const values = {
+    mode,
+    approveMinConfidence,
+    rejectMinConfidence,
+    maxAutoApproveFone: maxFone.toFixed(2),
+    updatedBy: admin.id,
+    updatedAt: new Date(),
+  };
+  await db.insert(aiSettings).values({ id: 1, ...values }).onConflictDoUpdate({ target: aiSettings.id, set: values });
+
+  revalidatePath("/admin");
+  revalidatePath("/moderation");
   return { success: true };
 }

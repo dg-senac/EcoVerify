@@ -30,7 +30,7 @@ export function EmailBanner({ lang, email, compact = false }: { lang: Lang; emai
           type="button"
           onClick={resend}
           disabled={pending}
-          className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:opacity-60"
+          className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
         >
           {t(lang, "email_resend")}
         </button>

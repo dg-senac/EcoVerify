@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { FileText, RotateCcw, Star } from "lucide-react";
-import { categoryEmoji, t } from "@/lib/i18n";
+import { categoryEmoji, t, type Lang } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { Link } from "../router";
-import { dt } from "../i18n";
-import { localizedTitle, useLang, useStore, type User } from "../store";
-import { EmptyState, PageHeader, StatusBadge, card } from "../components/ui";
+import { dt, errorText } from "../i18n";
+import { appealSubmission, localizedTitle, useLang, useStore, type User } from "../store";
+import { rejectionReasonText } from "@/lib/ai/decision";
+import { EmptyState, PageHeader, StatusBadge, card, toast } from "../components/ui";
 import { PhotoViewer } from "../components/PhotoViewer";
 import { FoneAmount } from "@/components/brand/fone";
 
@@ -39,7 +40,16 @@ export function SubmissionsScreen({ user }: { user: User }) {
                     <h3 className="font-bold text-slate-900">
                       {mission ? `${categoryEmoji[mission.category] ?? "🌱"} ${localizedTitle(mission, lang)}` : "—"}
                     </h3>
-                    <StatusBadge status={sub.status} label={t(lang, `status_${sub.status}`)} />
+                    <StatusBadge
+                      status={sub.status}
+                      label={
+                        sub.decidedBy === "ai"
+                          ? t(lang, sub.status === "approved" ? "decided_ai_approved" : "decided_ai_rejected")
+                          : sub.status === "pending" && sub.appealedAt
+                            ? t(lang, "status_appealed")
+                            : t(lang, `status_${sub.status}`)
+                      }
+                    />
                   </div>
                   <p className="mt-0.5 text-xs text-slate-400">{dt(lang, "submitted_at")} {formatDate(sub.submittedAt, lang)}</p>
                   <p className="mt-1.5 line-clamp-2 text-sm text-slate-600">{sub.report}</p>
@@ -53,7 +63,7 @@ export function SubmissionsScreen({ user }: { user: User }) {
                   )}
                   {sub.status === "rejected" && (
                     <div className="mt-2 rounded-xl bg-red-50 p-2.5 text-xs text-red-700">
-                      <b>{dt(lang, "rejection_reason")}:</b> {sub.rejectionReason}
+                      <b>{dt(lang, "rejection_reason")}:</b> {rejectionReasonText(sub.rejectionCode ?? null, lang) ?? sub.rejectionReason}
                       {mission?.isActive && !hasOpen(sub.missionId) && (
                         <Link to={`/missions/${sub.missionId}/submit`} className="mt-2 flex w-fit items-center gap-1 font-bold text-red-800 underline">
                           <RotateCcw className="h-3.5 w-3.5" /> {t(lang, "send_proof")}
@@ -61,6 +71,8 @@ export function SubmissionsScreen({ user }: { user: User }) {
                       )}
                     </div>
                   )}
+                  {sub.decidedBy === "ai" && <p className="mt-1.5 text-[11px] text-slate-400">🤖 {t(lang, "ai_decision_notice")}</p>}
+                  {sub.status === "rejected" && sub.decidedBy === "ai" && !sub.appealedAt && <AppealBox lang={lang} submissionId={sub.id} />}
                 </div>
               </div>
             );
@@ -69,5 +81,56 @@ export function SubmissionsScreen({ user }: { user: User }) {
       )}
       {viewing && <PhotoViewer src={viewing} onClose={() => setViewing(null)} />}
     </>
+  );
+}
+
+/** LGPD art. 20: ask a person to review an automatic rejection (same rules as the web app). */
+function AppealBox({ lang, submissionId }: { lang: Lang; submissionId: string }) {
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+      >
+        ⚖️ {t(lang, "appeal_button")}
+      </button>
+    );
+  }
+  const send = () => {
+    const result = appealSubmission(submissionId, message);
+    if (result.error) return setError(errorText(lang, result.error));
+    toast(t(lang, "appeal_sent"));
+  };
+  return (
+    <div className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <p className="text-sm font-bold text-slate-900">{t(lang, "appeal_title")}</p>
+      <p className="text-xs text-slate-500">{t(lang, "appeal_hint")}</p>
+      <textarea
+        rows={3}
+        maxLength={500}
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        aria-label={t(lang, "appeal_title")}
+        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400"
+      />
+      {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setOpen(false)} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600">
+          {t(lang, "cancel")}
+        </button>
+        <button
+          type="button"
+          onClick={send}
+          disabled={message.trim().length < 10}
+          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
+        >
+          {t(lang, "appeal_send")}
+        </button>
+      </div>
+    </div>
   );
 }

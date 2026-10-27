@@ -21,6 +21,7 @@ export default async function SettingsPage() {
         <SettingsForm
           language={user.language}
           fontSize={user.fontSize}
+          theme={user.theme}
           highContrast={user.highContrast}
           reducedMotion={user.reducedMotion}
           notificationsEnabled={user.notificationsEnabled}

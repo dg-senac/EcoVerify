@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { createMissionAction, type AdminActionState } from "@/lib/actions/admin";
 import { categoryEmoji, categoryLabels } from "@/lib/i18n";
 import { Star, Utensils } from "@/components/ui/icons";
@@ -12,6 +12,7 @@ const categories = Object.keys(categoryLabels);
 export function MissionForm() {
   const [state, formAction, pending] = useActionState(createMissionAction, initialState);
   const formRef = useRef<HTMLFormElement>(null);
+  const [scope, setScope] = useState<"local" | "anywhere">("local");
 
   useEffect(() => {
     if (state.success) {
@@ -22,7 +23,7 @@ export function MissionForm() {
   return (
     <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
       <h3 className="font-bold text-slate-900">Nova missão</h3>
-      <form ref={formRef} action={formAction} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <form ref={formRef} action={formAction} onReset={() => setScope("local")} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-slate-700">Título (Português)</label>
           <input
@@ -78,13 +79,33 @@ export function MissionForm() {
           <label className="mb-1 block text-sm font-medium text-slate-700">Por que esta missão importa?</label>
           <textarea name="impact" required rows={2} placeholder="Como esta ação ajuda a sociedade e o meio ambiente?" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
         </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">🤖 O que a foto deve mostrar (opcional, para a verificação automática)</label>
+          <textarea name="aiChecklist" rows={2} maxLength={500} placeholder="Ex.: sacos de lixo cheios na areia da praia; a muda plantada na terra; o óleo entregue no ponto de coleta" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
+        </div>
+        <fieldset className="sm:col-span-2">
+          <legend className="mb-1 text-sm font-medium text-slate-700">Onde a missão acontece</legend>
+          <div className="flex flex-wrap gap-2">
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50">
+              <input type="radio" name="scope" value="local" checked={scope === "local"} onChange={() => setScope("local")} className="accent-emerald-600" />
+              📍 Em um local (raio de 150 m)
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50">
+              <input type="radio" name="scope" value="anywhere" checked={scope === "anywhere"} onChange={() => setScope("anywhere")} className="accent-emerald-600" />
+              🌎 Em qualquer lugar (ex.: em casa)
+            </label>
+          </div>
+          {scope === "anywhere" && (
+            <p className="mt-1 text-xs text-slate-500">Aparece para todas as regiões. A foto continua passando pela verificação, mas sem conferir a distância.</p>
+          )}
+        </fieldset>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Latitude do local</label>
-          <input type="number" name="latitude" required step="any" min={-90} max={90} placeholder="-8.0476" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
+          <label className="mb-1 block text-sm font-medium text-slate-700">Latitude do local{scope === "anywhere" ? " (opcional)" : ""}</label>
+          <input type="number" name="latitude" required={scope === "local"} step="any" min={-90} max={90} placeholder="-8.0476" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Longitude do local</label>
-          <input type="number" name="longitude" required step="any" min={-180} max={180} placeholder="-34.8770" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
+          <label className="mb-1 block text-sm font-medium text-slate-700">Longitude do local{scope === "anywhere" ? " (opcional)" : ""}</label>
+          <input type="number" name="longitude" required={scope === "local"} step="any" min={-180} max={180} placeholder="-34.8770" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">Categoria</label>
@@ -127,6 +148,11 @@ export function MissionForm() {
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
             />
           </div>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">🤝 Apoio local (opcional)</label>
+          <input name="sponsorName" maxLength={80} placeholder="Ex.: Associação de Moradores de Casa Amarela" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
+          <p className="mt-1 text-xs text-slate-400">Aparece no cartão da missão como “Apoio: …”.</p>
         </div>
         <div className="sm:col-span-2 flex items-center justify-between gap-3">
           {state.error && <p className="text-xs font-medium text-red-500">Preencha todos os campos corretamente.</p>}

@@ -1,15 +1,57 @@
-import { eq, and, not, inArray } from "drizzle-orm";
+import { eq, and, not, inArray, count } from "drizzle-orm";
+import { after } from "next/server";
+import Link from "next/link";
 import { db } from "@/db";
-import { missions, submissions } from "@/db/schema";
+import { missionRequests, missions, submissions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { t } from "@/lib/i18n";
-import { MissionCard } from "@/components/missions/mission-card";
+import { t, tf, type Lang } from "@/lib/i18n";
+import { MissionCard, type MissionCardData } from "@/components/missions/mission-card";
+import { RegionBar } from "@/components/missions/region-bar";
+import { WantMoreButton } from "@/components/missions/want-more-button";
 import { Sprout } from "@/components/ui/icons";
+import { groupMissionsByRegion, MIN_LOCAL_MISSIONS } from "@/lib/region";
+import { getRegion } from "@/lib/regional/cookie";
+import { osmAutoMissionsEnabled, regionSeedState, seedRegionFromOsm } from "@/lib/regional/osm";
+
+type MissionRow = typeof missions.$inferSelect;
+
+function toCard(mission: MissionRow & { distanceKm?: number }): MissionCardData {
+  return {
+    id: mission.id,
+    title: mission.title,
+    titleEn: mission.titleEn,
+    titleEs: mission.titleEs,
+    description: mission.description,
+    descriptionEn: mission.descriptionEn,
+    descriptionEs: mission.descriptionEs,
+    category: mission.category,
+    pointsReward: mission.pointsReward,
+    foneReward: mission.foneReward,
+    scope: mission.scope,
+    origin: mission.origin,
+    needsReview: mission.needsReview,
+    sponsorName: mission.sponsorName,
+    city: mission.city,
+    stateCode: mission.stateCode,
+    distanceKm: mission.distanceKm,
+  };
+}
+
+function Grid({ lang, items }: { lang: Lang; items: (MissionRow & { distanceKm?: number })[] }) {
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map((mission) => (
+        <MissionCard key={mission.id} lang={lang} mission={toCard(mission)} />
+      ))}
+    </div>
+  );
+}
 
 export default async function MissionsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const lang = user.language;
 
   const userSubmissions = await db
     .select({ missionId: submissions.missionId })
@@ -31,37 +73,126 @@ export default async function MissionsPage() {
       )
     );
 
+  const region = await getRegion();
+  const header = (
+    <>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">{t(lang, "missions_title")}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t(lang, "missions_subtitle")}</p>
+        </div>
+        <Link
+          href="/missions/suggest"
+          className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
+          🙋 {t(lang, "region_suggest")}
+        </Link>
+      </div>
+      <RegionBar lang={lang} region={region} />
+    </>
+  );
+
+  // ---- No region chosen: the full list, as before ---------------------------
+  if (!region) {
+    return (
+      <div>
+        {header}
+        {activeMissions.length === 0 ? (
+          <div className="mt-10 rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-slate-400">
+            <Sprout className="h-16 w-16 mx-auto" />
+            <p className="mt-3 text-sm font-medium">{t(lang, "missions_empty")}</p>
+          </div>
+        ) : (
+          <div className="mt-2">
+            <Grid lang={lang} items={activeMissions} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ---- Region chosen: nearby (closest first) + anywhere ---------------------
+  const { nearby, anywhere, elsewhere } = groupMissionsByRegion(activeMissions, region);
+
+  // Count all local missions of the region (including ones this user already did) to decide
+  // whether it needs automatic supply.
+  const regionalTotal = groupMissionsByRegion(
+    (await db.select().from(missions).where(and(eq(missions.isActive, true), eq(missions.scope, "local")))),
+    region,
+  ).nearby.length;
+  let seeding = false;
+  if (regionalTotal < MIN_LOCAL_MISSIONS && osmAutoMissionsEnabled()) {
+    const state = await regionSeedState(region.ibge);
+    seeding = state.running || state.due;
+    if (state.due) after(() => seedRegionFromOsm(region));
+  }
+
+  const [{ value: requestCount }] = await db
+    .select({ value: count() })
+    .from(missionRequests)
+    .where(eq(missionRequests.ibgeCode, region.ibge));
+  const [mine] = await db
+    .select({ id: missionRequests.id })
+    .from(missionRequests)
+    .where(and(eq(missionRequests.ibgeCode, region.ibge), eq(missionRequests.userId, user.id)))
+    .limit(1);
+
+  const wantMore = (
+    <div className="flex flex-wrap items-center gap-3">
+      <WantMoreButton lang={lang} requested={!!mine} />
+      <Link href="/missions/suggest" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+        🙋 {t(lang, "region_suggest")}
+      </Link>
+      {requestCount > 0 && (
+        <span className="text-xs text-slate-500" data-testid="want-more-count">
+          {tf(lang, "region_want_more_count", { n: requestCount, city: region.city })}
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <div>
-      <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">{t(user.language, "missions_title")}</h1>
-      <p className="mt-1 text-sm text-slate-500">{t(user.language, "missions_subtitle")}</p>
+      {header}
 
-      {activeMissions.length === 0 ? (
-        <div className="mt-10 rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-slate-400">
-          <Sprout className="h-16 w-16 mx-auto" />
-          <p className="mt-3 text-sm font-medium">{t(user.language, "missions_empty")}</p>
-        </div>
-      ) : (
-        <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {activeMissions.map((mission) => (
-            <MissionCard
-              key={mission.id}
-              lang={user.language}
-              mission={{
-                id: mission.id,
-                title: mission.title,
-                titleEn: mission.titleEn,
-                titleEs: mission.titleEs,
-                description: mission.description,
-                descriptionEn: mission.descriptionEn,
-                descriptionEs: mission.descriptionEs,
-                category: mission.category,
-                pointsReward: mission.pointsReward,
-                foneReward: mission.foneReward,
-              }}
-            />
-          ))}
-        </div>
+      <section className="mt-6" data-testid="section-nearby">
+        <h2 className="text-lg font-bold text-slate-900">
+          📍 {t(lang, "region_section_nearby")} <span className="text-sm font-semibold text-slate-400">({nearby.length})</span>
+        </h2>
+        {seeding && (
+          <p className="mt-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" data-testid="region-seeding">
+            🗺️ {t(lang, "region_seeding")}
+          </p>
+        )}
+        {nearby.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center" data-testid="region-empty">
+            <Sprout className="mx-auto h-12 w-12 text-slate-300" />
+            <p className="mt-2 font-bold text-slate-800">{t(lang, "region_empty_title")}</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">{tf(lang, "region_empty_text", { city: region.city })}</p>
+            <div className="mt-4 flex justify-center">{wantMore}</div>
+          </div>
+        ) : (
+          <>
+            <Grid lang={lang} items={nearby} />
+            {nearby.length < MIN_LOCAL_MISSIONS && <div className="mt-4">{wantMore}</div>}
+          </>
+        )}
+      </section>
+
+      {anywhere.length > 0 && (
+        <section className="mt-8" data-testid="section-anywhere">
+          <h2 className="text-lg font-bold text-slate-900">
+            🌎 {t(lang, "region_section_anywhere")} <span className="text-sm font-semibold text-slate-400">({anywhere.length})</span>
+          </h2>
+          <p className="text-sm text-slate-500">{t(lang, "region_anywhere_hint")}</p>
+          <Grid lang={lang} items={anywhere} />
+        </section>
+      )}
+
+      {elsewhere > 0 && (
+        <p className="mt-8 text-center text-xs text-slate-400" data-testid="region-elsewhere">
+          {tf(lang, "region_elsewhere", { n: elsewhere })}
+        </p>
       )}
     </div>
   );

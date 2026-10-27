@@ -5,6 +5,24 @@ import { t, type DictKey, type Lang } from "@/lib/i18n";
  * comes from src/lib/i18n.ts through `t()`.
  */
 const demoDict = {
+  demo_osm_note: {
+    pt: "Na demo, criamos lugares de exemplo perto do centro da cidade. No app completo eles vêm do OpenStreetMap (praias, parques e pontos de coleta) e só pagam FONE depois que a equipe revisa.",
+    en: "In the demo we create example places near the city centre. In the full app they come from OpenStreetMap (beaches, parks and collection points) and only pay FONE after the team reviews them.",
+    es: "En la demo creamos lugares de ejemplo cerca del centro de la ciudad. En la app completa vienen de OpenStreetMap (playas, parques y puntos de recolección) y solo pagan FONE después de que el equipo los revisa.",
+  },
+  demo_region_recife: { pt: "Usar Recife (cidade da demo)", en: "Use Recife (demo city)", es: "Usar Recife (ciudad de la demo)" },
+  review_title: { pt: "Para revisar", en: "To review", es: "Para revisar" },
+  review_hint: {
+    pt: "Missões criadas automaticamente para cidades sem missões. Já aparecem, mas dão só pontos até você revisar.",
+    en: "Missions created automatically for cities without missions. They are visible but pay points only until you review them.",
+    es: "Misiones creadas automáticamente para ciudades sin misiones. Ya aparecen, pero solo dan puntos hasta que las revises.",
+  },
+  review_fone: { pt: "Aprovar com FONE", en: "Approve with FONE", es: "Aprobar con FONE" },
+  review_points: { pt: "Manter só pontos", en: "Keep points only", es: "Mantener solo puntos" },
+  review_off: { pt: "Desativar", en: "Switch off", es: "Desactivar" },
+  city_demand: { pt: "Cidades pedindo missões", en: "Cities asking for missions", es: "Ciudades pidiendo misiones" },
+  field_anywhere: { pt: "Pode ser feita em qualquer lugar (ex.: em casa)", en: "Can be done anywhere (e.g. at home)", es: "Se puede hacer en cualquier lugar (ej.: en casa)" },
+  field_sponsor: { pt: "Apoio local (opcional)", en: "Local supporter (optional)", es: "Apoyo local (opcional)" },
   demo_banner: {
     pt: "Modo demonstração: dados simulados, salvos só neste aparelho",
     en: "Demo mode: simulated data, stored only on this device",
@@ -98,6 +116,31 @@ const demoDict = {
     en: "Your proof for \"{mission}\" was rejected. Reason: {reason}. You can submit new proof.",
     es: "Tu comprobante para \"{mission}\" fue rechazado. Motivo: {reason}. Puedes enviar uno nuevo.",
   },
+  notif_ai_approved_msg: {
+    pt: "Sua comprovação para \"{mission}\" foi aprovada pela verificação automática. Você ganhou {points} pontos e {fone} FONE entrou na fila de pagamento.",
+    en: "Your proof for \"{mission}\" was approved by the automatic verification. You earned {points} points and {fone} FONE is queued for payout.",
+    es: "Tu comprobante para \"{mission}\" fue aprobado por la verificación automática. Ganaste {points} puntos y {fone} FONE entró en la cola de pago.",
+  },
+  notif_ai_rejected_title: { pt: "Comprovação rejeitada pela verificação automática", en: "Proof rejected by the automatic verification", es: "Comprobante rechazado por la verificación automática" },
+  notif_ai_rejected_msg: {
+    pt: "Sua comprovação para \"{mission}\" foi rejeitada. Motivo: {reason} Se achar que houve engano, abra \"Minhas Submissões\" e toque em \"Contestar\" para um moderador revisar.",
+    en: "Your proof for \"{mission}\" was rejected. Reason: {reason} If you think this is a mistake, open \"My Submissions\" and tap \"Appeal\" so a moderator reviews it.",
+    es: "Tu comprobante para \"{mission}\" fue rechazado. Motivo: {reason} Si crees que es un error, abre \"Mis Envíos\" y toca \"Apelar\" para que un moderador lo revise.",
+  },
+  // Simulated automatic verification
+  sample_title: { pt: "Sem câmera? Use uma foto de exemplo", en: "No camera? Use a sample photo", es: "¿Sin cámara? Usa una foto de ejemplo" },
+  sample_hint: {
+    pt: "Na demo a IA é simulada: a foto que combina com a missão é aprovada sozinha; outra categoria ou foto de tela é rejeitada com o motivo. Fotos da câmera vão para a moderação.",
+    en: "In the demo the AI is simulated: a photo that matches the mission is approved automatically; another category or a photo of a screen is rejected with the reason. Camera photos go to the moderators.",
+    es: "En la demo la IA es simulada: la foto que coincide con la misión se aprueba sola; otra categoría o una foto de pantalla se rechaza con el motivo. Las fotos de la cámara van a moderación.",
+  },
+  sample_screen: { pt: "Foto de tela", en: "Photo of a screen", es: "Foto de pantalla" },
+  sim_seen: { pt: "Foto de exemplo: {what}.", en: "Sample photo: {what}.", es: "Foto de ejemplo: {what}." },
+  sim_match: { pt: "A foto mostra a ação pedida na missão. (análise simulada)", en: "The photo shows the action the mission asks for. (simulated analysis)", es: "La foto muestra la acción que pide la misión. (análisis simulado)" },
+  sim_mismatch: { pt: "A foto mostra outro tipo de ação, não a desta missão. (análise simulada)", en: "The photo shows a different kind of action, not this mission's. (simulated analysis)", es: "La foto muestra otro tipo de acción, no la de esta misión. (análisis simulado)" },
+  sim_screen: { pt: "Parece a foto de uma tela de celular, não uma foto tirada no local. (análise simulada)", en: "It looks like a picture of a phone screen, not a photo taken on site. (simulated analysis)", es: "Parece la foto de una pantalla de celular, no una foto tomada en el lugar. (análisis simulado)" },
+  sim_other: { pt: "Missão livre: a foto parece uma ação sustentável, mas uma pessoa confirma. (análise simulada)", en: "Open mission: the photo looks like a sustainable action, but a person confirms. (simulated analysis)", es: "Misión libre: la foto parece una acción sostenible, pero una persona confirma. (análisis simulado)" },
+  sim_real_photo: { pt: "Na demo não há IA de verdade: fotos da câmera vão para a moderação.", en: "There is no real AI in the demo: camera photos go to the moderators.", es: "En la demo no hay IA real: las fotos de la cámara van a moderación." },
   notif_paid_title: { pt: "FONE enviado 🪙", en: "FONE sent 🪙", es: "FONE enviado 🪙" },
   notif_paid_msg: {
     pt: "{fone} FONE foram enviados para sua carteira (transação simulada).",
