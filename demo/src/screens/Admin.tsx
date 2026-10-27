@@ -57,6 +57,8 @@ function DemoBusinessTab() {
       mrrCents: paying.reduce((sum, o) => sum + (o.billingCycle === "yearly" && PLANS[o.effective].yearlyCents ? Math.round(PLANS[o.effective].yearlyCents! / 12) : (PLANS[o.effective].monthlyCents ?? 0)), 0),
       receivedMonthCents: paid.filter((i) => i.paidAt && new Date(i.paidAt).getTime() >= month).reduce((sum, i) => sum + i.amountCents, 0),
       receivedTotalCents: paid.reduce((sum, i) => sum + i.amountCents, 0),
+      campaignFeesMonthCents: 0,
+      campaignFeesTotalCents: 0,
       payingOrgs: paying.length,
       trialOrgs: orgs.filter((o) => o.effective !== "free" && o.subscriptionStatus === "trialing").length,
       totalOrgs: orgs.length,

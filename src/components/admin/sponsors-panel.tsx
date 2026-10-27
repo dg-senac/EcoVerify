@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { createSponsorAction, updateSponsorAction, type AdminActionState } from "@/lib/actions/admin";
+import { CAMPAIGN_FEE_PERCENT } from "@/lib/plans";
 
 const initialState: AdminActionState = {};
 
@@ -39,6 +40,7 @@ function SponsorRow({ sponsor }: { sponsor: SponsorItem }) {
       <form action={formAction} className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="sponsorId" value={sponsor.id} />
         <input name="amount" inputMode="decimal" placeholder="+ FONE" className="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-xs" />
+        <input name="feeBrl" inputMode="decimal" placeholder="Taxa R$ (opcional)" className="w-36 rounded-lg border border-slate-200 px-2 py-1.5 text-xs" />
         <button type="submit" name="intent" value="topup" disabled={pending} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">
           Recarregar
         </button>
@@ -66,10 +68,16 @@ export function SponsorsPanel({ sponsors }: { sponsors: SponsorItem[] }) {
         carteira de recompensas; o FONE das missões dele sai desse orçamento e, quando acaba, as recompensas ficam em espera até uma
         recarga. Saldo e pagamentos aparecem na página pública de transparência.
       </p>
-      <form ref={formRef} action={formAction} className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_8rem_auto]">
+      <p className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+        💼 Como você ganha: cobre do patrocinador uma <b>taxa de serviço em reais</b> (sugestão: {CAMPAIGN_FEE_PERCENT}% do valor da campanha) pela
+        criação das missões, moderação e relatório. Registre o valor recebido no campo &quot;Taxa R$&quot; — ele entra na receita em Admin → Negócios.
+        O FONE em si é do patrocinador e vai inteiro para os participantes.
+      </p>
+      <form ref={formRef} action={formAction} className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_8rem_8rem_auto]">
         <input name="name" required maxLength={80} placeholder="Nome (ex.: Prefeitura do Recife)" className={input} />
         <input name="website" placeholder="Site (opcional)" className={input} />
         <input name="budgetFone" required inputMode="decimal" placeholder="Orçamento FONE" className={input} />
+        <input name="feeBrl" inputMode="decimal" placeholder="Taxa R$" className={input} />
         <button type="submit" disabled={pending} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-70">
           Adicionar
         </button>

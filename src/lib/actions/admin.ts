@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { aiSettings, foneSettings, missions, notifications, rewardQueue, sessions, sponsors, users } from "@/db/schema";
+import { aiSettings, foneSettings, missions, notifications, rewardQueue, sessions, sponsorTopups, sponsors, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { placeOf } from "@/lib/municipalities";
 import { getPayoutSettings } from "@/lib/payouts";
@@ -514,6 +514,16 @@ export async function releaseHeldRewardsAction(_prev: AdminActionState, formData
   return { success: true };
 }
 
+/** Service fee received in BRL ("R$ 1.234,56" or "1234.56") → cents; empty = 0, invalid = null. */
+function brlCents(raw: FormDataEntryValue | null): number | null {
+  const text = String(raw ?? "").replace(/[R$\s]/g, "");
+  if (!text) return 0;
+  const normalized = text.includes(",") ? text.replace(/\./g, "").replace(",", ".") : text;
+  const value = Number(normalized);
+  if (!Number.isFinite(value) || value < 0 || value > 10_000_000) return null;
+  return Math.round(value * 100);
+}
+
 /** Admin → Missões: register a sponsor (company, city hall, NGO) with a FONE budget. */
 export async function createSponsorAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
   const admin = await assertAdmin();
@@ -531,7 +541,12 @@ export async function createSponsorAction(_prev: AdminActionState, formData: For
       return { error: "invalid" };
     }
   }
-  await db.insert(sponsors).values({ name, website, budgetFone: budget.toFixed(2), createdBy: admin.id });
+  const feeCents = brlCents(formData.get("feeBrl"));
+  if (feeCents === null) return { error: "invalid" };
+  await db.transaction(async (tx) => {
+    const [sponsor] = await tx.insert(sponsors).values({ name, website, budgetFone: budget.toFixed(2), createdBy: admin.id }).returning({ id: sponsors.id });
+    await tx.insert(sponsorTopups).values({ sponsorId: sponsor.id, budgetFone: budget.toFixed(2), feeCents, note: "orçamento inicial", createdBy: admin.id });
+  });
   revalidatePath("/admin");
   revalidatePath("/transparencia");
   return { success: true };
@@ -539,7 +554,7 @@ export async function createSponsorAction(_prev: AdminActionState, formData: For
 
 /** Adds FONE to a sponsor's budget (after it deposits more in the treasury) or switches it on/off. */
 export async function updateSponsorAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
-  await assertAdmin();
+  const admin = await assertAdmin();
   const sponsorId = String(formData.get("sponsorId") ?? "");
   if (!/^[0-9a-f-]{36}$/i.test(sponsorId)) return { error: "invalid" };
   const intent = String(formData.get("intent") ?? "");
@@ -548,10 +563,15 @@ export async function updateSponsorAction(_prev: AdminActionState, formData: For
     if (amount === null || !Number.isFinite(amount) || amount <= 0 || amount > MAX_FONE_REWARD) return { error: "invalid" };
     const [sponsor] = await db.select({ budget: sponsors.budgetFone }).from(sponsors).where(eq(sponsors.id, sponsorId)).limit(1);
     if (!sponsor) return { error: "invalid" };
-    await db
-      .update(sponsors)
-      .set({ budgetFone: centsToFone(foneToCents(sponsor.budget) + foneToCents(amount)), updatedAt: new Date() })
-      .where(eq(sponsors.id, sponsorId));
+    const feeCents = brlCents(formData.get("feeBrl"));
+    if (feeCents === null) return { error: "invalid" };
+    await db.transaction(async (tx) => {
+      await tx
+        .update(sponsors)
+        .set({ budgetFone: centsToFone(foneToCents(sponsor.budget) + foneToCents(amount)), updatedAt: new Date() })
+        .where(eq(sponsors.id, sponsorId));
+      await tx.insert(sponsorTopups).values({ sponsorId, budgetFone: amount.toFixed(2), feeCents, note: "recarga", createdBy: admin.id });
+    });
   } else if (intent === "toggle") {
     const [sponsor] = await db.select({ isActive: sponsors.isActive }).from(sponsors).where(eq(sponsors.id, sponsorId)).limit(1);
     if (!sponsor) return { error: "invalid" };

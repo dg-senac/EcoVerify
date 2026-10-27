@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { invoices, leads, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, users } from "@/db/schema";
+import { invoices, leads, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, users } from "@/db/schema";
 import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
 import { confirmInvoiceAction, grantPlanAction, updateLeadStatusAction } from "@/lib/actions/billing";
 import { PLANS } from "@/lib/plans";
@@ -258,6 +258,12 @@ export default async function AdminPage() {
     })
     .from(invoices)
     .where(eq(invoices.status, "paid"));
+  const [fees] = await db
+    .select({
+      total: sql<number>`coalesce(sum(${sponsorTopups.feeCents}), 0)::int`,
+      month: sql<number>`coalesce(sum(${sponsorTopups.feeCents}) filter (where ${sponsorTopups.createdAt} >= ${monthStart(new Date()).toISOString()}), 0)::int`,
+    })
+    .from(sponsorTopups);
   const leadRows = await db.select().from(leads).orderBy(desc(leads.createdAt)).limit(100);
   const orgsWithPlan = orgRows.map((o) => ({ ...o, effective: orgPlan(o) }));
   const paying = orgsWithPlan.filter((o) => o.effective !== "free" && o.subscriptionStatus === "active");
@@ -269,6 +275,8 @@ export default async function AdminPage() {
     }, 0),
     receivedMonthCents: received.month,
     receivedTotalCents: received.total,
+    campaignFeesMonthCents: fees.month,
+    campaignFeesTotalCents: fees.total,
     payingOrgs: paying.length,
     trialOrgs: orgsWithPlan.filter((o) => o.effective !== "free" && o.subscriptionStatus === "trialing").length,
     totalOrgs: orgRows.length,

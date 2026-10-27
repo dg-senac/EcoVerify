@@ -12,6 +12,9 @@ export interface BusinessData {
   mrrCents: number;
   receivedMonthCents: number;
   receivedTotalCents: number;
+  /** Service fees of sponsored campaigns (BRL cents). */
+  campaignFeesMonthCents: number;
+  campaignFeesTotalCents: number;
   payingOrgs: number;
   trialOrgs: number;
   totalOrgs: number;
@@ -69,7 +72,11 @@ export function BusinessTab({ data, actions, demoNote }: { data: BusinessData; a
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: "Receita recorrente (MRR)", value: formatBRL(data.mrrCents), hint: "planos ativos, anual ÷ 12" },
-          { label: "Recebido este mês", value: formatBRL(data.receivedMonthCents), hint: `total: ${formatBRL(data.receivedTotalCents)}` },
+          {
+            label: "Recebido este mês",
+            value: formatBRL(data.receivedMonthCents + data.campaignFeesMonthCents),
+            hint: `planos ${formatBRL(data.receivedMonthCents)} · campanhas ${formatBRL(data.campaignFeesMonthCents)} · total ${formatBRL(data.receivedTotalCents + data.campaignFeesTotalCents)}`,
+          },
           { label: "Organizações pagantes", value: String(data.payingOrgs), hint: `${data.totalOrgs} no total` },
           { label: "Em teste grátis", value: String(data.trialOrgs), hint: "potenciais clientes" },
         ].map((card) => (
