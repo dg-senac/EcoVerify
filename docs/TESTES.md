@@ -219,6 +219,8 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 
 ## 4. Específico do APK e do celular
 
+- [ ] **Ícone novo** (globo com folha) na tela do celular, com o nome "EcoVerify". Em temas com ícones monocromáticos (Android 13+), o globo aparece no estilo do tema.
+- [ ] **Splash:** ao abrir, o globo aparece sobre o degradê e segue a animação (nome, slogan, "Recompensas na rede FONE"). Na **primeira** abertura vem "Como funciona" em 4 passos; "Começar" ou "Pular" entra no app. Nas próximas aberturas, só a animação curta.
 - [ ] Primeira abertura **em modo avião**: o app abre e funciona inteiro.
 - [ ] **Câmera:** na comprovação, *tirar foto* abre a câmera traseira; a foto aparece na prévia e vai para a moderação.
 - [ ] **Permissões:** o Android pede localização e câmera só na hora de usar. Negar não trava o app.

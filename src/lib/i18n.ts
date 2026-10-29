@@ -1039,6 +1039,34 @@ const dict = {
   // Fone brand
   powered_by_fone: { pt: "Recompensas na rede", en: "Rewards on", es: "Recompensas en la red" },
   fone_wallet_official: { pt: "App oficial da rede Fone", en: "Official Fone network app", es: "App oficial de la red Fone" },
+  // Splash + "how it works" (first launch)
+  splash_how_title: { pt: "Como funciona", en: "How it works", es: "Cómo funciona" },
+  splash_step1_title: { pt: "Escolha uma missão", en: "Pick a mission", es: "Elige una misión" },
+  splash_step1_text: {
+    pt: "Ações sustentáveis perto de você: mutirões, plantio, reciclagem.",
+    en: "Sustainable actions near you: clean-ups, tree planting, recycling.",
+    es: "Acciones sostenibles cerca de ti: limpiezas, plantación, reciclaje.",
+  },
+  splash_step2_title: { pt: "Faça e tire a foto", en: "Do it and take a photo", es: "Hazla y toma la foto" },
+  splash_step2_text: {
+    pt: "Registre a ação no local. O GPS confirma que você estava lá.",
+    en: "Capture the action on site. GPS confirms you were there.",
+    es: "Registra la acción en el lugar. El GPS confirma que estuviste allí.",
+  },
+  splash_step3_title: { pt: "Verificação", en: "Verification", es: "Verificación" },
+  splash_step3_text: {
+    pt: "A IA analisa a foto e a moderação confere. Sem atalhos.",
+    en: "AI checks the photo and the moderators review it. No shortcuts.",
+    es: "La IA analiza la foto y la moderación la revisa. Sin atajos.",
+  },
+  splash_step4_title: { pt: "Ganhe recompensas", en: "Earn rewards", es: "Gana recompensas" },
+  splash_step4_text: {
+    pt: "Pontos no ranking e FONE na sua carteira (FONE para maiores de 18).",
+    en: "Ranking points and FONE in your wallet (FONE for 18+).",
+    es: "Puntos en el ranking y FONE en tu billetera (FONE para mayores de 18).",
+  },
+  splash_start: { pt: "Começar", en: "Get started", es: "Empezar" },
+  splash_skip: { pt: "Pular", en: "Skip", es: "Saltar" },
 } as const;
 
 export type DictKey = keyof typeof dict;

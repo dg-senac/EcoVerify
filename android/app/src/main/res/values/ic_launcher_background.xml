@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- Middle of the EcoVerify gradient (green #2cc35f → teal → blue #2456d0). -->
+    <color name="ic_launcher_background">#278C98</color>
+    <color name="splash_background">#278C98</color>
 </resources>

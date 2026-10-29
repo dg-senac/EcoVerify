@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 import { THEME_COLORS } from "@/lib/theme";
+import { AppSplash, SPLASH_HEAD_SCRIPT } from "@/components/brand/app-splash";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -33,8 +34,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const htmlLang = HTML_LANG[user?.language ?? "pt"] ?? "pt-BR";
 
   return (
-    <html lang={htmlLang} className={classes} data-theme={theme}>
+    <html lang={htmlLang} className={classes} data-theme={theme} suppressHydrationWarning>
       <head>
+        {/* Hides the splash before the first paint when it was already shown in this session. */}
+        <script dangerouslySetInnerHTML={{ __html: SPLASH_HEAD_SCRIPT }} />
         {theme === "system" ? (
           <>
             <meta name="theme-color" media="(prefers-color-scheme: light)" content={THEME_COLORS.light} />
@@ -46,6 +49,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       </head>
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         {children}
+        <AppSplash lang={user?.language ?? "pt"} />
       </body>
     </html>
   );
