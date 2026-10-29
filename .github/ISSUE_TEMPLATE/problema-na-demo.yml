@@ -1,0 +1,67 @@
+name: Problema na demo
+description: Algo deu errado testando a demo (Vercel ou APK). Roteiro em docs/TESTES.md.
+title: "[demo] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: onde
+    attributes:
+      label: Onde
+      options:
+        - Vercel no celular (Android)
+        - Vercel no iPhone
+        - Vercel no computador
+        - APK Android
+        - App instalado pelo navegador (tela inicial)
+    validations:
+      required: true
+  - type: input
+    id: aparelho
+    attributes:
+      label: Aparelho, sistema e versão do APK
+      placeholder: "Ex.: Moto G54, Android 14, APK v17"
+  - type: dropdown
+    id: perfil
+    attributes:
+      label: Perfil
+      options:
+        - Maria (cidadã)
+        - Carlos (moderador)
+        - Ana (admin)
+        - Conta de teste criada por mim
+  - type: input
+    id: passo
+    attributes:
+      label: Passo do roteiro
+      placeholder: "Ex.: 3.3 Categoria errada"
+  - type: textarea
+    id: passos
+    attributes:
+      label: O que você fez
+      placeholder: |
+        1.
+        2.
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que você esperava e o que aconteceu
+    validations:
+      required: true
+  - type: dropdown
+    id: gravidade
+    attributes:
+      label: Gravidade
+      options:
+        - "🔴 Bloqueia (tela branca, app fecha, não dá para concluir)"
+        - "🟠 Errado (pontos, status ou valor diferente do esperado)"
+        - "🟡 Visual ou texto"
+        - "💡 Sugestão"
+    validations:
+      required: true
+  - type: textarea
+    id: anexos
+    attributes:
+      label: Print ou vídeo
+      description: Arraste a imagem aqui. Não envie dados pessoais reais.

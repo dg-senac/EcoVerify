@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { Award, Building2, Copy, Check, ExternalLink, FileBarChart, Plus, RefreshCw, Users } from "lucide-react";
 import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
 import { ORG_TEXT } from "@/lib/saas/org-text";
-import { MARKETING_TEXT } from "@/lib/marketing-text";
+import { PLAN_TEXT } from "@/lib/saas/plan-text";
 import { ORG_TYPES, canManage, canPromote, orgPlan } from "@/lib/saas/org-rules";
 import { PLANS, TRIAL_DAYS, formatBRL, hasFeature, type BillingCycle, type PlanId } from "@/lib/plans";
 import { pixPayload } from "@/lib/saas/pix";
@@ -66,7 +66,7 @@ function OrgAvatar({ name, size = 56 }: { name: string; size?: number }) {
 export function OrgListScreen({ user }: { user: User }) {
   const lang = useLang();
   const text = ORG_TEXT[lang];
-  const mk = MARKETING_TEXT[lang];
+  const mk = PLAN_TEXT[lang];
   const orgs = useStore((s) => myOrgs(s, user.id));
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +134,7 @@ export function OrgListScreen({ user }: { user: User }) {
 export function OrgNewScreen({ user }: { user: User }) {
   const lang = useLang();
   const text = ORG_TEXT[lang];
-  const mk = MARKETING_TEXT[lang];
+  const mk = PLAN_TEXT[lang];
   const trialUsed = useStore((s) => (s.orgs ?? []).some((o) => o.ownerId === user.id && o.trialUsed));
   const [form, setForm] = useState({ name: "", type: "school", city: "", plan: "school" as PlanId, cycle: "monthly" as BillingCycle });
   const [error, setError] = useState<string | null>(null);
@@ -216,7 +216,7 @@ export function OrgNewScreen({ user }: { user: User }) {
 export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: string; tab?: string }) {
   const lang = useLang();
   const text = ORG_TEXT[lang];
-  const mk = MARKETING_TEXT[lang];
+  const mk = PLAN_TEXT[lang];
   const org = useStore((s) => (s.orgs ?? []).find((o) => o.slug === slug) ?? null);
   const role = useStore((s) => (org ? orgRole(s, org.id, user.id) : null));
   const stats = useStore((s) => (org ? orgStats(s, org.id) : null));
@@ -406,7 +406,7 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
               status={org.subscriptionStatus}
               periodEnd={org.currentPeriodEnd}
               pixAvailable
-              contactUrl="#/"
+              contactUrl={null}
               invoices={invoices.map((i) => ({
                 ...i,
                 pixPayload: i.status === "pending" ? pixPayload({ ...DEMO_PIX, amountCents: i.amountCents, txid: i.reference, description: `EcoVerify ${i.plan}` }) : null,

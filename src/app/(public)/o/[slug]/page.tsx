@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
@@ -9,9 +10,9 @@ import { hasFeature } from "@/lib/plans";
 import { orgPlan } from "@/lib/saas/org-rules";
 import { ORG_TEXT } from "@/lib/saas/org-text";
 import { orgBySlug, orgImpact } from "@/lib/saas/orgs";
-import { PublicShell } from "@/components/marketing/public-shell";
+import { PublicShell } from "@/components/org/public-shell";
 import { ImpactView } from "@/components/org/impact-view";
-import { pickLandingLang } from "../../landing-page";
+import { pickPublicLang } from "@/lib/saas/public-lang";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const org = await orgBySlug((await params).slug);
@@ -23,7 +24,7 @@ export default async function PublicOrgPage({ params, searchParams }: { params: 
   const { slug } = await params;
   const org = await orgBySlug(slug);
   if (!org) notFound();
-  const lang = await pickLandingLang((await searchParams).lang, await getCurrentUser());
+  const lang = await pickPublicLang((await searchParams).lang, await getCurrentUser());
   const text = ORG_TEXT[lang];
   const plan = orgPlan(org);
   const accent = org.brandColor && hasFeature(plan, "branding") ? org.brandColor : null;
@@ -83,9 +84,9 @@ export default async function PublicOrgPage({ params, searchParams }: { params: 
 
       <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-gradient-to-r from-emerald-600 to-teal-700 p-6 text-white shadow-lg">
         <p className="max-w-xl text-lg font-bold">{text.publicSubtitle}</p>
-        <a href={`/sobre?lang=${lang}#planos`} className="rounded-xl bg-white px-5 py-3 text-sm font-bold text-emerald-700 shadow-md hover:bg-emerald-50">
+        <Link href="/org/nova" className="rounded-xl bg-white px-5 py-3 text-sm font-bold text-emerald-700 shadow-md hover:bg-emerald-50">
           {text.publicJoinCta}
-        </a>
+        </Link>
       </div>
     </PublicShell>
   );

@@ -11,8 +11,8 @@ import { orgById, orgRanking } from "@/lib/saas/orgs";
 import { publicBaseUrl } from "@/lib/saas/base-url";
 import { LogoHorizontal, LogoMark } from "@/components/logo";
 import { PrintButton } from "@/components/org/print-button";
-import { PublicShell } from "@/components/marketing/public-shell";
-import { pickLandingLang } from "../../landing-page";
+import { PublicShell } from "@/components/org/public-shell";
+import { pickPublicLang } from "@/lib/saas/public-lang";
 
 export const metadata: Metadata = { title: "Certificado · EcoVerify", robots: { index: false } };
 
@@ -24,7 +24,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 export default async function CertificatePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ lang?: string }> }) {
   const { id } = await params;
-  const lang = await pickLandingLang((await searchParams).lang, await getCurrentUser());
+  const lang = await pickPublicLang((await searchParams).lang, await getCurrentUser());
   const text = ORG_TEXT[lang];
   const [member] = UUID.test(id)
     ? await db

@@ -7,6 +7,8 @@ O EcoVerify conecta ações sustentáveis do mundo real (reciclagem, plantio de 
 > 🥉 **3º lugar no Fone Protocol SDK Hackathon (2025)**. Projeto de Douglas Gabriel, aluno do Mediotec do Senac Recife.
 > [Matéria do Senac‑PE](https://www.pe.senac.br/aluno-do-mediotec-do-senac-recife-e-finalista-em-hackathon-internacional/)
 
+> 🧪 **Testar agora, sem instalar nada:** [demo offline](https://eco-verify-ruddy.vercel.app/) · APK em [Releases](https://github.com/dg-senac/EcoVerify/releases) · roteiro de testes em [`docs/TESTES.md`](docs/TESTES.md).
+
 ---
 
 ## Como funciona
@@ -67,7 +69,7 @@ Veja [`.env.example`](.env.example). As principais:
 - `LEGAL_CONTROLLER_NAME` + `LEGAL_CONTACT_EMAIL`: quem responde pelos dados e o contato de privacidade, exibidos nos Termos e na Política.
 - `FONE_REWARDS_WALLET` (opcional): endereço público da carteira que paga as recompensas, mostrado na página de Transparência para qualquer pessoa conferir saldo e envios.
 - `CAPACITOR_SERVER_URL`: URL HTTPS do app web, usada no build Android. **Opcional**: sem ela, o APK é gerado com a demo offline.
-- `PIX_KEY` + `PIX_RECEIVER_NAME` + `PIX_RECEIVER_CITY` (opcionais): chave Pix que recebe os planos das organizações. `SALES_EMAIL` e `SALES_WHATSAPP` recebem os contatos do site. Veja [`docs/SAAS.md`](docs/SAAS.md).
+- `PIX_KEY` + `PIX_RECEIVER_NAME` + `PIX_RECEIVER_CITY` (opcionais): chave Pix que recebe os planos das organizações. `SALES_WHATSAPP` (ou, sem ele, `SALES_EMAIL`) vira o link "Fale com a gente" da aba Plano. Veja [`docs/SAAS.md`](docs/SAAS.md).
 - `DEMO_SITE_URL` (opcional, só no build da demo): domínio público da demo, usado na prévia de link (WhatsApp, redes). Na Vercel, o domínio de produção é detectado sozinho.
 
 ## Atualizando um banco já existente
@@ -95,16 +97,16 @@ O `npm run db:push` cria as colunas de tema, verificação por IA, região e reg
 
 ### Atualizando para a 1.5 (organizações e planos)
 
-O `npm run db:push` cria a coluna `missions.organization_id` e as tabelas `leads`, `organizations`, `organization_members`, `invoices`, `sponsor_topups` e `points_ledger`. Nada muda para quem já usa: missões existentes continuam públicas. Configure `PIX_KEY` para começar a vender planos.
+O `npm run db:push` cria a coluna `missions.organization_id` e as tabelas `organizations`, `organization_members`, `invoices`, `sponsor_topups` e `points_ledger`. Nada muda para quem já usa: missões existentes continuam públicas. Configure `PIX_KEY` para começar a vender planos.
 
 ## Organizações, planos e receita (SaaS)
 
 - **Cidadão usa de graça, sempre.** Quem paga são as organizações: escolas, empresas, prefeituras e ONGs.
 - Cada organização tem **missões próprias** (só pontos, só para participantes), **ranking interno**, **moderação pela equipe**, **página pública de impacto** (`/o/<slug>`), **relatório de impacto** para imprimir/PDF e **certificados com QR code** para cada participante.
 - Planos: **Comunidade** (grátis, 30 pessoas, 3 missões), **Escola** (R$ 79/mês), **Empresa** (R$ 349/mês) e **Prefeitura** (sob consulta). Planos pagos começam com **14 dias grátis**.
-- Pagamento por **Pix** (QR code e copia e cola gerados pelo app, sem intermediário e sem taxa); o admin confere o extrato e confirma em **Admin → 💼 Negócios**, que mostra receita recorrente (MRR), recebidos, testes, cobranças e os contatos do site.
+- Pagamento por **Pix** (QR code e copia e cola gerados pelo app, sem intermediário e sem taxa); o admin confere o extrato e confirma em **Admin → 💼 Negócios**, que mostra receita recorrente (MRR), recebidos, testes e cobranças.
 - **Campanhas patrocinadas**: a empresa banca o FONE das missões e paga uma taxa de serviço em reais (sugestão: 20%), registrada no cadastro do patrocinador.
-- Site público em `/` (deslogado) e `/sobre`, com planos e formulário de contato.
+- **Este repositório é só o app.** O site de divulgação (landing page com planos e formulário de contato) fica em um repositório separado; quem abre o app deslogado vai direto para o login. O código do site antigo está no commit `27379c6` do `main`, caso queira copiá-lo.
 
 Guia completo (como cobrar, notas fiscais, o que dizer ao cliente): [`docs/SAAS.md`](docs/SAAS.md).
 
@@ -139,6 +141,8 @@ Em **Admin → Recompensas**, as recompensas aprovadas aparecem **agrupadas por 
 - Casos claros são **aprovados ou rejeitados sozinhos**, sempre com um **motivo padronizado** (PT/EN/ES); o resto vai para a moderação com a **sugestão da IA** no card. Rejeições automáticas podem ser **contestadas** (revisão humana, LGPD art. 20).
 - **Admin → 🤖 IA**: modo automático / só sugestão / desligada, limites de confiança, valor máximo de FONE que a IA aprova sozinha e métricas.
 - Só sai do servidor a foto reduzida e sem EXIF + a missão + o relato (nunca nome, e-mail ou GPS). As fotos passam a ser guardadas **sem EXIF**.
+
+- **Na demo, sem servidor**: em Configurações, quem testa pode colar a **própria chave do Gemini**. Ela fica só no aparelho e faz as fotos reais serem analisadas pela IA de verdade. A demo pública nunca leva chave.
 
 Detalhes, limites do plano gratuito e como trocar de provedor: [`docs/VERIFICACAO_IA.md`](docs/VERIFICACAO_IA.md).
 
@@ -185,6 +189,8 @@ O APK tem dois modos:
 - **Servidor**: com `CAPACITOR_SERVER_URL` (HTTPS), o APK abre o app web real.
 
 Para testar a demo no navegador: `npm run demo:dev` (http://localhost:5173).
+
+**Roteiro de testes sem banco** (o que testar em cada perfil, no navegador e no APK, e como relatar problemas): [`docs/TESTES.md`](docs/TESTES.md).
 
 A demo web também é **instalável** (PWA: "Adicionar à tela inicial"), tem prévia de link para WhatsApp/redes e um **modo apresentação** guiado de 3 minutos (Maria → IA → moderação → pagamento → perfil → transparência). Links úteis para compartilhar:
 

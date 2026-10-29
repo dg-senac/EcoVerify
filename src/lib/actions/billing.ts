@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { invoices, leads, notifications, organizations, users } from "@/db/schema";
+import { invoices, notifications, organizations, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { isUniqueViolation } from "@/lib/utils";
@@ -13,7 +13,7 @@ import { addPeriod, formatBRL, isPlanId, PAID_PLANS, planPrice, type BillingCycl
 import { membershipRole, orgById } from "@/lib/saas/orgs";
 import { pixConfig } from "@/lib/saas/sales-config";
 import { newInvoiceReference } from "@/lib/saas/pix";
-import { MARKETING_TEXT } from "@/lib/marketing-text";
+import { PLAN_TEXT } from "@/lib/saas/plan-text";
 
 export type BillingActionState = { error?: string; success?: boolean; invoiceId?: string };
 
@@ -82,7 +82,7 @@ export async function reportInvoicePaidAction(invoiceId: string): Promise<Billin
         userId: admin.id,
         type: "admin" as const,
         title: "💰 Pagamento por Pix informado",
-        message: `${owner.org.name} informou o pagamento de ${formatBRL(invoice.amountCents)} (plano ${MARKETING_TEXT.pt.planNames[invoice.plan]}, ref. ${invoice.reference}). Confira no banco e confirme em Admin → Negócios.`,
+        message: `${owner.org.name} informou o pagamento de ${formatBRL(invoice.amountCents)} (plano ${PLAN_TEXT.pt.planNames[invoice.plan]}, ref. ${invoice.reference}). Confira no banco e confirme em Admin → Negócios.`,
       })),
     );
   }
@@ -131,7 +131,7 @@ export async function confirmInvoiceAction(invoiceId: string): Promise<BillingAc
         userId: org.ownerId,
         type: "system",
         title: "✅ Pagamento confirmado",
-        message: `O plano ${MARKETING_TEXT.pt.planNames[invoice.plan]} de ${org.name} está ativo até ${end.toLocaleDateString("pt-BR")}. Obrigado!`,
+        message: `O plano ${PLAN_TEXT.pt.planNames[invoice.plan]} de ${org.name} está ativo até ${end.toLocaleDateString("pt-BR")}. Obrigado!`,
       });
     }
     return org.slug;
@@ -155,13 +155,5 @@ export async function grantPlanAction(orgId: string, plan: string, months: numbe
   if (!org) return { error: "invalid" };
   revalidatePath("/admin");
   revalidatePath(`/org/${org.slug}`);
-  return { success: true };
-}
-
-export async function updateLeadStatusAction(leadId: string, status: "new" | "contacted" | "won" | "lost"): Promise<BillingActionState> {
-  await requireAdmin();
-  if (!["new", "contacted", "won", "lost"].includes(status)) return { error: "invalid" };
-  await db.update(leads).set({ status }).where(eq(leads.id, leadId));
-  revalidatePath("/admin");
   return { success: true };
 }

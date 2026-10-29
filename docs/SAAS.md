@@ -29,8 +29,8 @@ Os preços ficam em [`src/lib/plans.ts`](../src/lib/plans.ts); mude ali se quise
    PIX_KEY=sua-chave-pix          # CPF/CNPJ, e-mail, telefone ou chave aleatória
    PIX_RECEIVER_NAME=Seu Nome     # até 25 letras
    PIX_RECEIVER_CITY=Recife       # até 15 letras
-   SALES_EMAIL=voce@exemplo.com   # recebe o formulário do site (precisa de RESEND_API_KEY)
-   SALES_WHATSAPP=5581999999999   # link "Prefere WhatsApp?"
+   SALES_WHATSAPP=5581999999999   # link "Fale com a gente" da aba Plano
+   SALES_EMAIL=voce@exemplo.com   # usado no lugar do WhatsApp, se ele estiver vazio
    ```
 2. O responsável pela organização abre **Plano**, escolhe Escola ou Empresa (mensal/anual) e toca em **Gerar Pix**. O app mostra o **QR code** e o **copia e cola** com o valor e uma referência (ex.: `EV7K2M9Q4T`).
 3. Ele paga e toca em **Já paguei**. Você recebe uma notificação.
@@ -47,7 +47,6 @@ Contratos de prefeitura (empenho, boleto, nota) ou cortesias: use **Plano manual
 - **MRR** (receita recorrente mensal; planos anuais contam ÷ 12), recebido no mês (planos + taxas de campanhas) e total.
 - Organizações pagantes, em teste e total, com vencimento e número de pessoas.
 - Cobranças Pix aguardando confirmação (as que o cliente já disse que pagou aparecem primeiro).
-- Contatos do formulário do site, com status (novo, em contato, fechado, perdido).
 
 ## 4. Como vender (roteiro curto)
 
@@ -56,7 +55,7 @@ Contratos de prefeitura (empenho, boleto, nota) ou cortesias: use **Plano manual
 - **Prefeituras:** mutirões, coleta seletiva, educação ambiental nas escolas municipais, com dados por bairro/cidade.
 - **Marcas (campanhas patrocinadas):** a marca deposita FONE para as recompensas, o EcoVerify cria as missões, modera e entrega o relatório, e cobra a taxa de serviço em reais.
 
-Material pronto: o site público (`/` e `/sobre`), a página pública de cada organização e a demo offline (`?tour=1`), que agora tem um passo mostrando os planos e o Pix.
+Material pronto: a página pública de cada organização (`/o/<slug>`), o relatório, os certificados e a demo offline (`?tour=1`), que tem um passo mostrando os planos e o Pix. O site de divulgação (landing page) fica em um repositório separado; o código antigo dele está no commit `27379c6` do `main`.
 
 ## 5. Cuidados legais e fiscais (leia antes de cobrar)
 
@@ -74,7 +73,6 @@ Material pronto: o site público (`/` e `/sobre`), a página pública de cada or
 | Organizações (dados/ações) | `src/lib/saas/orgs.ts`, `src/lib/actions/orgs.ts` |
 | Cobrança Pix | `src/lib/saas/pix.ts` (BR Code + CRC16), `src/lib/actions/billing.ts`, `src/components/org/billing-panel.tsx` |
 | Painel da organização | `src/app/(app)/org/[slug]/page.tsx`, `src/components/org/*` |
-| Páginas públicas | `src/app/(site)/o/[slug]`, `relatorio/[slug]`, `certificado/[id]`, `sobre` |
-| Site e contatos | `src/components/marketing/*`, `src/lib/actions/leads.ts` |
+| Páginas públicas | `src/app/(public)/o/[slug]`, `relatorio/[slug]`, `certificado/[id]` |
 | Receita (admin) | `src/components/admin/business-tab.tsx` |
-| Demo offline | `demo/src/screens/{Landing,Orgs}.tsx`, `demo/src/store.ts` (seção SaaS) |
+| Demo offline | `demo/src/screens/Orgs.tsx`, `demo/src/store.ts` (seção SaaS) |

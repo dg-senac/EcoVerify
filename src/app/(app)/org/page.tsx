@@ -4,7 +4,7 @@ import { Building2, Plus, Users } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { myOrganizations } from "@/lib/saas/orgs";
 import { ORG_TEXT } from "@/lib/saas/org-text";
-import { MARKETING_TEXT } from "@/lib/marketing-text";
+import { PLAN_TEXT } from "@/lib/saas/plan-text";
 import { orgPlan } from "@/lib/saas/org-rules";
 import { JoinOrgForm } from "@/components/org/join-form";
 
@@ -13,7 +13,7 @@ export default async function OrganizationsPage() {
   if (!user) redirect("/login");
   const lang = user.language;
   const text = ORG_TEXT[lang];
-  const mk = MARKETING_TEXT[lang];
+  const mk = PLAN_TEXT[lang];
   const orgs = await myOrganizations(user.id);
 
   return (

@@ -5,7 +5,6 @@
 @source "./";
 @source "../../src/components/logo.tsx";
 @source "../../src/components/moderation/ai-panel.tsx";
-@source "../../src/components/marketing";
 @source "../../src/components/org/billing-panel.tsx";
 @source "../../src/components/org/impact-view.tsx";
 @source "../../src/components/admin/business-tab.tsx";

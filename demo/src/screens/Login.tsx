@@ -110,7 +110,7 @@ export function RegisterScreen() {
     <AuthLayout>
       <form onSubmit={submit} className={`${card} grid gap-4 p-5 animate-slide-up`}>
         <div>
-          <Link to="/entrar" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-slate-500">
+          <Link to="/" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-slate-500">
             <ArrowLeft className="h-4 w-4" /> {dt(lang, "have_demo_profiles")}
           </Link>
           <h1 className="text-2xl font-extrabold text-slate-900">{t(lang, "register_title")}</h1>

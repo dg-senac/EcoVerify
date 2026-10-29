@@ -1,8 +1,8 @@
 /**
  * How customers reach and pay EcoVerify (environment variables, all optional):
  *
- * - SALES_EMAIL: receives the contact form leads (needs RESEND_API_KEY to actually send).
- * - SALES_WHATSAPP: phone in international format (e.g. 5581999999999) for the "Prefer WhatsApp?" link.
+ * - SALES_WHATSAPP: phone in international format (e.g. 5581999999999) for the "Talk to us" link.
+ * - SALES_EMAIL: used for the same link when there is no WhatsApp.
  * - PIX_KEY + PIX_RECEIVER_NAME + PIX_RECEIVER_CITY: receiver of the plan payments. Without
  *   PIX_KEY the plan page shows "talk to us" instead of a Pix QR code.
  */
@@ -15,6 +15,12 @@ export function salesConfig() {
   };
 }
 
+/** "Talk to us" link of the plan page (government plan, or when Pix is not configured). */
+export function contactUrl(): string | null {
+  const { whatsappUrl, email } = salesConfig();
+  return whatsappUrl ?? (email ? `mailto:${email}` : null);
+}
+
 export function pixConfig() {
   const key = (process.env.PIX_KEY ?? "").trim();
   if (!key) return null;
@@ -23,11 +29,4 @@ export function pixConfig() {
     name: (process.env.PIX_RECEIVER_NAME ?? "EcoVerify").trim() || "EcoVerify",
     city: (process.env.PIX_RECEIVER_CITY ?? "Recife").trim() || "Recife",
   };
-}
-
-/** Public offline demo linked from the landing page ("Watch the 3-minute demo"). */
-export function demoUrl(lang: string) {
-  const base = (process.env.PUBLIC_DEMO_URL ?? "https://eco-verify-ruddy.vercel.app/").trim();
-  const sep = base.includes("?") ? "&" : "?";
-  return `${base}${sep}tour=1&lang=${lang}`;
 }

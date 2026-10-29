@@ -5,7 +5,7 @@ import QRCode from "qrcode";
 import { CalendarClock, Check, Copy, Crown, MessageCircle } from "lucide-react";
 import type { Lang } from "@/lib/i18n";
 import { ORG_TEXT } from "@/lib/saas/org-text";
-import { MARKETING_TEXT } from "@/lib/marketing-text";
+import { PLAN_TEXT } from "@/lib/saas/plan-text";
 import { PAID_PLANS, PLANS, daysLeft, formatBRL, type BillingCycle, type PlanId, type SubscriptionStatus } from "@/lib/plans";
 
 export interface BillingInvoice {
@@ -52,13 +52,14 @@ export function BillingPanel({
   periodEnd: string | null;
   invoices: BillingInvoice[];
   pixAvailable: boolean;
-  contactUrl: string;
+  /** WhatsApp/e-mail of the EcoVerify team (null = not configured). */
+  contactUrl: string | null;
   onCreate: (orgId: string, plan: PlanId, cycle: BillingCycle) => Promise<Result>;
   onReport: (invoiceId: string) => Promise<Result>;
   onCancel: (invoiceId: string) => Promise<Result>;
 }) {
   const text = ORG_TEXT[lang];
-  const mk = MARKETING_TEXT[lang];
+  const mk = PLAN_TEXT[lang];
   const locale = lang === "pt" ? "pt-BR" : lang === "es" ? "es-ES" : "en-US";
   const [choice, setChoice] = useState<PlanId>(PAID_PLANS.includes(plan) ? plan : "school");
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
@@ -168,15 +169,19 @@ export function BillingPanel({
           ) : (
             <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
               <p>{text.pixNotConfigured}</p>
-              <a href={contactUrl} className="mt-2 inline-flex items-center gap-1.5 font-bold text-emerald-700 hover:underline">
-                <MessageCircle className="h-4 w-4" /> {text.talkToUs}
-              </a>
+              {contactUrl && (
+                <a href={contactUrl} className="mt-2 inline-flex items-center gap-1.5 font-bold text-emerald-700 hover:underline">
+                  <MessageCircle className="h-4 w-4" /> {text.talkToUs}
+                </a>
+              )}
             </div>
           )}
           <p className="mt-3 text-xs text-slate-500">{text.downgradeNote}</p>
-          <p className="mt-1 text-xs text-slate-500">
-            {mk.planNames.government}: <a href={contactUrl} className="font-semibold text-emerald-700 hover:underline">{text.talkToUs}</a>
-          </p>
+          {contactUrl && (
+            <p className="mt-1 text-xs text-slate-500">
+              {mk.planNames.government}: <a href={contactUrl} className="font-semibold text-emerald-700 hover:underline">{text.talkToUs}</a>
+            </p>
+          )}
         </div>
       )}
       {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -226,7 +231,7 @@ function PixBox({
   onCancel: () => void;
 }) {
   const text = ORG_TEXT[lang];
-  const mk = MARKETING_TEXT[lang];
+  const mk = PLAN_TEXT[lang];
   const [svg, setSvg] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const payload = invoice.pixPayload ?? "";

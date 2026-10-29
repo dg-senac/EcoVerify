@@ -1,9 +1,11 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { ArrowLeft, Camera, Crosshair, Loader2, MapPin, Navigation, Star, Target, Lightbulb } from "lucide-react";
 import { categoryEmoji, t } from "@/lib/i18n";
-import { goBack, navigate } from "../router";
+import { goBack, Link, navigate } from "../router";
 import { dt, errorText } from "../i18n";
-import { localizedDescription, localizedTitle, submitProof, useLang, useStore } from "../store";
+import { checkProof, localizedDescription, localizedTitle, submitProof, useLang, useStore, type NewSubmission } from "../store";
+import { analyzeWithMyKey, byokErrorText, useGeminiKey } from "../byok";
+import { AiUnavailableError } from "@/lib/ai/gemini-core";
 import {
   compressPhoto,
   detectImageType,
@@ -33,6 +35,8 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
   const [location, setLocation] = useState<Location | null>(null);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const myKey = useGeminiKey();
 
   if (!mission) return <EmptyState emoji="🔎" text={t(lang, "missions_empty")} />;
 
@@ -92,12 +96,13 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
   const locationOk =
     !!location && distance !== null && (anywhere || distance <= MAX_DISTANCE_METERS) && location.accuracy <= MAX_GPS_ACCURACY_METERS;
   const reportLength = report.trim().length;
-  const canSend = !!photo && reportLength >= 50 && reportLength <= 1000 && !!location && !processing;
+  const canSend = !!photo && reportLength >= 50 && reportLength <= 1000 && !!location && !processing && !analyzing;
 
-  const send = () => {
+  const send = async () => {
     if (!photo) return setError(t(lang, "error_photo_required"));
     if (!location) return setError(t(lang, "use_current_location"));
-    const result = submitProof({
+    setError(null);
+    const proof: NewSubmission = {
       missionId: mission.id,
       photo: photo.dataUrl,
       photoHash: photo.hash,
@@ -107,7 +112,31 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
       accuracy: location.accuracy,
       simulatedLocation: location.simulated,
       sample: photo.sample,
-    });
+    };
+    // Check every rule first, so no Gemini request is spent on a proof that would be refused.
+    const checked = checkProof(proof);
+    if (checked.error) return setError(errorText(lang, checked.error));
+
+    if (!photo.sample && myKey) {
+      setAnalyzing(true);
+      try {
+        proof.realAi = await analyzeWithMyKey({
+          key: myKey,
+          dataUrl: photo.dataUrl,
+          mission: { title: mission.title, description: mission.description, category: mission.category, context: mission.context ?? null, aiChecklist: null },
+          report: report.trim(),
+          lang,
+        });
+      } catch (err) {
+        proof.realAi = { failed: true };
+        const kind = err instanceof AiUnavailableError ? err.kind : "http";
+        toast(dt(lang, "byok_failed_to_moderation", { reason: byokErrorText(lang, kind) }), "error");
+      } finally {
+        setAnalyzing(false);
+      }
+    }
+
+    const result = submitProof(proof);
     if (result.error) return setError(errorText(lang, result.error));
     toast(t(lang, "submission_success"));
     navigate("/submissions", { replace: true });
@@ -183,8 +212,16 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
               ))}
             </div>
             <p className="mt-2 text-[11px] leading-snug text-slate-500">
-              {photo && !photo.sample ? dt(lang, "sim_real_photo") : dt(lang, "sample_hint")}
+              {photo && !photo.sample ? (myKey ? dt(lang, "byok_submit_hint") : dt(lang, "sim_real_photo")) : dt(lang, "sample_hint")}
             </p>
+            {!myKey && (
+              <Link to="/settings" className="mt-1 inline-block text-[11px] font-semibold text-emerald-700 hover:underline" data-testid="byok-setup-link">
+                {dt(lang, "byok_submit_setup")}
+              </Link>
+            )}
+            {myKey && !(photo && !photo.sample) && (
+              <p className="mt-1 text-[11px] font-semibold text-emerald-700">🤖 {dt(lang, "byok_status_on")}</p>
+            )}
           </div>
         </div>
 
@@ -242,7 +279,13 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         <button type="button" className={btnPrimary} onClick={send} disabled={!canSend}>
-          {t(lang, "send_proof")}
+          {analyzing ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {dt(lang, "byok_analyzing")}
+            </>
+          ) : (
+            t(lang, "send_proof")
+          )}
         </button>
       </div>
     </div>

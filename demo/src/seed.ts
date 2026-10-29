@@ -1,10 +1,10 @@
-import type { ChatMessage, DemoInvoice, DemoLead, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
+import type { ChatMessage, DemoInvoice, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
 
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -459,19 +459,6 @@ export function createSeed(): State {
     { id: "inv-recicla-1", orgId: company.id, plan: "business", billingCycle: "monthly", amountCents: 34900, status: "paid", reference: "EVDEMO2K7Q9X", reportedAt: ago(12 * DAY), createdAt: ago(12 * DAY), paidAt: ago(12 * DAY) },
     { id: "inv-recicla-0", orgId: company.id, plan: "business", billingCycle: "monthly", amountCents: 34900, status: "paid", reference: "EVDEMO8M3T4R", reportedAt: ago(42 * DAY), createdAt: ago(42 * DAY), paidAt: ago(42 * DAY) },
   ];
-  const leads: DemoLead[] = [
-    {
-      id: "lead-prefeitura",
-      name: "Secretaria de Meio Ambiente (exemplo)",
-      email: "meioambiente@exemplo.gov.br",
-      organization: "Prefeitura de Exemplo",
-      type: "government",
-      plan: "government",
-      message: "Queremos usar o EcoVerify na semana do meio ambiente com 20 escolas municipais.",
-      status: "new",
-      createdAt: ago(1 * DAY),
-    },
-  ];
 
   const notifications: Notification[] = [
     {
@@ -509,7 +496,6 @@ export function createSeed(): State {
     orgs: [school, company],
     orgMembers,
     invoices,
-    leads,
     sponsors: [{ id: "sp-recicla", name: "Cooperativa Recicla PE (exemplo)", budgetFone: "30.00", isActive: true, createdAt: ago(20 * DAY) }],
   };
 }
