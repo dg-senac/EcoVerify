@@ -192,7 +192,7 @@ export async function rejectSubmission(
         message:
           reviewer.kind === "ai"
             ? text.rejected(missionTitle, localizedReason)
-            : `Sua comprovação para "${missionTitle}" foi rejeitada. Motivo: ${composeRejectionMessage(reason.code, reason.text, submitter.language)} Você pode enviar uma nova comprovação para esta missão.`,
+            : `Sua comprovação para "${missionTitle}" foi rejeitada. Motivo: ${composeRejectionMessage(reason.code, reason.text, submitter.language).replace(/[.!\s]+$/, "")}. Você pode enviar uma nova comprovação para esta missão.`,
       });
     }
     return true;

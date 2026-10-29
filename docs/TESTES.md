@@ -77,9 +77,11 @@ Sem chave, a IA da demo é **simulada** pela foto de exemplo escolhida (para a I
 | [ ] Foto certa | Exemplo da **mesma categoria** da missão (ex.: Reciclagem em "Separe o lixo reciclável em casa") | **Aprovada sozinha**, com o motivo "A foto mostra a ação pedida…" e os pontos creditados. |
 | [ ] Categoria errada | Exemplo de **outra categoria** (ex.: Plantio numa missão de reciclagem) | **Rejeitada sozinha**, com o motivo "A foto mostra outro tipo de ação…". |
 | [ ] Foto de tela | **Foto de tela** | **Rejeitada**, com o motivo "Parece a foto de uma tela de celular…". |
+| [ ] Foto da internet | **Foto da internet** (imagem com marca d'água "© fotosgratis") | Fica **pendente**: a IA não decide sozinha. Carlos e Ana recebem a notificação "⚠️ Possível foto da internet". |
 | [ ] Foto real | **Câmera** do celular (ou arquivo do PC) | Vai para a **moderação** (Carlos), com o aviso de que a demo não tem IA real. |
 
 Também conferir:
+- [ ] Abaixo da foto aparece o aviso "Fotos copiadas da internet são detectadas e analisadas pela equipe".
 - [ ] Relato com **menos de 50 caracteres** → o contador "Faltam N caracteres" impede o envio.
 - [ ] Missão **local** (ex.: Praia de Boa Viagem) longe do local → o app mostra a distância. **Simular que estou no local (demo)** libera o envio (no app real, é preciso estar a até 150 m).
 - [ ] Em **Minhas Submissões**, abrir a comprovação rejeitada automaticamente › **Contestar** › escrever o motivo › *Enviar contestação* → status "Contestação em análise". Tentar contestar de novo → "Você já contestou esta decisão".
@@ -111,6 +113,8 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 - [ ] Abrir uma comprovação: aparecem a foto (que dá para ampliar), o relato, a distância até o local, o histórico da pessoa e a sugestão da IA (quando houver).
 - [ ] **Aprovar** → some da fila. Ao trocar para a Maria (se for dela), aparecem a notificação e os pontos.
 - [ ] **Rejeitar** escolhendo um **motivo padronizado** (ou escrevendo um com pelo menos 5 caracteres) → a pessoa recebe o motivo.
+- [ ] A comprovação com **Foto da internet** (3.3) aparece no **topo da fila**, com o selo vermelho **⚠️ Possível cópia da internet**, os sinais vistos e os botões **⬇️ Baixar foto** e **🔎 Abrir Google Lens**.
+- [ ] **Rejeitar** essa comprovação: o motivo "copiada da internet" já vem marcado e o botão só libera depois de você **escrever sua própria explicação** (15 caracteres ou mais; só o texto pronto não basta). A Maria recebe o motivo + "Explicação da equipe: …".
 - [ ] A **contestação** feita pela Maria (3.3) aparece com o selo "Contestação", o texto dela e o motivo anterior.
 - [ ] A seção de **decisões recentes da IA** lista o que foi aprovado ou rejeitado sozinho (para auditoria).
 - [ ] Se o Carlos enviar uma comprovação, ele vê o aviso de que **não pode moderar a própria**.
@@ -128,7 +132,9 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 
 **Usuários**
 - [ ] Mudar o papel de alguém (cidadão ↔ moderador).
-- [ ] **Banir** com motivo → o usuário aparece como BANIDO e, ao entrar com ele, fica bloqueado. **Desbanir** desfaz.
+- [ ] **Banir** com motivo → o usuário aparece como BANIDO, com o motivo e a data. **Desbanir** desfaz.
+- [ ] Sair e escolher o perfil banido → abre a tela **"Sua conta está bloqueada"**, com o motivo, a data e o formulário **"Acha que foi um engano?"** (mínimo de 20 caracteres). Enviar → "Contestação recebida…". O app não entra na conta.
+- [ ] Como Ana: chega a notificação "⚖️ Contestação de bloqueio" e, em **Usuários**, a pessoa aparece no topo com o texto da contestação. O moderador não recebe esse aviso.
 
 **Recompensas (FONE simulado)**
 - [ ] A fila mostra os FONE "em carência" (7 dias) e o aviso de mínimo de 5 FONE e da taxa da rede (≈ 0,15 FONE).
@@ -218,6 +224,8 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 | Vários usuários vendo os mesmos dados (ranking e chat reais) | Cada aparelho tem a própria demo. |
 | IA real com a chave do projeto | Precisa do servidor com `GEMINI_API_KEY`. Na demo dá para testar a IA real com a **sua** chave (seção 3.3.1). |
 | Missões automáticas do OpenStreetMap | Na demo os lugares são de exemplo. |
+| Busca reversa automática de fotos da internet | A IA só aponta sinais (marca d'água, legenda de site); a confirmação é feita pela equipe no Google Lens. A busca automática (Google Cloud Vision) precisa de conta com cobrança. |
+| Tela de conta bloqueada com senha real (`/conta-bloqueada`) | No servidor, ela abre ao entrar com a senha certa, por um link que vale 30 minutos e não cria sessão. Na demo, abre ao escolher o perfil banido. |
 | FONE de verdade e conferência no explorer | Os pagamentos são simulados. |
 | Pix de verdade | A chave da demo é fictícia. |
 | GIFs e áudios no chat, sugerir uma ação | Precisam do servidor. |

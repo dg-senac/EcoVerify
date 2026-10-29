@@ -680,7 +680,8 @@ function applyRejection(s: State, submissionId: string, reviewerId: string | nul
     ...next,
     notifications: notify(next, sub.userId, (l) => {
       const title = mission ? localizedTitle(mission, l) : "";
-      const text = composeRejectionMessage(code, reason, l);
+      // The message template adds the final period.
+      const text = composeRejectionMessage(code, reason, l).replace(/[.!\s]+$/, "");
       return reviewerId
         ? { title: dt(l, "notif_rejected_title"), message: dt(l, "notif_rejected_msg", { mission: title, reason: text }) }
         : { title: dt(l, "notif_ai_rejected_title"), message: dt(l, "notif_ai_rejected_msg", { mission: title, reason: text }) };

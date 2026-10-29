@@ -28,6 +28,18 @@ decideProof() (src/lib/ai/decision.ts, função pura, usada também pela demo)
 - **Cota esgotada, erro, timeout ou resposta inválida** → a comprovação fica pendente, como antes da IA. O card mostra "A IA não conseguiu analisar" e o botão **Analisar de novo**.
 - Aprovar/rejeitar usa o mesmo código da moderação humana (`src/lib/review.ts`): pontos, fila de FONE, notificação e proteção contra decisão dupla são idênticos. `decided_by` registra `ai` ou `human`.
 
+## Foto copiada da internet
+
+O Gemini **não faz busca reversa de imagem** (não consegue saber se a foto existe em outro site). Por isso, a IA só aponta **sinais** e quem decide é uma pessoa:
+
+1. O prompt pede `internet_copy` (sim/não) e `internet_signs` (quais sinais): marca d'água de banco de imagens, logo/endereço de site sobreposto, legenda ou moldura de post de rede social, aparência de foto de banco de imagens. **Não contam** marcas de produtos (garrafas, camisetas, placas), data/hora da câmera ou uma foto bonita tirada por uma pessoa comum.
+2. Com `internet_copy = true`, `decideProof()` **sempre** manda para a moderação, com o motivo `internet_copy`. A IA nunca aprova nem rejeita sozinha nesse caso (o motivo não está em `AUTO_REJECTABLE`). Só conteúdo impróprio mantém o caminho próprio, mais rígido.
+3. **Admins e moderadores recebem uma notificação** ("⚠️ Possível foto da internet"), uma vez por comprovação (reanalisar não repete o aviso).
+4. Na Moderação, a comprovação sinalizada vai para o **topo da fila** (logo depois das contestações), com o selo vermelho **⚠️ Possível cópia da internet**, os sinais vistos e dois botões: **⬇️ Baixar foto** e **🔎 Abrir Google Lens**. As fotos ficam atrás do login, então não dá para mandar o link direto ao Lens: baixe e envie (ou arraste) o arquivo.
+5. **Para rejeitar, a explicação tem que ser escrita pelo moderador**, com pelo menos 15 caracteres próprios (o motivo pronto não conta, nem colado no meio do texto). A regra está em `validateRejection()`, que é usada no modal, na action do servidor e na demo. A pessoa recebe o motivo padrão no idioma dela e, depois, "Explicação da equipe: …".
+
+Outras defesas que já existiam continuam valendo: foto igual (SHA-256) bloqueada no envio, foto parecida (hash perceptual) e o raio de GPS. Para busca reversa automática no futuro, a opção certa é o Google Cloud Vision (*Web Detection*), que pede conta com cobrança. Fica para a fase com banco.
+
 ## Contestação (LGPD, art. 20)
 
 Rejeições automáticas mostram **Contestar** em *Minhas Submissões* (mensagem de 10 a 500 caracteres, uma vez por comprovação). A comprovação volta para *pendente*, aparece primeiro na moderação com a mensagem e só uma pessoa decide. A métrica "Contestações (revertidas)" na aba IA mostra quantas a moderação aprovou.
@@ -98,10 +110,14 @@ Em **Configurações → IA de verdade (sua chave do Gemini)**, quem testa pode 
 | `demo/src/byok.ts`, `demo/src/components/GeminiKeyCard.tsx` | Chave própria na demo: guardar, testar, remover e analisar. |
 | `src/lib/ai/pipeline.ts` | Orquestra: foto parecida → modelo → decisão → grava/aplica. |
 | `src/lib/review.ts` | Aprovar/rejeitar (usado pela IA e pela moderação). |
-| `src/components/moderation/ai-panel.tsx` | Sugestão da IA no card da moderação. |
+| `src/components/moderation/ai-panel.tsx` | Sugestão da IA no card da moderação, com o alerta de possível cópia da internet (`InternetCopyAlert`). |
+| `src/components/moderation/reject-modal.tsx` | Modal de rejeição, que exige a explicação do moderador nas comprovações sinalizadas. |
+| `src/lib/staff-alerts.ts` | Notificações para admins/moderadores (foto da internet, contestação de bloqueio). |
 | `src/components/admin/ai-tab.tsx` | Aba IA do admin. |
 | `src/components/submissions/appeal-form.tsx` | Contestação. |
 
 ## Testes feitos
 
 Ponta a ponta no navegador com Postgres local e um servidor Gemini falso (41 verificações): aprovação automática com pontos/FONE/notificação; rejeição por foto de tela com motivo e contestação; confiança baixa, cota esgotada (429), resposta inválida, "aprovar" contraditório, relato incoerente, missão acima do limite de FONE e veredito "revisar" indo para a moderação; foto redimensionada/recomprimida reconhecida como repetida; reanálise; motivo sugerido no modal de rejeição; modos "só sugestão" e "desligada"; e conferência do que foi enviado (chave no cabeçalho, JPEG ≤ 1024 px sem EXIF, prompt sem nome/e-mail/GPS) e do arquivo guardado (sem EXIF).
+
+**v1.7.0 (foto copiada da internet e conta bloqueada):** 12 testes das regras puras (flag ausente = falso; flag nunca aprova nem rejeita sozinha, mesmo com 100% de confiança; conteúdo impróprio continua rejeitando; o motivo pronto, sozinho ou colado no texto, não conta como explicação) e 27 verificações ponta a ponta na demo: aviso na tela de envio, prova pendente com os sinais, notificação só para a equipe, topo da fila, botões Baixar/Lens, botão de rejeitar travado até haver explicação própria, mensagem com "Explicação da equipe", banimento com data, tela de bloqueio sem sessão, contestação e aviso só para o admin.
