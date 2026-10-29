@@ -7,6 +7,8 @@ import { THEME_COLORS } from "@/lib/theme";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
+const HTML_LANG: Record<string, string> = { pt: "pt-BR", en: "en", es: "es" };
+
 export const metadata: Metadata = {
   title: "EcoVerify — Ações sustentáveis, reconhecidas e recompensadas",
   description:
@@ -27,9 +29,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   // data-theme drives the CSS color-scheme (see theme.css): no script, so no flash of the wrong theme.
   const theme = user?.theme ?? "system";
+  // Screen readers and the browser translator use this: it must follow the language chosen in Settings.
+  const htmlLang = HTML_LANG[user?.language ?? "pt"] ?? "pt-BR";
 
   return (
-    <html lang="pt-BR" className={classes} data-theme={theme}>
+    <html lang={htmlLang} className={classes} data-theme={theme}>
       <head>
         {theme === "system" ? (
           <>
