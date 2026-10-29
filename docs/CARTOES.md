@@ -38,6 +38,8 @@ comprovações"** em Admin → Usuários (começa ligada para dar para testar o 
   texto que o moderador escreveu.
 - **Perfil → Meus cartões:** tipo, motivo, explicação, validade e o botão *Contestar* (uma vez, 20+ caracteres).
 - **Tela de conta suspensa/bloqueada:** motivo, data de volta (suspensão) e contestação (uma por suspensão/bloqueio).
+  Quem estava com o app aberto no momento da suspensão também cai nessa tela (a sessão é encerrada), em vez de
+  voltar ao login sem explicação.
 - **Admin → Usuários:** selos 🟨 n/3, 🟥 e SUSPENSO; painel "Contestações de cartões"; **Ficha** de cada pessoa
   (estatísticas, FONE pago/a pagar, cartões, dar cartão, cancelar/manter, encerrar suspensão). O nome da aba mostra
   quantas contestações esperam resposta.

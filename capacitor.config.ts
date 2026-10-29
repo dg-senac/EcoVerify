@@ -15,6 +15,8 @@ const baseConfig: CapacitorConfig = {
   appId: 'com.ecoverify.app',
   appName: 'EcoVerify',
   webDir: 'public',
+  // Brand colour behind the WebView: no white flash between the native splash and the web splash.
+  backgroundColor: '#278c98',
 };
 
 function serverConfig(url: string): CapacitorConfig {

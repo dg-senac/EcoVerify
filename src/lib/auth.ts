@@ -75,3 +75,28 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
   return row.user;
 }
+
+/**
+ * A person who was suspended or blocked while logged in still has the session cookie, but every page
+ * sends them to /login with no explanation. This ends that session and returns the user id, so the
+ * login page can show the reason and the appeal form (/conta-bloqueada) instead of a silent logout.
+ */
+export async function takeBlockedSessionUserId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  if (!token || !UUID_PATTERN.test(token)) return null;
+
+  const [row] = await db
+    .select({ userId: users.id, isBanned: users.isBanned, suspendedUntil: users.suspendedUntil, expiresAt: sessions.expiresAt })
+    .from(sessions)
+    .innerJoin(users, eq(sessions.userId, users.id))
+    .where(eq(sessions.token, token))
+    .limit(1);
+  if (!row || row.expiresAt.getTime() < Date.now()) return null;
+  const suspended = !!row.suspendedUntil && row.suspendedUntil.getTime() > Date.now();
+  if (!row.isBanned && !suspended) return null;
+
+  // One-time: the next visit to /login is a normal login page (no redirect loop).
+  await db.delete(sessions).where(eq(sessions.token, token));
+  return row.userId;
+}

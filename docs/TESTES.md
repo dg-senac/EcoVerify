@@ -219,6 +219,8 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 
 ## 4. Específico do APK e do celular
 
+- [ ] **Ícone novo** (globo com folha) na tela do celular, com o nome "EcoVerify". Em temas com ícones monocromáticos (Android 13+), o globo aparece no estilo do tema.
+- [ ] **Splash:** ao abrir, o globo aparece sobre o degradê e segue a animação (nome, slogan, "Recompensas na rede FONE"). Na **primeira** abertura vem "Como funciona" em 4 passos; "Começar" ou "Pular" entra no app. Nas próximas aberturas, só a animação curta.
 - [ ] Primeira abertura **em modo avião**: o app abre e funciona inteiro.
 - [ ] **Câmera:** na comprovação, *tirar foto* abre a câmera traseira; a foto aparece na prévia e vai para a moderação.
 - [ ] **Permissões:** o Android pede localização e câmera só na hora de usar. Negar não trava o app.
@@ -286,3 +288,22 @@ Dá para seguir para a fase com banco quando:
 - [ ] Os testes de 3.7 (modo noturno e acessibilidade) passam em pelo menos um celular.
 
 Depois disso, siga o README (*Rodando localmente* e *Variáveis de ambiente*): `npm run db:push`, as variáveis de produção e o passo a passo da conta de admin em `docs/SEGURANCA_ADMIN.md` (defina `ADMIN_EMAILS`, crie sua conta e confirme o e-mail). Em produção, não rode o `npm run db:seed`.
+
+---
+
+## 8. Modo servidor: o que já foi verificado (v1.9.1)
+
+Antes de existir o banco de produção, o app com servidor foi testado num **Postgres local** (schema com
+`drizzle-kit push` + `npm run db:seed`), com navegador automático nos 3 perfis:
+
+- Todas as páginas abrem para cidadã, moderador e admin, sem erro no console.
+- Comprovação com foto + GPS → pendente; foto repetida é barrada; foto **reaproveitada** (redimensionada/recomprimida)
+  é rejeitada sozinha como "foto reaproveitada", mesmo **sem** chave de IA.
+- Admin: aprovar (+pontos, FONE na fila), rejeitar com cartão amarelo, notificações e histórico da pessoa.
+- 3 amarelos → suspensão de 14 dias → tela `/conta-bloqueada` → contestação → admin encerra a suspensão → a pessoa entra de novo.
+- Contestação de cartão, chat da comunidade, criar organização, sugerir ação, escolher cidade, ranking.
+- Configurações (idioma, tema), baixar meus dados (JSON), excluir conta, cadastro, recuperar senha.
+- Abas do Admin (Métricas, Negócios, Missões, Usuários, Carteiras, Recompensas, IA).
+
+Para rodar o servidor em desenvolvimento pelo **Codespaces** ou por `127.0.0.1`, nada a configurar; outro endereço
+vai em `DEV_ALLOWED_ORIGINS` (veja `.env.example`).

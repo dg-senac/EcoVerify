@@ -1,7 +1,7 @@
 /* EcoVerify demo service worker: makes the demo installable and usable offline after the first visit.
  * Pages: network first (always get the latest version), falling back to the cached copy.
  * Hashed assets (assets/*): cache first. Bump CACHE to drop old caches. */
-const CACHE = "ecoverify-demo-v1";
+const CACHE = "ecoverify-demo-v2"; // v2: new logo and icons
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(["./", "./index.html", "./manifest.webmanifest", "./icon-192.png"])).then(() => self.skipWaiting()));

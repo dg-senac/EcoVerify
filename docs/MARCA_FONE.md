@@ -11,6 +11,7 @@ O EcoVerify usa a marca **Fone Protocol** para mostrar, de forma honesta, onde a
 | Ícone "F" ao lado de valores em FONE | Cards de missão, envio de comprovação, perfil, histórico de pagamentos, painel admin (métricas, missões, carteiras, recompensas) | `FoneAmount` / `FoneMark` |
 | "Recompensas na rede [Fone Protocol]" | Rodapé das telas de login/cadastro, menu lateral e menu mobile, painel da carteira, páginas de Termos e Privacidade | `PoweredByFone` |
 | "Fone Wallet · App oficial da rede Fone" | Bloco de download da carteira | `FoneMark` |
+| "Recompensas na rede [Fone Protocol]" (logo branco) e o "F" no passo "Ganhe recompensas" | Splash animado ao abrir o app e tela "Como funciona" | `AppSplash` |
 
 A demo offline (`demo/`) usa os **mesmos componentes**, então o visual é idêntico ao do app real.
 

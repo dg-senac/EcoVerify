@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { AppSplash } from "@/components/brand/app-splash";
 import { moderatorsOn, onStorageError, setGuestLanguage, updateSettings, useCurrentUser, useLang, useStore, type User } from "./store";
 import { canReview } from "@/lib/nav";
 import { startTour, TourPanel } from "./components/Tour";
@@ -51,6 +52,9 @@ function useHtmlSettings(user: User | null) {
  * Shareable links: ?lang=pt|en|es opens the demo in that language and ?tour=1 starts the
  * presentation mode (e.g. https://…/?lang=en&tour=1). The parameters are removed afterwards.
  */
+// Read before useUrlOptions cleans the URL: the guided tour already explains the app, so no "how it works".
+const OPENED_WITH_TOUR = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tour") === "1";
+
 function useUrlOptions() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -134,6 +138,7 @@ export function App() {
       )}
       <TourPanel />
       <Toaster />
+      <AppSplash lang={lang} onboarding={!OPENED_WITH_TOUR} />
     </>
   );
 }
