@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { rejectSubmissionAction, type ModerationActionState } from "@/lib/actions/moderation";
 import { t, type Lang } from "@/lib/i18n";
+import { CARDABLE_REJECTIONS } from "@/lib/cards";
 import { INTERNET_COPY_MIN_EXPLANATION, ownWords, REJECTION_CODES, REJECTION_REASONS, type RejectionCode } from "@/lib/ai/decision";
 
 const initialState: ModerationActionState = {};
@@ -12,6 +13,7 @@ export function RejectModal({
   submissionId,
   suggestedCode = null,
   flagged = false,
+  canGiveCard = false,
   onDone,
 }: {
   lang: Lang;
@@ -21,11 +23,14 @@ export function RejectModal({
    * and the moderator must write the explanation in their own words.
    */
   flagged?: boolean;
+  /** Platform staff can add a yellow card for fraud reasons (src/lib/cards.ts). */
+  canGiveCard?: boolean;
   /** Reason suggested by the automatic verification, pre-selected. */
   suggestedCode?: RejectionCode | null;
   onDone: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [giveCard, setGiveCard] = useState(false);
   const [code, setCode] = useState<RejectionCode | null>(suggestedCode);
   const [reason, setReason] = useState(suggestedCode && !flagged ? REJECTION_REASONS[suggestedCode][lang] : "");
   const pickCode = (value: RejectionCode) => {
@@ -116,6 +121,23 @@ export function RejectModal({
                   {ownLength}/{INTERNET_COPY_MIN_EXPLANATION}
                 </p>
               )}
+              {canGiveCard && code && CARDABLE_REJECTIONS.has(code) && (
+                <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <input
+                    type="checkbox"
+                    name="giveCard"
+                    checked={giveCard}
+                    onChange={(e) => setGiveCard(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-amber-500"
+                    data-testid="give-card"
+                  />
+                  <span>
+                    <span className="font-bold">{t(lang, "card_give_label")}</span>
+                    <span className="mt-0.5 block text-amber-800">{t(lang, "card_give_hint")}</span>
+                  </span>
+                </label>
+              )}
+              {state.error === "card_note_short" && <p className="text-xs font-medium text-red-500">{t(lang, "card_note_short")}</p>}
               {state.error === "explanation_required" && (
                 <p className="text-xs font-medium text-red-500">{t(lang, "internet_explain_required")}</p>
               )}

@@ -115,6 +115,7 @@ export default async function ModerationPage() {
               lang={lang}
               moderatorId={user.id}
               canRetryAi={willAnalyzeWithModel(settings)}
+              canGiveCard
               submission={{ ...row, aiChecks: (row.aiChecks as AiChecks | null) ?? null }}
             />
           ))}

@@ -9,7 +9,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { membershipRole } from "@/lib/saas/orgs";
 import { canManage } from "@/lib/saas/org-rules";
 import { approveSubmission, rejectSubmission } from "@/lib/review";
-import { isInternetCopyFlag, isRejectionCode, REJECTION_REASONS, validateRejection } from "@/lib/ai/decision";
+import { composeRejectionMessage, isInternetCopyFlag, isRejectionCode, ownWords, REJECTION_REASONS, validateRejection } from "@/lib/ai/decision";
+import { CARD_NOTE_MIN, cardReasonForRejection } from "@/lib/cards";
+import { issueCard } from "@/lib/cards-server";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
 
 export type ModerationActionState = { error?: string; success?: boolean };
@@ -99,8 +101,24 @@ export async function rejectSubmissionAction(
   const invalid = validateRejection({ flagged, text: reason });
   if (invalid) return { error: invalid };
 
+  // Optional yellow card (platform staff only, fraud reasons only), explained by the same text.
+  const giveCard = formData.get("giveCard") === "on" && (moderator.role === "moderator" || moderator.role === "admin");
+  if (giveCard && composeRejectionMessage(null, reason, "pt").length < CARD_NOTE_MIN) return { error: "card_note_short" };
+
   const rejected = await rejectSubmission(submissionId, { kind: "human", userId: moderator.id }, { code, text: reason });
   if (!rejected) return { error: "already_reviewed" };
+
+  if (giveCard) {
+    await issueCard({
+      userId: submission.userId,
+      type: "yellow",
+      reason: cardReasonForRejection(code),
+      note: ownWords(reason) || reason,
+      issuerId: moderator.id,
+      submissionId,
+    });
+    revalidatePath("/admin");
+  }
 
   revalidatePath("/moderation");
   revalidatePath("/submissions");

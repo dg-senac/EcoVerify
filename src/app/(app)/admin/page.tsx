@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { invoices, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, users } from "@/db/schema";
+import { invoices, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, userCards, users } from "@/db/schema";
+import type { UserDetails } from "@/components/admin/user-sheet";
 import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
 import { confirmInvoiceAction, grantPlanAction } from "@/lib/actions/billing";
 import { PLANS } from "@/lib/plans";
@@ -100,12 +101,51 @@ export default async function AdminPage() {
       bannedAt: users.bannedAt,
       banAppealMessage: users.banAppealMessage,
       banAppealedAt: users.banAppealedAt,
+      suspendedUntil: users.suspendedUntil,
+      suspensionReason: users.suspensionReason,
+      walletVerifiedAt: users.walletVerifiedAt,
     })
     .from(users)
     // Accounts deleted by their owner are anonymised records, not people to manage.
     .where(isNull(users.deletedAt))
     // Blocked people waiting for an answer to their appeal come first.
-    .orderBy(sql`${users.banAppealedAt} is null or not ${users.isBanned}`, desc(users.totalPoints));
+    .orderBy(sql`${users.banAppealedAt} is null`, desc(users.totalPoints));
+
+  // User sheet: cards, proofs and FONE of each person (Admin → Users).
+  const [cardRows, proofRows, foneRows] = await Promise.all([
+    db.select().from(userCards).orderBy(desc(userCards.createdAt)),
+    db
+      .select({ userId: submissions.userId, status: submissions.status, count: sql<number>`count(*)::int` })
+      .from(submissions)
+      .groupBy(submissions.userId, submissions.status),
+    db
+      .select({
+        userId: rewardQueue.userId,
+        paid: sql<string>`coalesce(sum(${rewardQueue.foneAmount}) filter (where ${rewardQueue.status} = 'paid'), 0)::text`,
+        open: sql<string>`coalesce(sum(${rewardQueue.foneAmount}) filter (where ${rewardQueue.status} <> 'paid'), 0)::text`,
+      })
+      .from(rewardQueue)
+      .groupBy(rewardQueue.userId),
+  ]);
+  const userDetails: Record<string, UserDetails> = {};
+  for (const u of allUsers) {
+    userDetails[u.id] = { cards: [], approved: 0, rejected: 0, pending: 0, fonePaid: "0", foneOpen: "0" };
+  }
+  for (const card of cardRows) userDetails[card.userId]?.cards.push(card);
+  for (const row of proofRows) {
+    const details = userDetails[row.userId];
+    if (details) details[row.status] = row.count;
+  }
+  for (const row of foneRows) {
+    const details = userDetails[row.userId];
+    if (details) Object.assign(details, { fonePaid: row.paid, foneOpen: row.open });
+  }
+  const usersBadge =
+    cardRows.filter((card) => card.appealedAt && !card.revokedAt && !card.appealRejectedAt).length +
+    allUsers.filter((u) => u.banAppealedAt && (u.isBanned || (u.suspendedUntil && u.suspendedUntil > new Date()))).length;
+  const cardAppeals = cardRows
+    .filter((card) => card.appealedAt && !card.revokedAt && !card.appealRejectedAt)
+    .map((card) => ({ ...card, userName: allUsers.find((u) => u.id === card.userId)?.name ?? "?" }));
 
   const { treasury, explorerUrl } = getFoneConfig();
 
@@ -357,7 +397,7 @@ export default async function AdminPage() {
                 />
               ),
             },
-            { key: "users", label: "Usuários", icon: "👥", content: <UsersTab users={allUsers} currentUserId={user.id} /> },
+            { key: "users", label: usersBadge ? `Usuários (${usersBadge})` : "Usuários", icon: "👥", content: <UsersTab users={allUsers} currentUserId={user.id} details={userDetails} cardAppeals={cardAppeals} /> },
             {
               key: "wallets",
               label: pendingWallets.length ? `Carteiras (${pendingWallets.length})` : "Carteiras",

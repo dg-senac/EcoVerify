@@ -6,6 +6,7 @@ import { peekAuthTokenUser } from "@/lib/auth-tokens";
 import { getLegalInfo } from "@/lib/legal-config";
 import { t, tf } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
+import { isSuspended } from "@/lib/cards";
 import { BanAppealForm } from "@/components/auth/ban-appeal-form";
 
 export const metadata = { referrer: "no-referrer" as const, robots: { index: false } };
@@ -38,13 +39,16 @@ export default async function BlockedAccountPage({ searchParams }: { searchParam
           bannedAt: users.bannedAt,
           banAppealMessage: users.banAppealMessage,
           banAppealedAt: users.banAppealedAt,
+          suspendedUntil: users.suspendedUntil,
+          suspensionReason: users.suspensionReason,
         })
         .from(users)
         .where(eq(users.id, userId))
         .limit(1)
     : [];
 
-  if (!user || !user.isBanned) {
+  const suspended = !!user && !user.isBanned && isSuspended(user.suspendedUntil);
+  if (!user || (!user.isBanned && !suspended)) {
     const lang = user?.language ?? "pt";
     return (
       <div className={`${box} text-center`}>
@@ -64,15 +68,22 @@ export default async function BlockedAccountPage({ searchParams }: { searchParam
   return (
     <div className={box} data-testid="banned-screen">
       <div className="text-center">
-        <div className="mb-2 text-4xl">🚫</div>
-        <h1 className="text-xl font-bold text-slate-900">{t(lang, "banned_title")}</h1>
-        <p className="mt-1 text-sm text-slate-500">{t(lang, "banned_intro")}</p>
+        <div className="mb-2 text-4xl">{suspended ? "🟨" : "🚫"}</div>
+        <h1 className="text-xl font-bold text-slate-900">{t(lang, suspended ? "suspended_title" : "banned_title")}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t(lang, suspended ? "suspended_intro" : "banned_intro")}</p>
       </div>
 
       <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
         <p className="text-xs font-bold uppercase tracking-wide text-red-700">{t(lang, "banned_reason")}</p>
-        <p className="mt-1" data-testid="banned-reason">{user.banReason || t(lang, "banned_no_reason")}</p>
-        {user.bannedAt && (
+        <p className="mt-1" data-testid="banned-reason">
+          {(suspended ? user.suspensionReason : user.banReason) || t(lang, "banned_no_reason")}
+        </p>
+        {suspended && user.suspendedUntil && (
+          <p className="mt-2 text-sm font-bold text-red-800" data-testid="suspended-until">
+            {t(lang, "suspended_until")}: {formatDate(user.suspendedUntil, lang)}
+          </p>
+        )}
+        {!suspended && user.bannedAt && (
           <p className="mt-2 text-xs text-red-700">
             {t(lang, "banned_since")}: {formatDate(user.bannedAt, lang)}
           </p>

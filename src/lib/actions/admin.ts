@@ -6,6 +6,7 @@ import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { aiSettings, foneSettings, missions, notifications, rewardQueue, sessions, sponsorTopups, sponsors, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { isSuspended } from "@/lib/cards";
 import { placeOf } from "@/lib/municipalities";
 import { getPayoutSettings } from "@/lib/payouts";
 import { isHoldReason, splitOpenRewards } from "@/lib/payout-rules";
@@ -332,10 +333,12 @@ export async function payUserRewardsAction(_prev: AdminActionState, formData: Fo
   const settings = await getPayoutSettings();
   const result = await db.transaction(async (tx) => {
     const [target] = await tx
-      .select({ walletAddress: users.walletAddress, walletVerifiedAt: users.walletVerifiedAt })
+      .select({ walletAddress: users.walletAddress, walletVerifiedAt: users.walletVerifiedAt, isBanned: users.isBanned, suspendedUntil: users.suspendedUntil })
       .from(users)
       .where(eq(users.id, userId))
       .for("update");
+    // FONE of a suspended or blocked account stays frozen (kept, not lost) until it is lifted.
+    if (target && (target.isBanned || isSuspended(target.suspendedUntil))) return { error: "account_restricted" as const };
     const wallet = target ? verifiedWallet(target) : null;
     if (!wallet) return { error: "wallet_not_verified" as const };
 

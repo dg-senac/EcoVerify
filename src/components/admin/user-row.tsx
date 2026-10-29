@@ -9,12 +9,15 @@ import {
   type AdminActionState,
 } from "@/lib/actions/admin";
 import { formatDate } from "@/lib/utils";
+import { isSuspended } from "@/lib/cards";
+import { CardBadges, UserSheet, type UserDetails } from "@/components/admin/user-sheet";
 
 const initialState: AdminActionState = {};
 
 export function UserRow({
   user,
   currentUserId,
+  details,
 }: {
   user: {
     id: string;
@@ -28,9 +31,15 @@ export function UserRow({
     bannedAt: Date | null;
     banAppealMessage: string | null;
     banAppealedAt: Date | null;
+    suspendedUntil: Date | null;
+    suspensionReason: string | null;
+    walletVerifiedAt: Date | null;
   };
   currentUserId: string;
+  details?: UserDetails;
 }) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const suspended = isSuspended(user.suspendedUntil);
   const [role, setRole] = useState(user.role);
   const [isPending, startTransition] = useTransition();
   const [contactOpen, setContactOpen] = useState(false);
@@ -62,6 +71,7 @@ export function UserRow({
           {user.isBanned && (
             <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">BANIDO</span>
           )}
+          {details && <CardBadges cards={details.cards} suspendedUntil={user.suspendedUntil} />}
         </div>
         <p className="text-xs text-slate-400">{user.email}</p>
         {user.isBanned && user.banReason && (
@@ -70,7 +80,7 @@ export function UserRow({
             {user.bannedAt && <span className="font-normal text-red-400"> · desde {formatDate(user.bannedAt, "pt")}</span>}
           </p>
         )}
-        {user.isBanned && user.banAppealedAt && (
+        {(user.isBanned || suspended) && user.banAppealedAt && (
           <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900" data-testid="ban-appeal">
             <p className="font-bold">⚖️ Contestação enviada em {formatDate(user.banAppealedAt, "pt")}</p>
             <p className="mt-0.5 whitespace-pre-line">“{user.banAppealMessage}”</p>
@@ -99,6 +109,16 @@ export function UserRow({
       </div>
 
       <div className="flex gap-2">
+        {details && (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            data-testid="open-sheet"
+          >
+            Ficha
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setContactOpen(true)}
@@ -126,6 +146,8 @@ export function UserRow({
           </button>
         )}
       </div>
+
+      {sheetOpen && details && <UserSheet user={user} details={details} onClose={() => setSheetOpen(false)} />}
 
       {contactOpen && (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4 animate-fade-in">

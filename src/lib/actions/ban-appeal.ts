@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { peekAuthTokenUser } from "@/lib/auth-tokens";
@@ -32,7 +32,14 @@ export async function submitBanAppealAction(_prev: BanAppealState, formData: For
   const updated = await db
     .update(users)
     .set({ banAppealMessage: message.slice(0, BAN_APPEAL_MAX), banAppealedAt: new Date() })
-    .where(and(eq(users.id, userId), eq(users.isBanned, true), isNull(users.banAppealedAt), isNull(users.deletedAt)))
+    .where(
+      and(
+        eq(users.id, userId),
+        or(eq(users.isBanned, true), gt(users.suspendedUntil, new Date())),
+        isNull(users.banAppealedAt),
+        isNull(users.deletedAt),
+      ),
+    )
     .returning({ name: users.name });
   if (updated.length === 0) return { error: "already_sent" };
 

@@ -17,12 +17,15 @@ export function ModerationCard({
   canRetryAi,
   submission,
   showHistory = true,
+  canGiveCard = false,
 }: {
   lang: Lang;
   moderatorId: string;
   canRetryAi: boolean;
   /** The user's full history is for platform staff only (organization managers don't see it). */
   showHistory?: boolean;
+  /** Platform staff may add a yellow card when rejecting for fraud. */
+  canGiveCard?: boolean;
   submission: AiPanelData & {
     appealedAt: Date | null;
     appealMessage: string | null;
@@ -133,6 +136,7 @@ export function ModerationCard({
                 lang={lang}
                 submissionId={submission.id}
                 flagged={isInternetCopyFlag(submission.aiReasonCode)}
+                canGiveCard={canGiveCard}
                 suggestedCode={
                   isInternetCopyFlag(submission.aiReasonCode)
                     ? "internet_copy"
