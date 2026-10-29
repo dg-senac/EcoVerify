@@ -25,3 +25,16 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export const MOBILE_PRIMARY_HREFS = ["/missions", "/submissions", "/ranking", "/community"];
+
+/**
+ * Who reviews proofs for the platform. Admins always; moderators only when the platform turned the
+ * role on (MODERATORS_ENABLED on the server, a switch in the demo). Moderators have limited powers:
+ * review proofs and give yellow cards; red cards, suspensions, bans and FONE are admin-only.
+ */
+export function canReview(role: Role, moderatorsEnabled: boolean): boolean {
+  return role === "admin" || (role === "moderator" && moderatorsEnabled);
+}
+
+export function navItemsFor(role: Role, moderatorsEnabled: boolean): NavItem[] {
+  return NAV_ITEMS.filter((item) => item.roles.includes(role) && (item.href !== "/moderation" || canReview(role, moderatorsEnabled)));
+}

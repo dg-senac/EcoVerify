@@ -12,6 +12,8 @@ import { approveSubmission, rejectSubmission } from "@/lib/review";
 import { composeRejectionMessage, isInternetCopyFlag, isRejectionCode, ownWords, REJECTION_REASONS, validateRejection } from "@/lib/ai/decision";
 import { CARD_NOTE_MIN, cardReasonForRejection } from "@/lib/cards";
 import { issueCard } from "@/lib/cards-server";
+import { canReview } from "@/lib/nav";
+import { moderatorsEnabled } from "@/lib/staff-config";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
 
 export type ModerationActionState = { error?: string; success?: boolean };
@@ -23,7 +25,7 @@ export type ModerationActionState = { error?: string; success?: boolean };
 async function assertReviewer(submissionId: string) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role === "moderator" || user.role === "admin") return user;
+  if (canReview(user.role, moderatorsEnabled())) return user;
   const [row] = await db
     .select({ orgId: missions.organizationId })
     .from(submissions)
@@ -47,7 +49,7 @@ async function revalidateOrgPages(submissionId: string) {
 async function assertModerator() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "moderator" && user.role !== "admin") redirect("/missions");
+  if (!canReview(user.role, moderatorsEnabled())) redirect("/missions");
   return user;
 }
 
@@ -102,7 +104,7 @@ export async function rejectSubmissionAction(
   if (invalid) return { error: invalid };
 
   // Optional yellow card (platform staff only, fraud reasons only), explained by the same text.
-  const giveCard = formData.get("giveCard") === "on" && (moderator.role === "moderator" || moderator.role === "admin");
+  const giveCard = formData.get("giveCard") === "on" && canReview(moderator.role, moderatorsEnabled());
   if (giveCard && composeRejectionMessage(null, reason, "pt").length < CARD_NOTE_MIN) return { error: "card_note_short" };
 
   const rejected = await rejectSubmission(submissionId, { kind: "human", userId: moderator.id }, { code, text: reason });

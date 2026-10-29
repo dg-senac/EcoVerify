@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { LogoMark } from "@/components/logo";
-import { NAV_ITEMS, MOBILE_PRIMARY_HREFS, type Role } from "@/lib/nav";
+import { navItemsFor, MOBILE_PRIMARY_HREFS, type Role } from "@/lib/nav";
 import { t, type Lang } from "@/lib/i18n";
 import { initials } from "@/lib/utils";
 import { logoutAction } from "@/lib/actions/auth";
@@ -21,17 +21,20 @@ export function AppShell({
   user,
   lang,
   unreadCount,
+  moderatorsEnabled = false,
   children,
 }: {
   user: ShellUser;
   lang: Lang;
   unreadCount: number;
+  /** Moderators only see Moderation when the platform turned the role on (lib/staff-config.ts). */
+  moderatorsEnabled?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const items = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
+  const items = navItemsFor(user.role, moderatorsEnabled);
   const primaryMobile = items.filter((item) => MOBILE_PRIMARY_HREFS.includes(item.href));
   const moreItems = items.filter((item) => !MOBILE_PRIMARY_HREFS.includes(item.href));
 

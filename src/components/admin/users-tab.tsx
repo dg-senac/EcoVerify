@@ -12,6 +12,7 @@ export function UsersTab({
   currentUserId,
   details,
   cardAppeals,
+  moderatorsEnabled = false,
 }: {
   users: {
     id: string;
@@ -32,6 +33,7 @@ export function UsersTab({
   currentUserId: string;
   details: Record<string, UserDetails>;
   cardAppeals: (AdminCard & { userId: string; userName: string })[];
+  moderatorsEnabled?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   return (
@@ -71,7 +73,12 @@ export function UsersTab({
           </ul>
         </div>
       )}
-      <h3 className="mb-3 font-bold text-slate-900">Usuários da plataforma</h3>
+      <h3 className="mb-1 font-bold text-slate-900">Usuários da plataforma</h3>
+      <p className="mb-3 text-xs text-slate-500" data-testid="moderators-mode">
+        {moderatorsEnabled
+          ? "Moderadores ativos: revisam comprovações e dão cartão amarelo. Vermelho, suspensão, banimento e FONE são só do admin."
+          : "Moderação só para administradores. Quem tem o papel \"Moderador\" não vê a Moderação (para liberar, defina MODERATORS_ENABLED=true no servidor)."}
+      </p>
       <div className="space-y-2">
         {users.map((user) => (
           <UserRow key={user.id} user={user} currentUserId={currentUserId} details={details[user.id]} />

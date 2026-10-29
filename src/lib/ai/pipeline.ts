@@ -15,6 +15,7 @@ import { analyzeProofWithGemini, AiUnavailableError, geminiApiKey } from "@/lib/
 import { hammingDistance, photoForAi } from "@/lib/ai/photo";
 import { approveSubmission, rejectSubmission } from "@/lib/review";
 import { notifyStaff } from "@/lib/staff-alerts";
+import { moderatorsEnabled } from "@/lib/staff-config";
 import { t, tf } from "@/lib/i18n";
 import { FILES_ROUTE_PREFIX, isValidStoragePath, readStoredFile } from "@/lib/storage";
 
@@ -143,7 +144,7 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
   if (decision.reasonCode === "internet_copy" && submission.aiReasonCode !== "internet_copy") {
     try {
       const [author] = await db.select({ name: users.name }).from(users).where(eq(users.id, submission.userId)).limit(1);
-      await notifyStaff(["admin", "moderator"], (lang) => ({
+      await notifyStaff(moderatorsEnabled() ? ["admin", "moderator"] : ["admin"], (lang) => ({
         title: t(lang, "staff_internet_title"),
         message: tf(lang, "staff_internet_message", { name: author?.name ?? "?", mission: mission.title }),
       }));

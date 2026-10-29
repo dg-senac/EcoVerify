@@ -9,6 +9,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { CARD_APPEAL_MIN, CARD_NOTE_MIN, isCardActive, isCardReason } from "@/lib/cards";
 import { issueCard, keepCardAfterAppeal, liftSuspension, revokeCard } from "@/lib/cards-server";
 import { notifyStaff } from "@/lib/staff-alerts";
+import { canReview } from "@/lib/nav";
+import { moderatorsEnabled } from "@/lib/staff-config";
 import { t, tf } from "@/lib/i18n";
 
 export type CardActionState = { error?: string; success?: boolean };
@@ -16,7 +18,7 @@ export type CardActionState = { error?: string; success?: boolean };
 async function assertStaff() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "moderator" && user.role !== "admin") redirect("/missions");
+  if (!canReview(user.role, moderatorsEnabled())) redirect("/missions");
   return user;
 }
 

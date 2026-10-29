@@ -10,6 +10,7 @@ import { orgPlan } from "@/lib/saas/org-rules";
 import { municipalityByIbge } from "@/lib/municipalities";
 import { formatDate } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth";
+import { moderatorsEnabled } from "@/lib/staff-config";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 import { MetricsTab } from "@/components/admin/metrics-tab";
 import { MissionsTab } from "@/components/admin/missions-tab";
@@ -397,7 +398,7 @@ export default async function AdminPage() {
                 />
               ),
             },
-            { key: "users", label: usersBadge ? `Usuários (${usersBadge})` : "Usuários", icon: "👥", content: <UsersTab users={allUsers} currentUserId={user.id} details={userDetails} cardAppeals={cardAppeals} /> },
+            { key: "users", label: usersBadge ? `Usuários (${usersBadge})` : "Usuários", icon: "👥", content: <UsersTab users={allUsers} currentUserId={user.id} details={userDetails} cardAppeals={cardAppeals} moderatorsEnabled={moderatorsEnabled()} /> },
             {
               key: "wallets",
               label: pendingWallets.length ? `Carteiras (${pendingWallets.length})` : "Carteiras",
