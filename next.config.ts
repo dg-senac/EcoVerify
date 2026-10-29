@@ -6,6 +6,13 @@ const extraOrigins = (process.env.SERVER_ACTIONS_ALLOWED_ORIGINS ?? "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+// Next 16 blocks its dev resources (HMR, client chunks) for any host other than localhost: without this
+// the app does not hydrate in dev when opened via 127.0.0.1 or GitHub Codespaces (buttons do nothing).
+const devOrigins = (process.env.DEV_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -16,6 +23,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  allowedDevOrigins: ["127.0.0.1", "*.app.github.dev", ...devOrigins],
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
