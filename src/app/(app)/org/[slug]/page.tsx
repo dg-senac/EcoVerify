@@ -348,7 +348,11 @@ async function ModerationTab({ orgId, lang, userId }: { orgId: string; lang: "pt
     .innerJoin(missions, eq(submissions.missionId, missions.id))
     .innerJoin(users, eq(submissions.userId, users.id))
     .where(and(eq(missions.organizationId, orgId), eq(submissions.status, "pending")))
-    .orderBy(sql`${submissions.appealedAt} is null`, asc(submissions.submittedAt));
+    .orderBy(
+      sql`${submissions.appealedAt} is null`,
+      sql`${submissions.aiReasonCode} is distinct from 'internet_copy'`,
+      asc(submissions.submittedAt),
+    );
   return (
     <div>
       <p className="text-sm text-slate-500">{text.moderationHint}</p>

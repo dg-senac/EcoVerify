@@ -387,7 +387,9 @@ function MissionsTab() {
 
 function UsersTab({ me }: { me: User }) {
   const lang = useLang();
-  const users = useStore((s) => s.users.filter((u) => !u.deletedAt));
+  const allUsers = useStore((s) => s.users.filter((u) => !u.deletedAt));
+  // Blocked people waiting for an answer to their appeal come first.
+  const users = [...allUsers].sort((a, b) => Number(!!(b.isBanned && b.banAppealedAt)) - Number(!!(a.isBanned && a.banAppealedAt)));
   const roles: { id: Role; key: DemoKey }[] = [
     { id: "citizen", key: "demo_role_citizen" },
     { id: "moderator", key: "demo_role_moderator" },
@@ -405,6 +407,18 @@ function UsersTab({ me }: { me: User }) {
               {u.isBanned && <span className="rounded bg-red-100 px-1.5 text-[10px] font-bold text-red-700">{dt(lang, "banned_label")}</span>}
             </p>
             <p className="truncate text-xs text-slate-500">{u.email} · {u.totalPoints} {t(lang, "reward_points")}</p>
+            {u.isBanned && (
+              <p className="mt-0.5 text-xs text-red-600">
+                {t(lang, "banned_reason")}: {u.banReason || t(lang, "banned_no_reason")}
+                {u.bannedAt && <span className="text-red-400"> · {t(lang, "banned_since")} {formatDate(u.bannedAt, lang)}</span>}
+              </p>
+            )}
+            {u.isBanned && u.banAppealedAt && (
+              <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900" data-testid="ban-appeal">
+                <p className="font-bold">⚖️ {t(lang, "staff_ban_appeal_title").replace("⚖️ ", "")} · {formatDate(u.banAppealedAt, lang)}</p>
+                <p className="mt-0.5 whitespace-pre-line">“{u.banAppealMessage}”</p>
+              </div>
+            )}
           </div>
           {u.id !== me.id && (
             <div className="flex items-center gap-2">

@@ -25,6 +25,9 @@ export function UserRow({
     createdAt: Date;
     isBanned: boolean;
     banReason: string | null;
+    bannedAt: Date | null;
+    banAppealMessage: string | null;
+    banAppealedAt: Date | null;
   };
   currentUserId: string;
 }) {
@@ -62,7 +65,17 @@ export function UserRow({
         </div>
         <p className="text-xs text-slate-400">{user.email}</p>
         {user.isBanned && user.banReason && (
-          <p className="mt-1 text-xs font-medium text-red-500">Motivo: {user.banReason}</p>
+          <p className="mt-1 text-xs font-medium text-red-500">
+            Motivo: {user.banReason}
+            {user.bannedAt && <span className="font-normal text-red-400"> · desde {formatDate(user.bannedAt, "pt")}</span>}
+          </p>
+        )}
+        {user.isBanned && user.banAppealedAt && (
+          <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900" data-testid="ban-appeal">
+            <p className="font-bold">⚖️ Contestação enviada em {formatDate(user.banAppealedAt, "pt")}</p>
+            <p className="mt-0.5 whitespace-pre-line">“{user.banAppealMessage}”</p>
+            <p className="mt-1 text-sky-700">Responda pelo e-mail {user.email} e, se for o caso, desbloqueie a conta.</p>
+          </div>
         )}
         <p className="mt-0.5 text-xs text-slate-400">Desde {formatDate(user.createdAt, "pt")}</p>
       </div>

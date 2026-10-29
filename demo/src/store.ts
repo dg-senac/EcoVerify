@@ -1,5 +1,5 @@
 import { useRef, useSyncExternalStore } from "react";
-import type { Lang } from "@/lib/i18n";
+import { t, tf, type Lang } from "@/lib/i18n";
 import type { Role } from "@/lib/nav";
 import { dt, botReplies } from "./i18n";
 import { createSeed, STATE_VERSION } from "./seed";
@@ -7,7 +7,14 @@ import { centsToFone, foneToCents, isValidFoneAddress, normalizeHex, pickChallen
 import { TERMS_VERSION } from "@/lib/legal";
 import type { Theme } from "@/lib/theme";
 import { distanceMeters, fakeTxHash, MAX_DISTANCE_METERS, MAX_GPS_ACCURACY_METERS, uid } from "./media";
-import { decideProof, DEFAULT_AI_SETTINGS, rejectionReasonText, type AiAnalysis, type AiChecks, type AiVerdict, type RejectionCode } from "@/lib/ai/decision";
+import {
+  composeRejectionMessage,
+  decideProof,
+  DEFAULT_AI_SETTINGS,
+  isInternetCopyFlag,
+  rejectionReasonText,
+  validateRejection,
+  type AiAnalysis, type AiChecks, type AiVerdict, type RejectionCode } from "@/lib/ai/decision";
 import { simulateAnalysis, type SampleKind } from "./demoAi";
 import type { Region, RegionRadius } from "@/lib/region";
 import { OSM_TEMPLATES, type OsmKind } from "@/lib/regional/templates";
@@ -44,6 +51,10 @@ export type User = {
   adultDeclaredAt: string | null;
   isBanned: boolean;
   banReason: string | null;
+  /** Like users.banned_at / ban_appeal_message / ban_appealed_at (one appeal per block). */
+  bannedAt?: string | null;
+  banAppealMessage?: string | null;
+  banAppealedAt?: string | null;
   createdAt: string;
   /** LGPD: when the Terms of Use / Privacy Policy were accepted (like users.terms_accepted_at). */
   termsAcceptedAt?: string | null;
@@ -349,6 +360,17 @@ function notify(s: State, userId: string, build: (lang: Lang) => { title: string
   return [{ id: uid(), userId, title, message, isRead: false, createdAt: now() }, ...s.notifications];
 }
 
+/** In-app alert to the platform staff (like src/lib/staff-alerts.ts). */
+function notifyStaff(s: State, roles: Role[], build: (lang: Lang) => { title: string; message: string }): Notification[] {
+  let notifications = s.notifications;
+  for (const member of s.users) {
+    if (!roles.includes(member.role) || member.isBot || member.isBanned || member.deletedAt) continue;
+    const { title, message } = build(member.language);
+    notifications = [{ id: uid(), userId: member.id, title, message, isRead: false, createdAt: now() }, ...notifications];
+  }
+  return notifications;
+}
+
 /* ------------------------------------------------------------------ */
 /* Auth                                                                */
 /* ------------------------------------------------------------------ */
@@ -573,6 +595,16 @@ export function submitProof(input: NewSubmission): Result {
     const next: State = { ...s, submissions: [submission, ...s.submissions] };
     if (decision.action === "approve") return applyApproval(next, submission.id, null);
     if (decision.action === "reject" && decision.reasonCode) return applyRejection(next, submission.id, null, decision.reasonCode, "");
+    // Possible copy from the internet: never decided by the AI, the staff is alerted.
+    if (decision.reasonCode === "internet_copy") {
+      return {
+        ...next,
+        notifications: notifyStaff(next, ["admin", "moderator"], (l) => ({
+          title: t(l, "staff_internet_title"),
+          message: tf(l, "staff_internet_message", { name: user.name, mission: localizedTitle(mission, l) }),
+        })),
+      };
+    }
     return next;
   });
   return ok ? {} : { error: "storage" };
@@ -648,7 +680,7 @@ function applyRejection(s: State, submissionId: string, reviewerId: string | nul
     ...next,
     notifications: notify(next, sub.userId, (l) => {
       const title = mission ? localizedTitle(mission, l) : "";
-      const text = reason || rejectionReasonText(code, l) || "";
+      const text = composeRejectionMessage(code, reason, l);
       return reviewerId
         ? { title: dt(l, "notif_rejected_title"), message: dt(l, "notif_rejected_msg", { mission: title, reason: text }) }
         : { title: dt(l, "notif_ai_rejected_title"), message: dt(l, "notif_ai_rejected_msg", { mission: title, reason: text }) };
@@ -701,11 +733,13 @@ export function approveSubmission(submissionId: string): Result {
 export function rejectSubmission(submissionId: string, reason: string, code: RejectionCode | null = null): Result {
   const reviewer = me();
   if (!canModerate(reviewer)) return { error: "error_generic" };
-  const cleanReason = reason.trim();
-  if (cleanReason.length < 5) return { error: "reason_too_short" };
+  const cleanReason = reason.trim().slice(0, 1000);
   const sub = state.submissions.find((s) => s.id === submissionId);
   if (!sub || sub.status !== "pending") return { error: "error_generic" };
   if (sub.userId === reviewer.id) return { error: "own_submission_warning" };
+  // Same rule as the server: a flagged internet copy needs the moderator's own explanation.
+  const invalid = validateRejection({ flagged: isInternetCopyFlag(sub.aiReasonCode), text: cleanReason });
+  if (invalid) return { error: invalid === "explanation_required" ? "internet_explain_required" : "reason_too_short" };
   commit((s) => applyRejection(s, sub.id, reviewer.id, code, cleanReason));
   return {};
 }
@@ -855,8 +889,45 @@ export function setUserBan(userId: string, banned: boolean, reason?: string): Re
   if (!isAdmin(admin) || admin.id === userId) return { error: "error_generic" };
   commit((s) => ({
     ...s,
-    users: s.users.map((u) => (u.id === userId ? { ...u, isBanned: banned, banReason: banned ? reason?.trim() || null : null } : u)),
+    users: s.users.map((u) =>
+      u.id === userId
+        ? {
+            ...u,
+            isBanned: banned,
+            banReason: banned ? reason?.trim() || null : null,
+            bannedAt: banned ? now() : null,
+            banAppealMessage: null,
+            banAppealedAt: null,
+          }
+        : u,
+    ),
   }));
+  return {};
+}
+
+/** Minimum length of a block appeal (like lib/actions/ban-appeal.ts). */
+export const BAN_APPEAL_MIN = 20;
+
+/**
+ * Appeal of a blocked account, sent from the "account blocked" screen (no session, like the
+ * server). One appeal per block; the admins are alerted.
+ */
+export function appealBan(userId: string, message: string): Result {
+  const text = message.trim().slice(0, 1500);
+  const user = userById(userId);
+  if (!user || !user.isBanned || user.deletedAt) return { error: "error_generic" };
+  if (user.banAppealedAt) return { error: "error_generic" };
+  if (text.length < BAN_APPEAL_MIN) return { error: "banned_appeal_too_short" };
+  commit((s) => {
+    const next: State = { ...s, users: s.users.map((u) => (u.id === userId ? { ...u, banAppealMessage: text, banAppealedAt: now() } : u)) };
+    return {
+      ...next,
+      notifications: notifyStaff(next, ["admin"], (l) => ({
+        title: t(l, "staff_ban_appeal_title"),
+        message: tf(l, "staff_ban_appeal_message", { name: user.name }),
+      })),
+    };
+  });
   return {};
 }
 

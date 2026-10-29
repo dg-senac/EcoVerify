@@ -13,6 +13,9 @@ export function UsersTab({
     createdAt: Date;
     isBanned: boolean;
     banReason: string | null;
+    bannedAt: Date | null;
+    banAppealMessage: string | null;
+    banAppealedAt: Date | null;
   }[];
   currentUserId: string;
 }) {

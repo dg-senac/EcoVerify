@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { approveSubmissionAction, retryAiVerificationAction, type ModerationActionState } from "@/lib/actions/moderation";
 import { AiPanel, type AiPanelData } from "@/components/moderation/ai-panel";
-import { isRejectionCode, rejectionReasonText } from "@/lib/ai/decision";
+import { isInternetCopyFlag, isRejectionCode, rejectionReasonText } from "@/lib/ai/decision";
 import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { RejectModal } from "@/components/moderation/reject-modal";
@@ -92,6 +92,7 @@ export function ModerationCard({
           <AiPanel
             lang={lang}
             data={submission}
+            photoUrl={submission.photoUrl}
             action={
               canRetryAi && (
                 <form action={retryAction}>
@@ -131,7 +132,14 @@ export function ModerationCard({
               <RejectModal
                 lang={lang}
                 submissionId={submission.id}
-                suggestedCode={submission.aiVerdict === "reject" && isRejectionCode(submission.aiReasonCode) ? submission.aiReasonCode : null}
+                flagged={isInternetCopyFlag(submission.aiReasonCode)}
+                suggestedCode={
+                  isInternetCopyFlag(submission.aiReasonCode)
+                    ? "internet_copy"
+                    : submission.aiVerdict === "reject" && isRejectionCode(submission.aiReasonCode)
+                      ? submission.aiReasonCode
+                      : null
+                }
                 onDone={() => {}}
               />
             </div>

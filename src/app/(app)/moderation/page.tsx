@@ -52,8 +52,12 @@ export default async function ModerationPage() {
       .innerJoin(missions, eq(submissions.missionId, missions.id))
       .innerJoin(users, eq(submissions.userId, users.id))
       .where(eq(submissions.status, "pending"))
-      // Appeals first, then oldest first.
-      .orderBy(sql`${submissions.appealedAt} is null`, asc(submissions.submittedAt)),
+      // Appeals first, then possible copies from the internet, then oldest first.
+      .orderBy(
+        sql`${submissions.appealedAt} is null`,
+        sql`${submissions.aiReasonCode} is distinct from 'internet_copy'`,
+        asc(submissions.submittedAt),
+      ),
     db
       .select({
         id: submissions.id,

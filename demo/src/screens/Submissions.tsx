@@ -5,7 +5,7 @@ import { formatDate } from "@/lib/utils";
 import { Link } from "../router";
 import { dt, errorText } from "../i18n";
 import { appealSubmission, localizedTitle, useLang, useStore, type User } from "../store";
-import { rejectionReasonText } from "@/lib/ai/decision";
+import { composeRejectionMessage } from "@/lib/ai/decision";
 import { EmptyState, PageHeader, StatusBadge, card, toast } from "../components/ui";
 import { PhotoViewer } from "../components/PhotoViewer";
 import { FoneAmount } from "@/components/brand/fone";
@@ -63,7 +63,7 @@ export function SubmissionsScreen({ user }: { user: User }) {
                   )}
                   {sub.status === "rejected" && (
                     <div className="mt-2 rounded-xl bg-red-50 p-2.5 text-xs text-red-700">
-                      <b>{dt(lang, "rejection_reason")}:</b> {rejectionReasonText(sub.rejectionCode ?? null, lang) ?? sub.rejectionReason}
+                      <b>{dt(lang, "rejection_reason")}:</b> {composeRejectionMessage(sub.rejectionCode ?? null, sub.rejectionReason ?? "", lang)}
                       {mission?.isActive && !hasOpen(sub.missionId) && (
                         <Link to={`/missions/${sub.missionId}/submit`} className="mt-2 flex w-fit items-center gap-1 font-bold text-red-800 underline">
                           <RotateCcw className="h-3.5 w-3.5" /> {t(lang, "send_proof")}

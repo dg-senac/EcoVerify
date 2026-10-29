@@ -167,7 +167,10 @@ export async function banUserAction(_prev: AdminActionState, formData: FormData)
   if (!reason) return { error: "reason_required" };
 
   await db.transaction(async (tx) => {
-    await tx.update(users).set({ isBanned: true, banReason: reason }).where(eq(users.id, userId));
+    await tx
+      .update(users)
+      .set({ isBanned: true, banReason: reason.slice(0, 1000), bannedAt: new Date(), banAppealMessage: null, banAppealedAt: null })
+      .where(eq(users.id, userId));
     // Log the user out everywhere immediately.
     await tx.delete(sessions).where(eq(sessions.userId, userId));
   });
@@ -179,7 +182,10 @@ export async function banUserAction(_prev: AdminActionState, formData: FormData)
 export async function unbanUserAction(userId: string) {
   const admin = await assertAdmin();
   if (admin.id === userId) return;
-  await db.update(users).set({ isBanned: false, banReason: null }).where(and(eq(users.id, userId), isNull(users.deletedAt)));
+  await db
+    .update(users)
+    .set({ isBanned: false, banReason: null, bannedAt: null, banAppealMessage: null, banAppealedAt: null })
+    .where(and(eq(users.id, userId), isNull(users.deletedAt)));
   revalidatePath("/admin");
 }
 

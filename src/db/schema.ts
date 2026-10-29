@@ -76,6 +76,10 @@ export const users = pgTable("users", {
   adultDeclaredAt: timestamp("adult_declared_at", { withTimezone: true }),
   isBanned: boolean("is_banned").notNull().default(false),
   banReason: text("ban_reason"),
+  bannedAt: timestamp("banned_at", { withTimezone: true }),
+  /** One appeal per ban: the blocked person's explanation, read by the admins. */
+  banAppealMessage: text("ban_appeal_message"),
+  banAppealedAt: timestamp("ban_appealed_at", { withTimezone: true }),
   /** E-mail ownership confirmed through the link sent by e-mail. */
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   /** LGPD: when and which version of the Terms of Use / Privacy Policy was accepted. */
@@ -99,9 +103,13 @@ export const users = pgTable("users", {
   index("users_pending_wallet_idx").on(table.pendingWalletAddress),
 ]);
 
-export const authTokenPurposeEnum = pgEnum("auth_token_purpose", ["verify_email", "reset_password"]);
+export const authTokenPurposeEnum = pgEnum("auth_token_purpose", ["verify_email", "reset_password", "ban_appeal"]);
 
-/** One-time tokens sent by e-mail. Only the SHA-256 of the token is stored. */
+/**
+ * One-time tokens sent by e-mail (or, for "ban_appeal", handed to a blocked user who typed the
+ * right password, so they can read the reason and appeal without getting a session).
+ * Only the SHA-256 of the token is stored.
+ */
 export const authTokens = pgTable("auth_tokens", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")

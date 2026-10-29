@@ -9,6 +9,7 @@ import { headers } from "next/headers";
 import { createSession, destroySession, hashPassword, verifyPassword } from "@/lib/auth";
 import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
 import { sendVerificationEmail } from "@/lib/account-email";
+import { createAuthToken } from "@/lib/auth-tokens";
 import { TERMS_VERSION } from "@/lib/legal";
 
 export type ActionState = { error?: string; success?: boolean };
@@ -49,7 +50,9 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   resetRateLimit(emailKey);
 
   if (user.isBanned) {
-    return { error: "banned" };
+    // No session: a short-lived token only lets the person read the reason and appeal.
+    const token = await createAuthToken(user.id, "ban_appeal");
+    redirect(`/conta-bloqueada?t=${token}`);
   }
 
   await createSession(user.id);

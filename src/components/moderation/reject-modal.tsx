@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { rejectSubmissionAction, type ModerationActionState } from "@/lib/actions/moderation";
 import { t, type Lang } from "@/lib/i18n";
-import { REJECTION_CODES, REJECTION_REASONS, type RejectionCode } from "@/lib/ai/decision";
+import { INTERNET_COPY_MIN_EXPLANATION, ownWords, REJECTION_CODES, REJECTION_REASONS, type RejectionCode } from "@/lib/ai/decision";
 
 const initialState: ModerationActionState = {};
 
@@ -11,20 +11,26 @@ export function RejectModal({
   lang,
   submissionId,
   suggestedCode = null,
+  flagged = false,
   onDone,
 }: {
   lang: Lang;
   submissionId: string;
+  /**
+   * Flagged by the AI as a possible copy from the internet: the reason chips only pick the reason
+   * and the moderator must write the explanation in their own words.
+   */
+  flagged?: boolean;
   /** Reason suggested by the automatic verification, pre-selected. */
   suggestedCode?: RejectionCode | null;
   onDone: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState<RejectionCode | null>(suggestedCode);
-  const [reason, setReason] = useState(suggestedCode ? REJECTION_REASONS[suggestedCode][lang] : "");
+  const [reason, setReason] = useState(suggestedCode && !flagged ? REJECTION_REASONS[suggestedCode][lang] : "");
   const pickCode = (value: RejectionCode) => {
     setCode(value);
-    setReason(REJECTION_REASONS[value][lang]);
+    if (!flagged) setReason(REJECTION_REASONS[value][lang]);
   };
   const [state, formAction, pending] = useActionState(
     async (prev: ModerationActionState, formData: FormData) => {
@@ -39,6 +45,10 @@ export function RejectModal({
   );
 
   const tooShort = reason.length > 0 && reason.length < 5;
+  const ownLength = ownWords(reason).length;
+  const needsMore = flagged && ownLength < INTERNET_COPY_MIN_EXPLANATION;
+  // Flagged proofs always keep the chosen reason code (the text is the moderator's explanation).
+  const codeToSend = flagged ? (code ?? "") : code && reason === REJECTION_REASONS[code][lang] ? code : "";
 
   return (
     <>
@@ -56,7 +66,12 @@ export function RejectModal({
             <h3 className="text-lg font-bold text-slate-900">{t(lang, "rejection_reason_title")}</h3>
             <form action={formAction} className="mt-4 space-y-3">
               <input type="hidden" name="submissionId" value={submissionId} />
-              <input type="hidden" name="reasonCode" value={code && reason === REJECTION_REASONS[code][lang] ? code : ""} />
+              <input type="hidden" name="reasonCode" value={codeToSend} />
+              {flagged && (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
+                  ⚠️ {t(lang, "internet_explain_required")}
+                </p>
+              )}
               <div>
                 <p className="mb-1.5 text-xs font-semibold text-slate-500">{t(lang, "reject_quick_reasons")}</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -74,17 +89,36 @@ export function RejectModal({
                   ))}
                 </div>
               </div>
+              {flagged && (
+                <>
+                  {code && <p className="text-xs text-slate-600">{REJECTION_REASONS[code][lang]}</p>}
+                  <label htmlFor={`reason-${submissionId}`} className="block text-xs font-bold text-slate-700">
+                    {t(lang, "internet_explain_label")}
+                  </label>
+                </>
+              )}
               <textarea
+                id={`reason-${submissionId}`}
                 name="reason"
                 required
-                minLength={5}
+                minLength={flagged ? INTERNET_COPY_MIN_EXPLANATION : 5}
+                maxLength={1000}
                 rows={4}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Explique por que a comprovação está sendo rejeitada..."
+                placeholder={flagged ? t(lang, "internet_explain_placeholder") : "Explique por que a comprovação está sendo rejeitada..."}
+                data-testid="reject-reason"
                 className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
               />
-              {tooShort && <p className="text-xs font-medium text-amber-600">Escreva pelo menos 5 caracteres.</p>}
+              {tooShort && !flagged && <p className="text-xs font-medium text-amber-600">Escreva pelo menos 5 caracteres.</p>}
+              {flagged && reason.length > 0 && needsMore && (
+                <p className="text-xs font-medium text-amber-600">
+                  {ownLength}/{INTERNET_COPY_MIN_EXPLANATION}
+                </p>
+              )}
+              {state.error === "explanation_required" && (
+                <p className="text-xs font-medium text-red-500">{t(lang, "internet_explain_required")}</p>
+              )}
               {state.error === "reason_too_short" && (
                 <p className="text-xs font-medium text-red-500">Motivo muito curto. Tente novamente.</p>
               )}
@@ -98,7 +132,7 @@ export function RejectModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={pending}
+                  disabled={pending || needsMore}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-70"
                 >
                   {pending && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}

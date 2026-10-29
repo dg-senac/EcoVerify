@@ -97,11 +97,15 @@ export default async function AdminPage() {
       createdAt: users.createdAt,
       isBanned: users.isBanned,
       banReason: users.banReason,
+      bannedAt: users.bannedAt,
+      banAppealMessage: users.banAppealMessage,
+      banAppealedAt: users.banAppealedAt,
     })
     .from(users)
     // Accounts deleted by their owner are anonymised records, not people to manage.
     .where(isNull(users.deletedAt))
-    .orderBy(desc(users.totalPoints));
+    // Blocked people waiting for an answer to their appeal come first.
+    .orderBy(sql`${users.banAppealedAt} is null or not ${users.isBanned}`, desc(users.totalPoints));
 
   const { treasury, explorerUrl } = getFoneConfig();
 

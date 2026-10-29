@@ -9,7 +9,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { membershipRole } from "@/lib/saas/orgs";
 import { canManage } from "@/lib/saas/org-rules";
 import { approveSubmission, rejectSubmission } from "@/lib/review";
-import { isRejectionCode, REJECTION_REASONS } from "@/lib/ai/decision";
+import { isInternetCopyFlag, isRejectionCode, REJECTION_REASONS, validateRejection } from "@/lib/ai/decision";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
 
 export type ModerationActionState = { error?: string; success?: boolean };
@@ -86,17 +86,18 @@ export async function rejectSubmissionAction(
   const moderator = await assertReviewer(submissionId);
   const codeInput = String(formData.get("reasonCode") ?? "");
   const code = isRejectionCode(codeInput) ? codeInput : null;
-  const reason = String(formData.get("reason") ?? "").trim() || (code ? REJECTION_REASONS[code].pt : "");
-
-  if (reason.length < 5) {
-    return { error: "reason_too_short" };
-  }
-  if (!submissionId) return { error: "not_found" };
+  const typed = String(formData.get("reason") ?? "").trim().slice(0, 1000);
 
   const [submission] = await db.select().from(submissions).where(eq(submissions.id, submissionId)).limit(1);
   if (!submission) return { error: "not_found" };
   if (submission.status !== "pending") return { error: "already_reviewed" };
   if (submission.userId === moderator.id) return { error: "own_submission" };
+
+  // A proof flagged as a possible internet copy needs the moderator's own explanation.
+  const flagged = isInternetCopyFlag(submission.aiReasonCode);
+  const reason = typed || (code && !flagged ? REJECTION_REASONS[code].pt : "");
+  const invalid = validateRejection({ flagged, text: reason });
+  if (invalid) return { error: invalid };
 
   const rejected = await rejectSubmission(submissionId, { kind: "human", userId: moderator.id }, { code, text: reason });
   if (!rejected) return { error: "already_reviewed" };

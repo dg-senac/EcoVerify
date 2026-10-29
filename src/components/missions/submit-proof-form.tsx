@@ -160,6 +160,9 @@ export function SubmitProofForm({
                 required
               />
             </label>
+            <p className="flex items-start gap-1.5 text-xs text-slate-500" data-testid="internet-warning">
+              <span aria-hidden="true">🔎</span> {t(lang, "submit_internet_warning")}
+            </p>
           </div>
 
           <div className="space-y-2">

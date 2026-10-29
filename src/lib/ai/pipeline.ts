@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, isNotNull, ne, or } from "drizzle-orm";
 import { db } from "@/db";
-import { aiSettings, missions, submissions } from "@/db/schema";
+import { aiSettings, missions, submissions, users } from "@/db/schema";
 import {
   decideProof,
   DEFAULT_AI_SETTINGS,
@@ -14,6 +14,8 @@ import {
 import { analyzeProofWithGemini, AiUnavailableError, geminiApiKey } from "@/lib/ai/gemini";
 import { hammingDistance, photoForAi } from "@/lib/ai/photo";
 import { approveSubmission, rejectSubmission } from "@/lib/review";
+import { notifyStaff } from "@/lib/staff-alerts";
+import { t, tf } from "@/lib/i18n";
 import { FILES_ROUTE_PREFIX, isValidStoragePath, readStoredFile } from "@/lib/storage";
 
 export async function getAiSettings(): Promise<AiSettingsValues> {
@@ -136,6 +138,19 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
       aiError,
     })
     .where(and(eq(submissions.id, submissionId), eq(submissions.status, "pending")));
+
+  // Possible copy from the internet: the staff is alerted (once, not again on a retry).
+  if (decision.reasonCode === "internet_copy" && submission.aiReasonCode !== "internet_copy") {
+    try {
+      const [author] = await db.select({ name: users.name }).from(users).where(eq(users.id, submission.userId)).limit(1);
+      await notifyStaff(["admin", "moderator"], (lang) => ({
+        title: t(lang, "staff_internet_title"),
+        message: tf(lang, "staff_internet_message", { name: author?.name ?? "?", mission: mission.title }),
+      }));
+    } catch (error) {
+      console.error(`[ai] could not alert the staff about ${submissionId}:`, (error as Error).message);
+    }
+  }
 
   if (decision.action === "approve") {
     return (await approveSubmission(submissionId, { kind: "ai" })) ? "approved" : "skipped";

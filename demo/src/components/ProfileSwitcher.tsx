@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Check, ShieldCheck, Sprout, BarChart3 } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { navigate } from "../router";
 import { dt } from "../i18n";
 import { loginAs, useLang, useStore, type User } from "../store";
 import { Avatar, Modal, toast } from "./ui";
+import { BlockedAccountModal } from "./BlockedAccount";
 
 export const roleTone: Record<User["role"], string> = {
   citizen: "from-emerald-500 to-teal-600",
@@ -22,11 +24,17 @@ export function ProfileList({ onPicked }: { onPicked?: () => void }) {
   const lang = useLang();
   const users = useSwitchableUsers();
   const currentId = useStore((s) => s.currentUserId);
+  const [blockedId, setBlockedId] = useState<string | null>(null);
 
   const pick = (user: User) => {
     const result = loginAs(user.id);
+    if (result.error === "banned") {
+      // Like the server: no session, but the person sees why and can appeal.
+      setBlockedId(user.id);
+      return;
+    }
     if (result.error) {
-      toast(t(lang, result.error === "banned" ? "banned_error" : "error_generic"), "error");
+      toast(t(lang, "error_generic"), "error");
       return;
     }
     onPicked?.();
@@ -62,6 +70,7 @@ export function ProfileList({ onPicked }: { onPicked?: () => void }) {
           </button>
         );
       })}
+      {blockedId && <BlockedAccountModal userId={blockedId} onClose={() => setBlockedId(null)} />}
     </div>
   );
 }

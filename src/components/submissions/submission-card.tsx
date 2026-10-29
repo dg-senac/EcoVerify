@@ -1,6 +1,6 @@
 import { categoryEmoji, t, type Lang } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
-import { rejectionReasonText } from "@/lib/ai/decision";
+import { composeRejectionMessage } from "@/lib/ai/decision";
 import { AppealForm } from "@/components/submissions/appeal-form";
 
 const statusStyles: Record<string, { bg: string; text: string; dot: string }> = {
@@ -45,8 +45,10 @@ export function SubmissionCard({
           : submission.aiStatus === "queued"
             ? "status_ai_checking"
             : "status_pending";
-  // Catalogued reasons are shown in the user's language.
-  const reasonText = rejectionReasonText(submission.rejectionCode, lang) ?? submission.rejectionReason;
+  // Catalogued reasons are shown in the user's language, plus the moderator's own explanation.
+  const reasonText = submission.rejectionReason || submission.rejectionCode
+    ? composeRejectionMessage(submission.rejectionCode, submission.rejectionReason ?? "", lang)
+    : null;
 
   return (
     <div className="card-surface flex flex-col gap-4 rounded-2xl border border-black/5 bg-white p-4 shadow-[0_10px_24px_rgba(16,24,40,0.05)] animate-slide-up sm:flex-row">
