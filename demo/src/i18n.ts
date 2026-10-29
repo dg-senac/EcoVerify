@@ -293,6 +293,12 @@ const demoDict = {
   ban: { pt: "Banir", en: "Ban", es: "Bloquear" },
   unban: { pt: "Desbanir", en: "Unban", es: "Desbloquear" },
   banned_label: { pt: "BANIDO", en: "BANNED", es: "BLOQUEADO" },
+  suspended_label: { pt: "SUSPENSO", en: "SUSPENDED", es: "SUSPENDIDO" },
+  payout_account_restricted: {
+    pt: "Conta suspensa ou bloqueada: o FONE fica congelado (guardado) até a situação ser resolvida.",
+    en: "Account suspended or blocked: FONE stays frozen (kept) until this is resolved.",
+    es: "Cuenta suspendida o bloqueada: el FONE queda congelado (guardado) hasta que se resuelva.",
+  },
   ban_reason_prompt: { pt: "Motivo do banimento:", en: "Ban reason:", es: "Motivo del bloqueo:" },
   reward_pending: { pt: "Pendente", en: "Pending", es: "Pendiente" },
   reward_paid: { pt: "Pago", en: "Paid", es: "Pagado" },

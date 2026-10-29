@@ -3,7 +3,8 @@ import { Check, ShieldCheck, Sprout, BarChart3 } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { navigate } from "../router";
 import { dt } from "../i18n";
-import { loginAs, useLang, useStore, type User } from "../store";
+import { loginAs, moderatorsOn, useLang, useStore, type User } from "../store";
+import { isSuspended } from "@/lib/cards";
 import { Avatar, Modal, toast } from "./ui";
 import { BlockedAccountModal } from "./BlockedAccount";
 
@@ -28,7 +29,7 @@ export function ProfileList({ onPicked }: { onPicked?: () => void }) {
 
   const pick = (user: User) => {
     const result = loginAs(user.id);
-    if (result.error === "banned") {
+    if (result.error === "banned" || result.error === "suspended") {
       // Like the server: no session, but the person sees why and can appeal.
       setBlockedId(user.id);
       return;
@@ -38,7 +39,7 @@ export function ProfileList({ onPicked }: { onPicked?: () => void }) {
       return;
     }
     onPicked?.();
-    navigate(user.role === "citizen" ? "/missions" : user.role === "moderator" ? "/moderation" : "/admin", { replace: true });
+    navigate(user.role === "admin" ? "/admin" : user.role === "moderator" && moderatorsOn() ? "/moderation" : "/missions", { replace: true });
   };
 
   return (
@@ -53,13 +54,16 @@ export function ProfileList({ onPicked }: { onPicked?: () => void }) {
             onClick={() => pick(user)}
             className={`flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition hover:-translate-y-0.5 hover:shadow-md ${
               user.id === currentId ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"
-            } ${user.isBanned ? "opacity-60" : ""}`}
+            } ${user.isBanned || isSuspended(user.suspendedUntil) ? "opacity-60" : ""}`}
           >
             <Avatar name={user.name} size={44} tone={roleTone[user.role]} />
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate font-semibold text-slate-900">
                 {user.name}
                 {user.isBanned && <span className="rounded bg-red-100 px-1.5 text-[10px] font-bold text-red-700">{dt(lang, "banned_label")}</span>}
+                {!user.isBanned && isSuspended(user.suspendedUntil) && (
+                  <span className="rounded bg-amber-100 px-1.5 text-[10px] font-bold text-amber-800">{dt(lang, "suspended_label")}</span>
+                )}
               </p>
               <p className="flex items-center gap-1 text-xs font-semibold text-slate-500">
                 <Icon className="h-3.5 w-3.5" /> {dt(lang, roleKey)}

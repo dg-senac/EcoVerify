@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight, Minus, Play, X } from "lucide-react";
 import type { Lang } from "@/lib/i18n";
 import { regionFromMunicipality } from "@/lib/region";
-import { getState, loginAs, setRegion, submitProof, useLang } from "../store";
+import { getState, loginAs, moderatorsOn, setRegion, submitProof, useLang } from "../store";
 import { DEMO_IDS } from "../seed";
 import { navigate } from "../router";
 import { drawSamplePhoto } from "../demoAi";
@@ -77,12 +77,13 @@ const STEPS: Step[] = [
   {
     title: { pt: "3. Moderação", en: "3. Moderation", es: "3. Moderación" },
     text: {
-      pt: "Carlos (moderador) recebe os casos duvidosos e as contestações, já com a sugestão da IA, a foto, o relato e a distância até o local. Ele aprova ou rejeita com um motivo padronizado.",
-      en: "Carlos (moderator) gets the doubtful cases and the appeals, with the AI suggestion, photo, report and distance to the place. He approves or rejects with a standard reason.",
-      es: "Carlos (moderador) recibe los casos dudosos y las apelaciones, con la sugerencia de la IA, la foto, el relato y la distancia al lugar. Aprueba o rechaza con un motivo estándar.",
+      pt: "Carlos (moderador) recebe os casos duvidosos e as contestações, já com a sugestão da IA, a foto, o relato e a distância até o local. Ele aprova ou rejeita com um motivo padronizado e, se foi tentativa de trapaça, pode dar cartão amarelo (3 amarelos = 14 dias de suspensão). No app real a moderação começa só com o admin; moderadores são liberados por ele.",
+      en: "Carlos (moderator) gets the doubtful cases and the appeals, with the AI suggestion, photo, report and distance to the place. He approves or rejects with a standard reason and, if it was an attempt to cheat, can give a yellow card (3 yellows = 14-day suspension). In the real app moderation starts admin-only; the admin can turn moderators on.",
+      es: "Carlos (moderador) recibe los casos dudosos y las apelaciones, con la sugerencia de la IA, la foto, el relato y la distancia al lugar. Aprueba o rechaza con un motivo estándar y, si fue un intento de trampa, puede dar tarjeta amarilla (3 amarillas = 14 días de suspensión). En la app real la moderación empieza solo con el admin; él puede habilitar moderadores.",
     },
     run: () => {
-      loginAs(DEMO_IDS.moderator);
+      // If Ana turned moderators off, the admin reviews (like the real app by default).
+      loginAs(moderatorsOn() ? DEMO_IDS.moderator : DEMO_IDS.admin);
       navigate("/moderation");
     },
   },

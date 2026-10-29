@@ -2,11 +2,11 @@ import { useState, type ReactNode } from "react";
 import { FlaskConical, LogOut, Menu, X, Users } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { PoweredByFone } from "@/components/brand/fone";
-import { NAV_ITEMS } from "@/lib/nav";
+import { navItemsFor } from "@/lib/nav";
 import { t } from "@/lib/i18n";
 import { Link, useRoute } from "../router";
 import { dt } from "../i18n";
-import { logout, useLang, useStore, type User } from "../store";
+import { logout, moderatorsOn, useLang, useStore, type User } from "../store";
 import { Avatar } from "./ui";
 import { ProfileSwitcher } from "./ProfileSwitcher";
 
@@ -34,7 +34,8 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const unread = useStore((s) => s.notifications.filter((n) => n.userId === user.id && !n.isRead).length);
   const pendingReview = useStore((s) => s.submissions.filter((x) => x.status === "pending" && x.userId !== user.id).length);
 
-  const items = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
+  const moderatorsEnabled = useStore((s) => moderatorsOn(s));
+  const items = navItemsFor(user.role, moderatorsEnabled);
   const primaryMobile = items.filter((item) => MOBILE_PRIMARY.includes(item.href)).slice(0, 4);
   const isActive = (href: string) => path === href || path.startsWith(href + "/");
 

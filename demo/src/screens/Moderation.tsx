@@ -18,6 +18,7 @@ import {
   rejectionReasonText,
   type RejectionCode,
 } from "@/lib/ai/decision";
+import { CARDABLE_REJECTIONS } from "@/lib/cards";
 
 export function ModerationScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -29,6 +30,7 @@ export function ModerationScreen({ user }: { user: User }) {
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [reasonCode, setReasonCode] = useState<RejectionCode | null>(null);
+  const [giveCard, setGiveCard] = useState(false);
 
   // Appeals first (a person must answer them), then possible internet copies, then oldest first.
   const pending = submissions
@@ -53,12 +55,14 @@ export function ModerationScreen({ user }: { user: User }) {
     if (isInternetCopyFlag(sub?.aiReasonCode)) {
       setRejecting(id);
       setReasonCode("internet_copy");
+      setGiveCard(false);
       setReason("");
       setReasonError(null);
       return;
     }
     const suggested = sub?.aiVerdict === "reject" && isRejectionCode(sub.aiReasonCode) ? sub.aiReasonCode : null;
     setRejecting(id);
+    setGiveCard(false);
     setReasonCode(suggested);
     setReason(suggested ? (rejectionReasonText(suggested, lang) ?? "") : "");
     setReasonError(null);
@@ -77,7 +81,8 @@ export function ModerationScreen({ user }: { user: User }) {
   const confirmReject = () => {
     if (!rejecting) return;
     const preset = reasonCode && reason.trim() === (rejectionReasonText(reasonCode, lang) ?? "").trim();
-    const result = rejectSubmission(rejecting, reason, flagged || preset ? reasonCode : null);
+    const cardable = !!reasonCode && CARDABLE_REJECTIONS.has(reasonCode);
+    const result = rejectSubmission(rejecting, reason, flagged || preset ? reasonCode : null, giveCard && cardable);
     if (result.error) return setReasonError(errorText(lang, result.error));
     toast(t(lang, "status_rejected"));
     setRejecting(null);
@@ -248,6 +253,21 @@ export function ModerationScreen({ user }: { user: User }) {
               </button>
             ))}
           </div>
+          {reasonCode && CARDABLE_REJECTIONS.has(reasonCode) && (
+            <label className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <input
+                type="checkbox"
+                checked={giveCard}
+                onChange={(e) => setGiveCard(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-amber-500"
+                data-testid="give-card"
+              />
+              <span>
+                <span className="font-bold">{t(lang, "card_give_label")}</span>
+                <span className="mt-0.5 block text-amber-800">{t(lang, "card_give_hint")}</span>
+              </span>
+            </label>
+          )}
           {flagged && reason.length > 0 && ownLength < INTERNET_COPY_MIN_EXPLANATION && (
             <p className="mt-2 text-xs font-medium text-amber-600">{ownLength}/{INTERNET_COPY_MIN_EXPLANATION}</p>
           )}

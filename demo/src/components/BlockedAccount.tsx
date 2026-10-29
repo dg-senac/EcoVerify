@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { t, tf } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
+import { isSuspended } from "@/lib/cards";
 import { errorText } from "../i18n";
 import { appealBan, BAN_APPEAL_MIN, useLang, useStore } from "../store";
 import { Modal, btnPrimary } from "./ui";
@@ -15,6 +16,8 @@ export function BlockedAccountModal({ userId, onClose }: { userId: string; onClo
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   if (!user) return null;
+  // Suspended (3rd yellow card) or blocked (ban / red card): same screen, different texts.
+  const suspended = !user.isBanned && isSuspended(user.suspendedUntil);
 
   const send = () => {
     const result = appealBan(user.id, message);
@@ -23,13 +26,18 @@ export function BlockedAccountModal({ userId, onClose }: { userId: string; onClo
   const short = message.trim().length < BAN_APPEAL_MIN;
 
   return (
-    <Modal title={`🚫 ${t(lang, "banned_title")}`} onClose={onClose}>
-      <div data-testid="banned-screen">
-        <p className="text-sm text-slate-500">{t(lang, "banned_intro")}</p>
+    <Modal title={suspended ? `🟨 ${t(lang, "suspended_title")}` : `🚫 ${t(lang, "banned_title")}`} onClose={onClose}>
+      <div data-testid={suspended ? "suspended-screen" : "banned-screen"}>
+        <p className="text-sm text-slate-500">{t(lang, suspended ? "suspended_intro" : "banned_intro")}</p>
         <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
           <p className="text-xs font-bold uppercase tracking-wide text-red-700">{t(lang, "banned_reason")}</p>
-          <p className="mt-1" data-testid="banned-reason">{user.banReason || t(lang, "banned_no_reason")}</p>
-          {user.bannedAt && (
+          <p className="mt-1" data-testid="banned-reason">{(suspended ? user.suspensionReason : user.banReason) || t(lang, "banned_no_reason")}</p>
+          {suspended && user.suspendedUntil && (
+            <p className="mt-2 text-sm font-bold text-red-800" data-testid="suspended-until">
+              {t(lang, "suspended_until")}: {formatDate(user.suspendedUntil, lang)}
+            </p>
+          )}
+          {!suspended && user.bannedAt && (
             <p className="mt-2 text-xs text-red-700">
               {t(lang, "banned_since")}: {formatDate(user.bannedAt, lang)}
             </p>
