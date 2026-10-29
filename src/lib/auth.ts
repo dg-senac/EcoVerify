@@ -1,4 +1,5 @@
 import "server-only";
+import { isSeedEmail, seedAccountsAllowed } from "@/lib/staff-config";
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -67,6 +68,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   }
   // Banned users lose access to every page and server action immediately.
   if (row.user.isBanned) return null;
+  // Seed accounts (known password) are switched off in production, even with an old session.
+  if (isSeedEmail(row.user.email) && !seedAccountsAllowed()) return null;
   // Suspended (3rd yellow card) until the date passes: same as blocked, but temporary.
   if (row.user.suspendedUntil && row.user.suspendedUntil.getTime() > Date.now()) return null;
 

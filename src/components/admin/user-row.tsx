@@ -14,10 +14,18 @@ import { CardBadges, UserSheet, type UserDetails } from "@/components/admin/user
 
 const initialState: AdminActionState = {};
 
+const ADMIN_GUARD_TEXT: Record<string, string> = {
+  owner_protected: "Conta do dono (ADMIN_EMAILS): não pode ser rebaixada nem bloqueada pelo painel.",
+  last_admin: "É o último administrador ativo: promova outra conta antes.",
+  admin_reserved: "Com ADMIN_EMAILS definido, só esses e-mails podem ser administradores.",
+};
+
 export function UserRow({
   user,
   currentUserId,
   details,
+  isOwner = false,
+  canBeAdmin = true,
 }: {
   user: {
     id: string;
@@ -37,6 +45,10 @@ export function UserRow({
   };
   currentUserId: string;
   details?: UserDetails;
+  /** Owner account (ADMIN_EMAILS): can't be demoted, banned or carded from the panel. */
+  isOwner?: boolean;
+  /** With ADMIN_EMAILS set, only those accounts can be made admin. */
+  canBeAdmin?: boolean;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const suspended = isSuspended(user.suspendedUntil);
@@ -45,6 +57,7 @@ export function UserRow({
   const [contactOpen, setContactOpen] = useState(false);
   const [banOpen, setBanOpen] = useState(false);
   const isSelf = user.id === currentUserId;
+  const [roleError, setRoleError] = useState<string | null>(null);
 
   const [contactState, contactFormAction, contactPending] = useActionState(
     async (prev: AdminActionState, formData: FormData) => {
@@ -68,6 +81,11 @@ export function UserRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-semibold text-slate-800">{user.name}</p>
+          {isOwner && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800" title="ADMIN_EMAILS" data-testid="owner-badge">
+              👑 DONO
+            </span>
+          )}
           {user.isBanned && (
             <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">BANIDO</span>
           )}
@@ -94,18 +112,29 @@ export function UserRow({
         <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">⭐ {user.totalPoints}</span>
         <select
           value={role}
-          disabled={isSelf || isPending}
+          disabled={isSelf || isOwner || isPending}
           onChange={(e) => {
             const newRole = e.target.value as typeof role;
+            const previous = role;
             setRole(newRole);
-            startTransition(() => updateUserRoleAction(user.id, newRole));
+            setRoleError(null);
+            startTransition(async () => {
+              const result = await updateUserRoleAction(user.id, newRole);
+              if (result.error) {
+                setRole(previous);
+                setRoleError(ADMIN_GUARD_TEXT[result.error] ?? "Não foi possível mudar o papel.");
+              }
+            });
           }}
           className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-50"
         >
           <option value="citizen">Cidadão</option>
           <option value="moderator">Moderador</option>
-          <option value="admin">Administrador</option>
+          <option value="admin" disabled={!canBeAdmin && role !== "admin"}>
+            Administrador{!canBeAdmin && role !== "admin" ? " (reservado)" : ""}
+          </option>
         </select>
+        {roleError && <span className="text-xs font-medium text-red-600">{roleError}</span>}
       </div>
 
       <div className="flex gap-2">
@@ -138,7 +167,7 @@ export function UserRow({
         ) : (
           <button
             type="button"
-            disabled={isSelf}
+            disabled={isSelf || isOwner}
             onClick={() => setBanOpen(true)}
             className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40"
           >
@@ -209,6 +238,7 @@ export function UserRow({
                 placeholder="Motivo do banimento..."
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
               />
+              {banState.error && ADMIN_GUARD_TEXT[banState.error] && <p className="text-xs font-medium text-red-600">{ADMIN_GUARD_TEXT[banState.error]}</p>}
               {banState.error === "reason_required" && (
                 <p className="text-xs font-medium text-red-500">Informe um motivo.</p>
               )}

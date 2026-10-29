@@ -10,7 +10,7 @@ import { orgPlan } from "@/lib/saas/org-rules";
 import { municipalityByIbge } from "@/lib/municipalities";
 import { formatDate } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth";
-import { moderatorsEnabled } from "@/lib/staff-config";
+import { adminEmails, isOwnerEmail, isSeedEmail, moderatorsEnabled, seedAccountsAllowed } from "@/lib/staff-config";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 import { MetricsTab } from "@/components/admin/metrics-tab";
 import { MissionsTab } from "@/components/admin/missions-tab";
@@ -340,6 +340,19 @@ export default async function AdminPage() {
   };
   const businessBadge = invoiceRows.filter((i) => i.reportedAt).length;
 
+  // Admin security summary (Phase C): owner accounts, reserved admin role, seed accounts.
+  const reservedAdmin = adminEmails().length > 0;
+  const security = {
+    ownerIds: allUsers.filter((u) => isOwnerEmail(u.email)).map((u) => u.id),
+    adminEmailsCount: adminEmails().length,
+    ownersRegistered: allUsers.filter((u) => isOwnerEmail(u.email)).length,
+    reservedAdmin,
+    unlistedAdmins: reservedAdmin ? allUsers.filter((u) => u.role === "admin" && !isOwnerEmail(u.email)).map((u) => u.name) : [],
+    seedAccountsAllowed: seedAccountsAllowed(),
+    seedAccountsPresent: allUsers.some((u) => isSeedEmail(u.email)),
+    production: process.env.NODE_ENV === "production",
+  };
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">📊 Painel Administrativo</h1>
@@ -398,7 +411,7 @@ export default async function AdminPage() {
                 />
               ),
             },
-            { key: "users", label: usersBadge ? `Usuários (${usersBadge})` : "Usuários", icon: "👥", content: <UsersTab users={allUsers} currentUserId={user.id} details={userDetails} cardAppeals={cardAppeals} moderatorsEnabled={moderatorsEnabled()} /> },
+            { key: "users", label: usersBadge ? `Usuários (${usersBadge})` : "Usuários", icon: "👥", content: <UsersTab users={allUsers} currentUserId={user.id} details={userDetails} cardAppeals={cardAppeals} moderatorsEnabled={moderatorsEnabled()} security={security} /> },
             {
               key: "wallets",
               label: pendingWallets.length ? `Carteiras (${pendingWallets.length})` : "Carteiras",

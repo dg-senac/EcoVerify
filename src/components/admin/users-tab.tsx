@@ -6,6 +6,7 @@ import { keepCardAction, revokeCardAction } from "@/lib/actions/cards";
 import { CARD_REASON_LABELS, isCardReason } from "@/lib/cards";
 import { formatDate } from "@/lib/utils";
 import type { AdminCard, UserDetails } from "@/components/admin/user-sheet";
+import { SecurityPanel, type AdminSecurity } from "@/components/admin/security-panel";
 
 export function UsersTab({
   users,
@@ -13,6 +14,7 @@ export function UsersTab({
   details,
   cardAppeals,
   moderatorsEnabled = false,
+  security,
 }: {
   users: {
     id: string;
@@ -34,6 +36,7 @@ export function UsersTab({
   details: Record<string, UserDetails>;
   cardAppeals: (AdminCard & { userId: string; userName: string })[];
   moderatorsEnabled?: boolean;
+  security?: AdminSecurity;
 }) {
   const [isPending, startTransition] = useTransition();
   return (
@@ -73,6 +76,7 @@ export function UsersTab({
           </ul>
         </div>
       )}
+      {security && <SecurityPanel security={security} moderatorsEnabled={moderatorsEnabled} />}
       <h3 className="mb-1 font-bold text-slate-900">Usuários da plataforma</h3>
       <p className="mb-3 text-xs text-slate-500" data-testid="moderators-mode">
         {moderatorsEnabled
@@ -81,7 +85,14 @@ export function UsersTab({
       </p>
       <div className="space-y-2">
         {users.map((user) => (
-          <UserRow key={user.id} user={user} currentUserId={currentUserId} details={details[user.id]} />
+          <UserRow
+            key={user.id}
+            user={user}
+            currentUserId={currentUserId}
+            details={details[user.id]}
+            isOwner={!!security?.ownerIds.includes(user.id)}
+            canBeAdmin={!security?.reservedAdmin || security.ownerIds.includes(user.id)}
+          />
         ))}
       </div>
     </div>

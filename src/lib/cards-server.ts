@@ -36,11 +36,12 @@ export async function issueCard(input: IssueCardInput): Promise<{ outcome: Yello
 
   const result = await db.transaction(async (tx) => {
     const [target] = await tx
-      .select({ id: users.id, name: users.name, language: users.language, suspendedUntil: users.suspendedUntil, deletedAt: users.deletedAt })
+      .select({ id: users.id, name: users.name, role: users.role, language: users.language, suspendedUntil: users.suspendedUntil, deletedAt: users.deletedAt })
       .from(users)
       .where(eq(users.id, input.userId))
       .for("update");
-    if (!target || target.deletedAt) return null;
+    // Admins are not carded: a problem with an admin is handled by the owner, outside the panel.
+    if (!target || target.deletedAt || target.role === "admin") return null;
 
     const existing = await tx.select().from(userCards).where(eq(userCards.userId, input.userId));
     const outcome = input.type === "yellow" ? yellowOutcome(existing, target.suspendedUntil, now) : null;

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { consumeAuthToken } from "@/lib/auth-tokens";
 import { getCurrentUser } from "@/lib/auth";
+import { promoteOwnerIfNeeded } from "@/lib/admin-bootstrap";
 import { t } from "@/lib/i18n";
 
 export const metadata = { referrer: "no-referrer" as const };
@@ -17,10 +18,13 @@ export default async function VerifyEmailPage({ searchParams }: { searchParams: 
   if (token.length > 0 && token.length <= 128) {
     const userId = await consumeAuthToken(token, "verify_email");
     if (userId) {
-      await db
+      const [verified] = await db
         .update(users)
         .set({ emailVerifiedAt: new Date() })
-        .where(and(eq(users.id, userId), isNull(users.emailVerifiedAt)));
+        .where(and(eq(users.id, userId), isNull(users.emailVerifiedAt)))
+        .returning();
+      // ADMIN_EMAILS: the owner becomes admin right after confirming the e-mail.
+      if (verified) await promoteOwnerIfNeeded(verified);
       ok = true;
     }
   } else if (current?.emailVerifiedAt) {
