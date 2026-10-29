@@ -8,6 +8,7 @@ import { Link, navigate } from "../router";
 import { dt, errorText } from "../i18n";
 import { formatDate } from "@/lib/utils";
 import { ResetDemoButton } from "../components/ResetDemo";
+import { GeminiKeyCard } from "../components/GeminiKeyCard";
 
 const LANGS: { id: Lang; label: string }[] = [
   { id: "pt", label: "🇧🇷 Português" },
@@ -148,6 +149,7 @@ export function SettingsScreen({ user }: { user: User }) {
           <Toggle label={t(lang, "settings_notifications")} checked={user.notificationsEnabled} onChange={(v) => updateSettings({ notificationsEnabled: v })} />
         </div>
       </div>
+      <GeminiKeyCard />
       <PrivacySection user={user} />
       <div className="mt-4">
         <ResetDemoButton />

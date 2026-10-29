@@ -7,7 +7,7 @@ import { centsToFone, foneToCents, isValidFoneAddress, normalizeHex, pickChallen
 import { TERMS_VERSION } from "@/lib/legal";
 import type { Theme } from "@/lib/theme";
 import { distanceMeters, fakeTxHash, MAX_DISTANCE_METERS, MAX_GPS_ACCURACY_METERS, uid } from "./media";
-import { decideProof, DEFAULT_AI_SETTINGS, rejectionReasonText, type AiChecks, type AiVerdict, type RejectionCode } from "@/lib/ai/decision";
+import { decideProof, DEFAULT_AI_SETTINGS, rejectionReasonText, type AiAnalysis, type AiChecks, type AiVerdict, type RejectionCode } from "@/lib/ai/decision";
 import { simulateAnalysis, type SampleKind } from "./demoAi";
 import type { Region, RegionRadius } from "@/lib/region";
 import { OSM_TEMPLATES, type OsmKind } from "@/lib/regional/templates";
@@ -116,8 +116,10 @@ export type Submission = {
   rejectionReason: string | null;
   submittedAt: string;
   reviewedAt: string | null;
-  /* Simulated automatic verification (optional: older saved demos don't have it). */
-  aiStatus?: "done" | null;
+  /* Automatic verification (optional: older saved demos don't have it). */
+  aiStatus?: "done" | "failed" | null;
+  /** Model that analysed the photo: "simulated" (sample photos) or the Gemini model of the tester's own key. */
+  aiModel?: string | null;
   aiVerdict?: AiVerdict | null;
   aiConfidence?: number | null;
   aiReasonCode?: RejectionCode | null;
@@ -490,10 +492,15 @@ export type NewSubmission = {
   simulatedLocation: boolean;
   /** Sample photo picked in the demo (drives the simulated AI). null = camera/gallery photo. */
   sample?: SampleKind | null;
+  /** Real analysis of a camera/gallery photo with the tester's own Gemini key (see byok.ts). */
+  realAi?: { analysis: AiAnalysis; model: string } | { failed: true } | null;
 };
 
-/** Returns an i18n DictKey suffix (error_*) on failure. */
-export function submitProof(input: NewSubmission): Result {
+/**
+ * Runs every rule of submitProof without saving anything. The submit screen calls it before
+ * spending a Gemini request on a proof that would be refused anyway.
+ */
+export function checkProof(input: NewSubmission): Result {
   const user = me();
   if (!user) return { error: "error_generic" };
   if (user.isBanned) return { error: "error_banned" };
@@ -520,9 +527,23 @@ export function submitProof(input: NewSubmission): Result {
     return { error: "error_daily_limit" };
   }
   if (state.submissions.some((s) => s.photoHash === input.photoHash)) return { error: "error_duplicate_photo" };
+  return {};
+}
+
+/** Returns an i18n DictKey suffix (error_*) on failure. */
+export function submitProof(input: NewSubmission): Result {
+  const checked = checkProof(input);
+  if (checked.error) return checked;
+  const user = me();
+  const mission = state.missions.find((m) => m.id === input.missionId && m.isActive);
+  if (!user || !mission) return { error: "error_generic" };
+  const report = input.report.trim();
 
   const lang = user.language;
-  const analysis = simulateAnalysis(input.sample ?? null, mission.category, lang);
+  const real = input.sample ? null : (input.realAi ?? null);
+  const realAnalysis = real && "analysis" in real ? real : null;
+  const analysis = input.sample ? simulateAnalysis(input.sample, mission.category, lang) : (realAnalysis?.analysis ?? null);
+  const aiFailed = !!real && "failed" in real;
   const decision = decideProof({ settings: DEFAULT_AI_SETTINGS, analysis, similar: null, foneReward: Number(mission.foneReward) });
   const submission: Submission = {
     id: uid(),
@@ -540,7 +561,8 @@ export function submitProof(input: NewSubmission): Result {
     rejectionReason: null,
     submittedAt: now(),
     reviewedAt: null,
-    aiStatus: analysis ? "done" : null,
+    aiStatus: analysis ? "done" : aiFailed ? "failed" : null,
+    aiModel: input.sample ? "simulated" : (realAnalysis?.model ?? null),
     aiVerdict: analysis ? decision.verdict : null,
     aiConfidence: analysis ? decision.confidence : null,
     aiReasonCode: decision.reasonCode,

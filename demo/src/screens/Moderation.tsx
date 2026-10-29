@@ -123,6 +123,11 @@ export function ModerationScreen({ user }: { user: User }) {
                     />
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                    {sub.aiModel && (
+                      <span className={`rounded-full px-2 py-1 ${sub.aiModel === "simulated" ? "bg-slate-100 text-slate-600" : "bg-violet-50 text-violet-700"}`} data-testid="ai-source">
+                        🤖 {dt(lang, sub.aiModel === "simulated" ? "ai_source_simulated" : "ai_source_gemini")}
+                      </span>
+                    )}
                     <span className={`flex items-center gap-1 rounded-full px-2 py-1 ${sub.simulatedLocation ? "bg-amber-100 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>
                       {sub.simulatedLocation ? <Navigation className="h-3.5 w-3.5" /> : <MapPin className="h-3.5 w-3.5" />}
                       {dt(lang, sub.simulatedLocation ? "location_simulated" : "location_real")}
