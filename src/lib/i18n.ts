@@ -225,6 +225,7 @@ const dict = {
   },
   points: { pt: "pontos", en: "points", es: "puntos" },
   notifications_title: { pt: "Notificações", en: "Notifications", es: "Notificaciones" },
+  mark_all_read: { pt: "Marcar todas como lidas", en: "Mark all as read", es: "Marcar todas como leídas" },
   notifications_empty: {
     pt: "Nenhuma notificação encontrada.",
     en: "No notifications found.",
