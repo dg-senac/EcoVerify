@@ -289,6 +289,27 @@ const dict = {
     en: "Recognisable faces (mind privacy)",
     es: "Hay rostros reconocibles (cuidado con la privacidad)",
   },
+  web_found_title: {
+    pt: "🌐 A mesma foto foi encontrada na internet",
+    en: "🌐 The same photo was found on the internet",
+    es: "🌐 La misma foto se encontró en internet",
+  },
+  web_found_hint: {
+    pt: "Busca reversa automática (Google Cloud Vision). Abra os links e confira: pode ser a própria pessoa que publicou a foto antes.",
+    en: "Automatic reverse image search (Google Cloud Vision). Open the links and check: the person may have published the photo before.",
+    es: "Búsqueda inversa automática (Google Cloud Vision). Abre los enlaces y revisa: puede ser la propia persona quien publicó la foto antes.",
+  },
+  web_partial: {
+    pt: "🌐 Partes parecidas com fotos da internet ({count}). Sinal fraco: cenas comuns também aparecem. Não aprova sozinho.",
+    en: "🌐 Parts similar to photos on the internet ({count}). Weak signal: common scenes also match. Not approved automatically.",
+    es: "🌐 Partes parecidas a fotos de internet ({count}). Señal débil: escenas comunes también coinciden. No se aprueba sola.",
+  },
+  web_none: { pt: "🌐 Busca reversa: nada encontrado na internet.", en: "🌐 Reverse search: nothing found on the internet.", es: "🌐 Búsqueda inversa: nada encontrado en internet." },
+  web_failed: {
+    pt: "🌐 A busca reversa falhou nesta foto. Use o Google Lens se desconfiar.",
+    en: "🌐 The reverse search failed for this photo. Use Google Lens if in doubt.",
+    es: "🌐 La búsqueda inversa falló con esta foto. Usa Google Lens si dudas.",
+  },
   internet_flag_title: {
     pt: "Possível cópia da internet",
     en: "Possible copy from the internet",

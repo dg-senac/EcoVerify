@@ -6,6 +6,7 @@ import {
   decideProof,
   DEFAULT_AI_SETTINGS,
   REJECTION_REASONS,
+  SAME_PHOTO_MAX_DISTANCE,
   SIMILAR_PHOTO_MAX_DISTANCE,
   type AiAnalysis,
   type AiChecks,
@@ -13,6 +14,8 @@ import {
 } from "@/lib/ai/decision";
 import { analyzeProofWithGemini, AiUnavailableError, geminiApiKey } from "@/lib/ai/gemini";
 import { hammingDistance, photoForAi } from "@/lib/ai/photo";
+import { canUseVision, findPhotoOnWeb } from "@/lib/ai/vision";
+import { webVerdict, type WebMatches } from "@/lib/ai/web-detection-core";
 import { approveSubmission, rejectSubmission } from "@/lib/review";
 import { notifyStaff } from "@/lib/staff-alerts";
 import { moderatorsEnabled } from "@/lib/staff-config";
@@ -100,12 +103,40 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
   let model: string | null = null;
   let aiError: string | null = null;
   const useModel = willAnalyzeWithModel(settings);
+  // Reverse image search: skipped for an exact repeat (already rejected by the local rules).
+  const sameAsEarlier = !!similar && similar.distance <= SAME_PHOTO_MAX_DISTANCE;
+  const useVision = !sameAsEarlier && (await canUseVision().catch(() => false));
+  let image: { base64: string; mimeType: string } | null = null;
+  if (useModel || useVision) {
+    const buffer = photo ?? (await loadPhoto(submission.photoUrl));
+    image = buffer ? await photoForAi(buffer).catch(() => null) : null;
+  }
+
+  let web: WebMatches | null = null;
+  if (useVision) {
+    try {
+      if (!image) throw new AiUnavailableError("photo not found in storage", "network");
+      web = await findPhotoOnWeb(image);
+      Object.assign(checks, {
+        webChecked: true,
+        webFullMatches: web.fullMatches,
+        webPages: web.pages,
+        webPartialCount: web.partialCount,
+        webBestGuess: web.bestGuess,
+      } satisfies AiChecks);
+    } catch (error) {
+      const message = error instanceof AiUnavailableError ? `${error.kind}: ${error.message}` : `error: ${(error as Error).message}`;
+      // A failed call still counts against the monthly cap (Google may have billed it).
+      Object.assign(checks, { webChecked: true, webError: message.slice(0, 300) } satisfies AiChecks);
+      console.error(`[vision] web search for ${submissionId} failed:`, message);
+    }
+  }
+
   if (useModel) {
     try {
-      const buffer = photo ?? (await loadPhoto(submission.photoUrl));
-      if (!buffer) throw new AiUnavailableError("photo not found in storage", "network");
+      if (!image) throw new AiUnavailableError("photo not found in storage", "network");
       const result = await analyzeProofWithGemini({
-        image: await photoForAi(buffer),
+        image,
         mission: {
           title: mission.title,
           description: mission.description,
@@ -123,12 +154,12 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
     }
   }
 
-  const decision = decideProof({ settings, analysis, similar, foneReward: Number(mission.foneReward) });
+  const decision = decideProof({ settings, analysis, similar, foneReward: Number(mission.foneReward), web: webVerdict(web) });
 
   await db
     .update(submissions)
     .set({
-      aiStatus: useModel ? (analysis ? "done" : "failed") : similar ? "done" : null,
+      aiStatus: useModel ? (analysis ? "done" : "failed") : similar || checks.webChecked ? "done" : null,
       aiVerdict: analysis || decision.reasonCode === "similar_photo" ? decision.verdict : null,
       aiConfidence: analysis || decision.reasonCode === "similar_photo" ? decision.confidence : null,
       aiReasonCode: decision.reasonCode,

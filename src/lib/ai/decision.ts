@@ -130,6 +130,13 @@ export type AiChecks = Partial<AiAnalysis> & {
   /** Near-duplicate found by the perceptual hash. */
   similarSubmissionId?: string;
   similarDistance?: number;
+  /** Reverse image search (Cloud Vision Web Detection), when configured. */
+  webChecked?: boolean;
+  webFullMatches?: string[];
+  webPages?: { url: string; title: string | null }[];
+  webPartialCount?: number;
+  webBestGuess?: string | null;
+  webError?: string;
 };
 
 export type AiSettingsValues = {
@@ -187,8 +194,10 @@ export function decideProof(input: {
   /** Near-duplicate found by the local rules. */
   similar: { distance: number } | null;
   foneReward: number;
+  /** Reverse image search result: "copy" = the same picture is on the internet. */
+  web?: "copy" | "partial" | "none" | null;
 }): ProofDecision {
-  const { settings, analysis, similar } = input;
+  const { settings, analysis, similar, web } = input;
   const auto = settings.mode === "auto";
 
   if (similar && similar.distance <= SAME_PHOTO_MAX_DISTANCE) {
@@ -197,7 +206,15 @@ export function decideProof(input: {
   if (similar && similar.distance <= SIMILAR_PHOTO_MAX_DISTANCE) {
     return { action: "review", verdict: "reject", confidence: analysis?.confidence ?? 0, reasonCode: "similar_photo" };
   }
-  if (!analysis || settings.mode === "off") {
+  if (settings.mode === "off") {
+    return { action: "review", verdict: "review", confidence: 0, reasonCode: null };
+  }
+  // The same picture was found on the internet: strong evidence, but still decided by a person
+  // (it may be the author's own photo published elsewhere). Inappropriate content keeps its path.
+  if (web === "copy" && !analysis?.inappropriate) {
+    return { action: "review", verdict: "review", confidence: analysis ? clampConfidence(analysis.confidence) : 0, reasonCode: "internet_copy" };
+  }
+  if (!analysis) {
     return { action: "review", verdict: "review", confidence: 0, reasonCode: null };
   }
 
@@ -214,8 +231,9 @@ export function decideProof(input: {
   if (analysis.verdict === "approve") {
     // An "approve" that contradicts the model's own answers is not trusted.
     if (problem) return { action: "review", verdict: "review", confidence, reasonCode: problem };
+    // Crops/edits of the picture found online: not enough to flag, but enough to need a person.
     const canAutoApprove =
-      auto && confidence >= settings.approveMinConfidence && input.foneReward <= settings.maxAutoApproveFone;
+      auto && web !== "partial" && confidence >= settings.approveMinConfidence && input.foneReward <= settings.maxAutoApproveFone;
     return { action: canAutoApprove ? "approve" : "review", verdict: "approve", confidence, reasonCode: null };
   }
 

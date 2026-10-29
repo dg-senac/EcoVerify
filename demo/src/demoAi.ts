@@ -11,6 +11,7 @@ import { categoryEmoji, categoryLabels, type Lang } from "@/lib/i18n";
 import type { AiAnalysis } from "@/lib/ai/decision";
 import { dt } from "./i18n";
 import type { Category } from "./store";
+import type { WebMatches } from "@/lib/ai/web-detection-core";
 
 export type SampleKind = Exclude<Category, "other"> | "screen" | "internet";
 export const SAMPLE_KINDS: SampleKind[] = ["cleanup", "planting", "recycling", "donation", "screen", "internet"];
@@ -140,4 +141,22 @@ export function simulateAnalysis(sample: SampleKind | null, missionCategory: Cat
     return { ...base, matchesMission: false, verdict: "reject", reasonCode: "not_matching_mission", confidence: 93, explanation: dt(lang, "sim_mismatch") };
   }
   return base;
+}
+
+/**
+ * Simulated reverse image search (Cloud Vision Web Detection on the server). The "internet" sample
+ * is "found" on two example sites (reserved .example domains, nothing real); the others find nothing.
+ */
+export function simulateWebSearch(sample: SampleKind | null): WebMatches | null {
+  if (!sample) return null;
+  if (sample !== "internet") return { fullMatches: [], pages: [], partialCount: 0, bestGuess: null };
+  return {
+    fullMatches: ["https://banco-de-imagens.example/fotos/arvore-parque.jpg"],
+    pages: [
+      { url: "https://banco-de-imagens.example/fotos/arvore-parque", title: "Árvore no parque — foto grátis (exemplo simulado)" },
+      { url: "https://noticias.example/meio-ambiente/plantio", title: "Mutirão de plantio na cidade (exemplo simulado)" },
+    ],
+    partialCount: 3,
+    bestGuess: "tree planting",
+  };
 }

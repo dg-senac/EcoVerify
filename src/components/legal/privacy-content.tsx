@@ -30,6 +30,7 @@ export function PrivacyContent({ info }: { info: LegalInfo }) {
                 ["Impressão digital (hash) das fotos, inclusive uma versão que reconhece fotos quase iguais", "Impedir que a mesma foto seja reutilizada", "Legítimo interesse na prevenção de fraude (IX)"],
                 ["Resultado da verificação automática (veredito, confiança, motivo e observações)", "Ajudar a moderação e decidir casos claros", "Execução de contrato (V) e legítimo interesse na prevenção de fraude (IX)"],
                 ["Contestação de uma decisão automática", "Revisão por uma pessoa (LGPD, art. 20)", "Exercício regular de direitos (VI)"],
+                ["Cartões (amarelo/vermelho), motivo, explicação da equipe, suspensões, bloqueios e as suas contestações", "Prevenir fraude, aplicar as regras dos Termos (item 8) e permitir a sua defesa", "Legítimo interesse na prevenção de fraude (IX) e exercício regular de direitos (VI)"],
                 ["Endereço da carteira FONE, transação de verificação e declaração de 18 anos", "Provar que a carteira é sua e pagar recompensas só a maiores", "Execução de contrato (V)"],
                 ["Pontos, recompensas e pagamentos", "Ranking, histórico e prestação de contas dos pagamentos", "Execução de contrato (V) e cumprimento de obrigação legal (II)"],
                 ["Pedidos de “Quero mais missões aqui” (só a cidade) e sugestões de missão (texto e o ponto escolhido)", "Saber onde faltam missões e criar ações propostas pela comunidade", "Legítimo interesse (IX) e execução de contrato (V)"],
@@ -61,6 +62,7 @@ export function PrivacyContent({ info }: { info: LegalInfo }) {
             "Cada comprovação passa por regras automáticas (distância até a missão, precisão do GPS, foto repetida) e, quando ligada, por um modelo de inteligência artificial que descreve a foto e diz se ela combina com a missão.",
             <>Para isso enviamos ao serviço <b>Google Gemini</b> (Google LLC, EUA) apenas uma cópia <b>reduzida da foto, sem metadados</b>, o título e as instruções da missão e o seu relato. <b>Não enviamos</b> nome, e-mail, localização nem qualquer identificador da sua conta.</>,
             "Na fase de testes usamos o plano gratuito do Gemini. Nesse plano o Google pode usar o conteúdo enviado para melhorar seus produtos e ele pode ser lido por revisores humanos. Por isso pedimos que o relato não traga dados pessoais e que você evite fotografar rostos de outras pessoas.",
+            <>Quando a <b>busca reversa de imagens</b> estiver ligada, a mesma cópia reduzida e sem metadados (só a imagem, sem relato e sem dados da conta) é enviada ao <b>Google Cloud Vision</b> (Google LLC, EUA, serviço pago, que não usa o conteúdo para treinar modelos) para procurar a foto na internet. Se ela for encontrada, os links vão para a equipe, que confere antes de decidir: isso nunca rejeita a foto sozinho nem gera cartão.</>,
             "Casos claros podem ser aprovados ou rejeitados automaticamente (decisão automatizada). Toda rejeição informa o motivo, missões de valor mais alto sempre passam por uma pessoa e, se o serviço estiver indisponível, a comprovação vai para a moderação.",
             <><b>Revisão (LGPD, art. 20):</b> você pode contestar qualquer rejeição automática em Minhas Submissões, e uma pessoa da moderação analisa de novo. Você também pode pedir informações sobre os critérios usados.</>,
           ]}
@@ -72,7 +74,7 @@ export function PrivacyContent({ info }: { info: LegalInfo }) {
           items={[
             "Outros usuários veem seu nome, pontos e nível no ranking, e suas mensagens no chat.",
             "Moderadores e administradores veem as comprovações (foto, relato e localização) para analisá-las, e administradores veem a carteira para fazer os pagamentos.",
-            "Operadores que nos ajudam a funcionar, sob contrato: hospedagem do app, banco de dados e armazenamento de arquivos (por exemplo, Vercel e Supabase), envio de e-mails (por exemplo, Resend) e verificação automática das fotos (Google Gemini, ver seção 2). Alguns desses serviços ficam fora do Brasil; nesses casos, a transferência segue as garantias da LGPD (art. 33).",
+            "Operadores que nos ajudam a funcionar, sob contrato: hospedagem do app, banco de dados e armazenamento de arquivos (por exemplo, Vercel e Supabase), envio de e-mails (por exemplo, Resend) e verificação automática das fotos (Google Gemini e, quando ligado, Google Cloud Vision; ver seção 2). Alguns desses serviços ficam fora do Brasil; nesses casos, a transferência segue as garantias da LGPD (art. 33).",
             "Para abastecer regiões sem missões, o servidor consulta o OpenStreetMap (mapa aberto e colaborativo) em busca de praias, parques e pontos de coleta perto do centro da cidade. Nessa consulta vai só a posição do centro do município, nunca a sua posição nem dados da sua conta.",
             "Autoridades, quando a lei ou uma ordem judicial exigir.",
           ]}

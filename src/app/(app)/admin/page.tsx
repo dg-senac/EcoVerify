@@ -20,6 +20,7 @@ import { WalletsTab } from "@/components/admin/wallets-tab";
 import { AiTab } from "@/components/admin/ai-tab";
 import { getAiSettings } from "@/lib/ai/pipeline";
 import { geminiApiKey, geminiModel } from "@/lib/ai/gemini";
+import { visionApiKey, visionMonthlyLimit, visionUsedThisMonth } from "@/lib/ai/vision";
 import type { PayoutGroup } from "@/components/admin/payout-row";
 import { getFoneConfig } from "@/lib/fone-config";
 import { emailMode } from "@/lib/email";
@@ -353,6 +354,8 @@ export default async function AdminPage() {
     production: process.env.NODE_ENV === "production",
   };
 
+  const vision = { configured: !!visionApiKey(), used: visionApiKey() ? await visionUsedThisMonth() : 0, limit: visionMonthlyLimit() };
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">📊 Painel Administrativo</h1>
@@ -456,7 +459,7 @@ export default async function AdminPage() {
               key: "ai",
               label: "IA",
               icon: "🤖",
-              content: <AiTab settings={aiConfig} stats={aiStats} model={geminiModel()} hasKey={!!geminiApiKey()} />,
+              content: <AiTab settings={aiConfig} stats={aiStats} model={geminiModel()} hasKey={!!geminiApiKey()} vision={vision} />,
             },
           ]}
         />

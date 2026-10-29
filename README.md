@@ -42,7 +42,7 @@ npm run db:seed             # opcional: usuários e missões de exemplo em Recif
 npm run dev                 # http://localhost:3000
 ```
 
-O seed cria `admin@ecoverify.dev`, `moderador@ecoverify.dev` e `cidada@ecoverify.dev` (senha definida em `SEED_PASSWORD`, padrão `ecoverify123`). Não rode o seed em produção.
+O seed cria `admin@ecoverify.dev`, `moderador@ecoverify.dev` e `cidada@ecoverify.dev` (senha definida em `SEED_PASSWORD`, padrão `ecoverify123`). Não rode o seed em produção. Mesmo que essas contas existam no banco, elas **não conseguem entrar em produção** (a não ser com `ALLOW_SEED_ACCOUNTS=true`).
 
 ## Scripts
 
@@ -70,6 +70,9 @@ Veja [`.env.example`](.env.example). As principais:
 - `FONE_REWARDS_WALLET` (opcional): endereço público da carteira que paga as recompensas, mostrado na página de Transparência para qualquer pessoa conferir saldo e envios.
 - `CAPACITOR_SERVER_URL`: URL HTTPS do app web, usada no build Android. **Opcional**: sem ela, o APK é gerado com a demo offline.
 - `PIX_KEY` + `PIX_RECEIVER_NAME` + `PIX_RECEIVER_CITY` (opcionais): chave Pix que recebe os planos das organizações. `SALES_WHATSAPP` (ou, sem ele, `SALES_EMAIL`) vira o link "Fale com a gente" da aba Plano. Veja [`docs/SAAS.md`](docs/SAAS.md).
+- `ADMIN_EMAILS`: e-mail(s) do dono. A conta com esse e-mail vira admin quando o e-mail é confirmado (ou com `npm run admin:promote -- email`), não pode ser rebaixada, banida nem receber cartão pelo painel e, enquanto a variável existir, só esses e-mails podem ser admin. **Nunca coloque senhas em variáveis.** Veja [`docs/SEGURANCA_ADMIN.md`](docs/SEGURANCA_ADMIN.md).
+- `MODERATORS_ENABLED` (padrão desligado): libera o papel Moderador. `ALLOW_SEED_ACCOUNTS` (padrão desligado): as contas de exemplo do seed nunca entram em produção sem ela.
+- `GOOGLE_VISION_API_KEY` + `VISION_MONTHLY_LIMIT` (opcionais): busca reversa automática de fotos da internet. Veja [`docs/VERIFICACAO_IA.md`](docs/VERIFICACAO_IA.md).
 - `DEMO_SITE_URL` (opcional, só no build da demo): domínio público da demo, usado na prévia de link (WhatsApp, redes). Na Vercel, o domínio de produção é detectado sozinho.
 
 ## Atualizando um banco já existente
@@ -94,6 +97,14 @@ O `npm run db:push` cria a tabela `auth_tokens` (enum `auth_token_purpose`) e as
 ### Atualizando para a 1.4 (modo noturno, IA e missões por região)
 
 O `npm run db:push` cria as colunas de tema, verificação por IA, região e regras de pagamento, e as tabelas `ai_settings`, `region_seeds`, `mission_requests`, `mission_suggestions`, `fone_settings` e `sponsors`. Recompensas já aprovadas continuam valendo; passam a seguir o mínimo de 5 FONE e a carência de 7 dias (ajustáveis em Admin → Recompensas). Missões antigas continuam valendo como "em um local"; para aparecerem com o nome da cidade, rode `npm run db:seed` (preenche as de exemplo) ou edite-as. Usuários verão os Termos atualizados uma vez (IA e região).
+
+### Atualizando para a 1.9 (anti-cópia, cartões e admin seguro)
+
+O `npm run db:push` cria as colunas de bloqueio, contestação e suspensão em `users`, o enum `card_type`, a tabela `user_cards` e o valor `ban_appeal` em `auth_token_purpose`. Depois:
+
+1. Defina `ADMIN_EMAILS` com o seu e-mail na Vercel e faça o deploy.
+2. Crie a sua conta no app (com a sua senha) e confirme o e-mail. Ela vira admin sozinha. Sem e-mail configurado, rode `npm run admin:promote -- seu@email`.
+3. Confira em Admin → Usuários o quadro **🔐 Segurança da administração** (tudo ✅).
 
 ### Atualizando para a 1.5 (organizações e planos)
 
@@ -180,6 +191,7 @@ Valores em FONE aparecem com o ícone oficial da Fone, e o selo "Recompensas na 
 - Fotos validadas pelo **conteúdo real do arquivo** (magic bytes), hash SHA‑256 contra reuso, limite de 5 envios por dia, raio de 150 m e precisão mínima do GPS.
 - Uploads só para usuários logados, armazenados fora de `public/` e servidos com `nosniff` e CSP restritiva.
 - Limite de tentativas no login, no cadastro, no chat e no upload. Senha mínima de 8 caracteres.
+- Admin protegido: `ADMIN_EMAILS` define o dono (vira admin só com e-mail confirmado), ninguém rebaixa ou bane o dono nem o último admin, e contas de exemplo com senha pública ficam bloqueadas em produção.
 - Banimento, redefinição de senha e exclusão de conta derrubam as sessões na hora.
 - Vincular carteira exige e-mail confirmado (quando o envio de e-mails está ativo).
 - FONE com **carência**, **mínimo por envio**, **orçamento mensal** e **limite por pessoa**, decididos dentro da transação de aprovação (com lock) e reaplicados no pagamento.

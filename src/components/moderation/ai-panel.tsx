@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { isInternetCopyFlag, rejectionReasonText, type AiChecks } from "@/lib/ai/decision";
-import { t, type Lang } from "@/lib/i18n";
+import { t, tf, type Lang } from "@/lib/i18n";
+import { hostOf } from "@/lib/ai/web-detection-core";
 
 /**
  * Result of the automatic verification, shown to moderators on each pending proof.
@@ -29,10 +30,28 @@ export const GOOGLE_LENS_URL = "https://lens.google.com/";
  * the web, so a person confirms with a reverse image search before deciding. Photos are behind the
  * login, so they cannot be sent to Lens by URL: the moderator downloads and uploads the file.
  */
-export function InternetCopyAlert({ lang, signs, photoUrl }: { lang: Lang; signs?: string | null; photoUrl?: string }) {
+export function InternetCopyAlert({ lang, signs, photoUrl, checks }: { lang: Lang; signs?: string | null; photoUrl?: string; checks?: AiChecks }) {
+  const pages = checks?.webPages ?? [];
+  const images = checks?.webFullMatches ?? [];
   return (
     <div className="mt-4 rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900" data-testid="internet-flag">
       <p className="font-bold">⚠️ {t(lang, "internet_flag_title")}</p>
+      {(pages.length > 0 || images.length > 0) && (
+        <div className="mt-2 rounded-lg bg-white/70 px-3 py-2" data-testid="web-matches">
+          <p className="font-semibold">{t(lang, "web_found_title")}</p>
+          <ul className="mt-1 space-y-0.5 text-xs">
+            {(pages.length ? pages : images.map((url) => ({ url, title: null }))).map((page) => (
+              <li key={page.url} className="break-words [overflow-wrap:anywhere]">
+                <a href={page.url} target="_blank" rel="noopener noreferrer nofollow" className="font-semibold text-red-700 underline">
+                  {hostOf(page.url)}
+                </a>
+                {page.title && <span className="text-red-800/80"> · {page.title}</span>}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[11px] text-red-800/80">{t(lang, "web_found_hint")}</p>
+        </div>
+      )}
       {signs && (
         <p className="mt-1">
           <span className="font-semibold">{t(lang, "internet_flag_signs")}:</span> {signs}
@@ -104,7 +123,7 @@ export function AiPanel({
 
   return (
     <>
-    {isInternetCopyFlag(data.aiReasonCode) && <InternetCopyAlert lang={lang} signs={checks.internetSigns} photoUrl={photoUrl} />}
+    {isInternetCopyFlag(data.aiReasonCode) && <InternetCopyAlert lang={lang} signs={checks.internetSigns} photoUrl={photoUrl} checks={checks} />}
     <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${VERDICT_STYLE[verdict]}`} data-testid="ai-panel">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-bold">🤖 {title}</span>
@@ -131,7 +150,16 @@ export function AiPanel({
           {checks.identifiableFaces && <li>👤 {t(lang, "ai_flag_faces")}</li>}
         </ul>
       )}
-      {!checks.whatIsVisible && !data.aiSummary && <p className="mt-1 text-xs opacity-80">{t(lang, "ai_rules_only")}</p>}
+      {checks.webChecked && !isInternetCopyFlag(data.aiReasonCode) && (
+        <p className="mt-2 text-xs font-semibold" data-testid="web-status">
+          {checks.webError
+            ? t(lang, "web_failed")
+            : (checks.webPartialCount ?? 0) > 0
+              ? tf(lang, "web_partial", { count: checks.webPartialCount ?? 0 })
+              : t(lang, "web_none")}
+        </p>
+      )}
+      {!checks.whatIsVisible && !data.aiSummary && !checks.webChecked && <p className="mt-1 text-xs opacity-80">{t(lang, "ai_rules_only")}</p>}
     </div>
     </>
   );

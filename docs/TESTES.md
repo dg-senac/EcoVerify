@@ -114,6 +114,7 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 - [ ] **Aprovar** → some da fila. Ao trocar para a Maria (se for dela), aparecem a notificação e os pontos.
 - [ ] **Rejeitar** escolhendo um **motivo padronizado** (ou escrevendo um com pelo menos 5 caracteres) → a pessoa recebe o motivo.
 - [ ] A comprovação com **Foto da internet** (3.3) aparece no **topo da fila**, com o selo vermelho **⚠️ Possível cópia da internet**, os sinais vistos e os botões **⬇️ Baixar foto** e **🔎 Abrir Google Lens**.
+- [ ] No mesmo alerta aparece **"🌐 A mesma foto foi encontrada na internet"** com dois links de exemplo (busca reversa simulada; no servidor é o Google Cloud Vision). As outras amostras mostram "Busca reversa: nada encontrado".
 - [ ] **Rejeitar** essa comprovação: o motivo "copiada da internet" já vem marcado e o botão só libera depois de você **escrever sua própria explicação** (15 caracteres ou mais; só o texto pronto não basta). A Maria recebe o motivo + "Explicação da equipe: …".
 - [ ] A **contestação** feita pela Maria (3.3) aparece com o selo "Contestação", o texto dela e o motivo anterior.
 - [ ] A seção de **decisões recentes da IA** lista o que foi aprovado ou rejeitado sozinho (para auditoria).
@@ -238,7 +239,8 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 | Vários usuários vendo os mesmos dados (ranking e chat reais) | Cada aparelho tem a própria demo. |
 | IA real com a chave do projeto | Precisa do servidor com `GEMINI_API_KEY`. Na demo dá para testar a IA real com a **sua** chave (seção 3.3.1). |
 | Missões automáticas do OpenStreetMap | Na demo os lugares são de exemplo. |
-| Busca reversa automática de fotos da internet | A IA só aponta sinais (marca d'água, legenda de site); a confirmação é feita pela equipe no Google Lens. A busca automática (Google Cloud Vision) precisa de conta com cobrança. |
+| Busca reversa automática de verdade | Na demo ela é simulada (links `.example`). No servidor usa o Google Cloud Vision com `GOOGLE_VISION_API_KEY` (conta com cobrança; 1.000 fotos/mês grátis). |
+| Conta de admin pelo `ADMIN_EMAILS`, contas de exemplo bloqueadas | Precisam do servidor e do banco. Ver `docs/SEGURANCA_ADMIN.md`. |
 | Tela de conta bloqueada com senha real (`/conta-bloqueada`) | No servidor, ela abre ao entrar com a senha certa, por um link que vale 30 minutos e não cria sessão. Na demo, abre ao escolher o perfil banido. |
 | Chave `MODERATORS_ENABLED` do servidor | Na demo ela é a opção da Ana em Admin → Usuários. |
 | FONE de verdade e conferência no explorer | Os pagamentos são simulados. |
@@ -283,4 +285,4 @@ Dá para seguir para a fase com banco quando:
 - [ ] Pelo menos **3 pessoas de fora** (ex.: colegas do Mediotec) testaram com o roteiro e relataram.
 - [ ] Os testes de 3.7 (modo noturno e acessibilidade) passam em pelo menos um celular.
 
-Depois disso, siga o README (*Rodando localmente* e *Variáveis de ambiente*): `npm run db:push`, `npm run db:seed` e as variáveis de produção.
+Depois disso, siga o README (*Rodando localmente* e *Variáveis de ambiente*): `npm run db:push`, as variáveis de produção e o passo a passo da conta de admin em `docs/SEGURANCA_ADMIN.md` (defina `ADMIN_EMAILS`, crie sua conta e confirme o e-mail). Em produção, não rode o `npm run db:seed`.

@@ -16,7 +16,8 @@ import {
   rejectionReasonText,
   validateRejection,
   type AiAnalysis, type AiChecks, type AiVerdict, type RejectionCode } from "@/lib/ai/decision";
-import { simulateAnalysis, type SampleKind } from "./demoAi";
+import { simulateAnalysis, simulateWebSearch, type SampleKind } from "./demoAi";
+import { webVerdict } from "@/lib/ai/web-detection-core";
 import {
   CARD_APPEAL_MIN,
   CARD_NOTE_MIN,
@@ -612,7 +613,9 @@ export function submitProof(input: NewSubmission): Result {
   const realAnalysis = real && "analysis" in real ? real : null;
   const analysis = input.sample ? simulateAnalysis(input.sample, mission.category, lang) : (realAnalysis?.analysis ?? null);
   const aiFailed = !!real && "failed" in real;
-  const decision = decideProof({ settings: DEFAULT_AI_SETTINGS, analysis, similar: null, foneReward: Number(mission.foneReward) });
+  const web = simulateWebSearch(input.sample ?? null);
+  const decision = decideProof({ settings: DEFAULT_AI_SETTINGS, analysis, similar: null, foneReward: Number(mission.foneReward), web: webVerdict(web) });
+  const webChecks = web ? { webChecked: true, webFullMatches: web.fullMatches, webPages: web.pages, webPartialCount: web.partialCount, webBestGuess: web.bestGuess } : {};
   const submission: Submission = {
     id: uid(),
     userId: user.id,
@@ -635,7 +638,7 @@ export function submitProof(input: NewSubmission): Result {
     aiConfidence: analysis ? decision.confidence : null,
     aiReasonCode: decision.reasonCode,
     aiSummary: analysis ? analysis.explanation : null,
-    aiChecks: analysis ? { ...analysis } : null,
+    aiChecks: analysis ? { ...analysis, ...webChecks } : null,
   };
   const ok = commit((s) => {
     const next: State = { ...s, submissions: [submission, ...s.submissions] };
