@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { detectFileType, type MediaKind } from "@/lib/file-type";
 import { rateLimit } from "@/lib/rate-limit";
 import { saveFile } from "@/lib/storage";
+import { sanitizeImage } from "@/lib/image-sanitize";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const KINDS: MediaKind[] = ["image", "audio", "video"];
@@ -39,7 +40,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
     }
 
-    const url = await saveFile(type, buffer, detected.extension, detected.contentType);
+    // Images lose their EXIF (exact GPS, phone model) before anyone else can see them.
+    const stored = detected.kind === "image" ? await sanitizeImage(buffer, detected.contentType) : buffer;
+    if (!stored) {
+      return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
+    }
+
+    const url = await saveFile(type, stored, detected.extension, detected.contentType);
     return NextResponse.json({ url, type: detected.contentType });
   } catch (error) {
     console.error("Upload error:", error);
