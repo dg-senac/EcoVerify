@@ -19,11 +19,8 @@ import { ProfileScreen } from "./screens/Profile";
 import { SettingsScreen } from "./screens/Settings";
 import { LegalScreen } from "./screens/Legal";
 import { TransparencyScreen } from "./screens/Transparency";
-import { LandingScreen } from "./screens/Landing";
 import { CertificateScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
 
-/** The APK opens straight on the profile picker; the website shows the public landing first. */
-const IN_APK = typeof window !== "undefined" && "Capacitor" in window;
 import { THEME_COLORS } from "@/lib/theme";
 
 /** Applies the user's accessibility settings to <html>, like src/app/layout.tsx. */
@@ -121,13 +118,6 @@ export function App() {
     onStorageError(() => toast(dt(lang, "demo_storage_full"), "error"));
   }, [lang]);
 
-  // "See demo" on the landing page: start the guided tour.
-  useEffect(() => {
-    if (path !== "/tour") return;
-    startTour();
-    navigate("/entrar", { replace: true });
-  }, [path]);
-
   return (
     <>
       {path === "/termos" || path === "/privacidade" ? (
@@ -135,15 +125,7 @@ export function App() {
       ) : path === "/transparencia" ? (
         <TransparencyScreen />
       ) : !user || user.isBanned ? (
-        path === "/register" ? (
-          <RegisterScreen />
-        ) : path === "/" && !IN_APK ? (
-          <LandingScreen />
-        ) : path === "/entrar" || path === "/" ? (
-          <LoginScreen />
-        ) : path === "/tour" ? null : (
-          <Redirect to="/entrar" />
-        )
+        path === "/register" ? <RegisterScreen /> : path === "/" ? <LoginScreen /> : <Redirect to="/" />
       ) : (
         <Shell user={user}>
           <AuthedRoutes user={user} path={path} />

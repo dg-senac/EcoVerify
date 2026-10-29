@@ -430,27 +430,12 @@ export const messageReports = pgTable("message_reports", {
 /* EcoVerify for organizations (SaaS). Plans and limits: src/lib/plans.ts */
 /* ------------------------------------------------------------------ */
 
-export const leadStatusEnum = pgEnum("lead_status", ["new", "contacted", "won", "lost"]);
 export const orgTypeEnum = pgEnum("org_type", ["school", "business", "government", "ngo", "other"]);
 export const planEnum = pgEnum("plan", ["free", "school", "business", "government"]);
 export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "yearly"]);
 export const subscriptionStatusEnum = pgEnum("subscription_status", ["trialing", "active", "past_due", "canceled"]);
 export const orgRoleEnum = pgEnum("org_role", ["owner", "manager", "member"]);
 export const invoiceStatusEnum = pgEnum("invoice_status", ["pending", "paid", "canceled"]);
-
-/** Contact form of the public site (schools, companies, city halls, brands). */
-export const leads = pgTable("leads", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: varchar("name", { length: 80 }).notNull(),
-  email: varchar("email", { length: 160 }).notNull(),
-  organization: varchar("organization", { length: 120 }).notNull(),
-  type: varchar("type", { length: 20 }).notNull(),
-  plan: varchar("plan", { length: 20 }),
-  message: text("message"),
-  language: languageEnum("language").notNull().default("pt"),
-  status: leadStatusEnum("status").notNull().default("new"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [index("leads_created_idx").on(table.createdAt)]);
 
 export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),

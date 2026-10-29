@@ -1,9 +1,9 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { invoices, leads, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, users } from "@/db/schema";
+import { invoices, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, users } from "@/db/schema";
 import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
-import { confirmInvoiceAction, grantPlanAction, updateLeadStatusAction } from "@/lib/actions/billing";
+import { confirmInvoiceAction, grantPlanAction } from "@/lib/actions/billing";
 import { PLANS } from "@/lib/plans";
 import { orgPlan } from "@/lib/saas/org-rules";
 import { municipalityByIbge } from "@/lib/municipalities";
@@ -264,7 +264,6 @@ export default async function AdminPage() {
       month: sql<number>`coalesce(sum(${sponsorTopups.feeCents}) filter (where ${sponsorTopups.createdAt} >= ${monthStart(new Date()).toISOString()}), 0)::int`,
     })
     .from(sponsorTopups);
-  const leadRows = await db.select().from(leads).orderBy(desc(leads.createdAt)).limit(100);
   const orgsWithPlan = orgRows.map((o) => ({ ...o, effective: orgPlan(o) }));
   const paying = orgsWithPlan.filter((o) => o.effective !== "free" && o.subscriptionStatus === "active");
   const business: BusinessData = {
@@ -293,20 +292,8 @@ export default async function AdminPage() {
       members: o.members,
       ownerEmail: o.ownerEmail,
     })),
-    leads: leadRows.map((l) => ({
-      id: l.id,
-      name: l.name,
-      email: l.email,
-      organization: l.organization,
-      type: l.type,
-      plan: l.plan,
-      message: l.message,
-      status: l.status,
-      createdAt: l.createdAt.toISOString(),
-    })),
   };
-  const newLeads = leadRows.filter((l) => l.status === "new").length;
-  const businessBadge = invoiceRows.filter((i) => i.reportedAt).length + newLeads;
+  const businessBadge = invoiceRows.filter((i) => i.reportedAt).length;
 
   return (
     <div>
@@ -346,7 +333,7 @@ export default async function AdminPage() {
               key: "business",
               label: businessBadge ? `Negócios (${businessBadge})` : "Negócios",
               icon: "💼",
-              content: <BusinessTab data={business} actions={{ confirmInvoice: confirmInvoiceAction, grantPlan: grantPlanAction, setLeadStatus: updateLeadStatusAction }} />,
+              content: <BusinessTab data={business} actions={{ confirmInvoice: confirmInvoiceAction, grantPlan: grantPlanAction }} />,
             },
             { key: "missions", label: missionsToReview ? `Missões (${missionsToReview})` : "Missões", icon: "🌱", content: (
                 <MissionsTab

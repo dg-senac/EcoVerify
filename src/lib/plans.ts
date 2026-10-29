@@ -5,7 +5,7 @@
  * city halls, NGOs) that run their own space with private missions, ranking and impact reports,
  * and from brand campaigns (sponsored missions) that pay a service fee on top of the budget.
  *
- * Pure module: shared by the server, the landing page and the offline demo.
+ * Pure module: shared by the server and the offline demo.
  */
 import type { Lang } from "@/lib/i18n";
 

@@ -7,7 +7,6 @@ import { dt, errorText, type DemoKey } from "../i18n";
 import {
   confirmDemoInvoice,
   grantDemoPlan,
-  setDemoLeadStatus,
   createMission,
   localizedTitle,
   reviewMission,
@@ -80,7 +79,6 @@ function DemoBusinessTab() {
         members: (s.orgMembers ?? []).filter((m) => m.orgId === o.id).length,
         ownerEmail: s.users.find((u) => u.id === o.ownerId)?.email ?? null,
       })),
-      leads: (s.leads ?? []).map((l) => ({ ...l })),
     };
   });
   return (
@@ -90,7 +88,6 @@ function DemoBusinessTab() {
       actions={{
         confirmInvoice: async (id) => confirmDemoInvoice(id),
         grantPlan: async (orgId, plan, months) => grantDemoPlan(orgId, plan, months),
-        setLeadStatus: async (id, status) => setDemoLeadStatus(id, status),
       }}
     />
   );
@@ -104,7 +101,7 @@ export function AdminScreen({ user }: { user: User }) {
     sessionStorage.removeItem(ADMIN_TAB_KEY);
     return wanted === "rewards" || wanted === "missions" || wanted === "users" || wanted === "business" ? wanted : "metrics";
   });
-  const businessBadge = useStore((st) => (st.invoices ?? []).filter((i) => i.status === "pending" && i.reportedAt).length + (st.leads ?? []).filter((l) => l.status === "new").length);
+  const businessBadge = useStore((st) => (st.invoices ?? []).filter((i) => i.status === "pending" && i.reportedAt).length);
   const tabs: { id: Tab; key: "admin_tab_metrics" | "admin_tab_missions" | "admin_tab_users" | "admin_tab_rewards" | null }[] = [
     { id: "metrics", key: "admin_tab_metrics" },
     { id: "business", key: null },

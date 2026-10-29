@@ -9,11 +9,11 @@ import { categoryEmoji, categoryLabels, t } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import type { AiChecks } from "@/lib/ai/decision";
 import { ORG_TEXT } from "@/lib/saas/org-text";
-import { MARKETING_TEXT } from "@/lib/marketing-text";
+import { PLAN_TEXT } from "@/lib/saas/plan-text";
 import { PLANS, hasFeature } from "@/lib/plans";
 import { canManage, canPromote, orgPlan } from "@/lib/saas/org-rules";
 import { activeMissionCount, membershipRole, orgBySlug, orgImpact, orgRanking } from "@/lib/saas/orgs";
-import { pixConfig, salesConfig } from "@/lib/saas/sales-config";
+import { contactUrl, pixConfig } from "@/lib/saas/sales-config";
 import { pixPayload } from "@/lib/saas/pix";
 import { publicBaseUrl } from "@/lib/saas/base-url";
 import { cancelInvoiceAction, createInvoiceAction, reportInvoicePaidAction } from "@/lib/actions/billing";
@@ -42,7 +42,7 @@ export default async function OrganizationPage({
 
   const lang = user.language;
   const text = ORG_TEXT[lang];
-  const mk = MARKETING_TEXT[lang];
+  const mk = PLAN_TEXT[lang];
   const manager = canManage(role);
   const plan = orgPlan(org);
   const visibleTabs: Tab[] = manager ? [...TABS] : ["overview"];
@@ -377,7 +377,6 @@ async function ModerationTab({ orgId, lang, userId }: { orgId: string; lang: "pt
 async function PlanTab({ org, lang, isOwner }: { org: NonNullable<Awaited<ReturnType<typeof orgBySlug>>>; lang: "pt" | "en" | "es"; isOwner: boolean }) {
   const pix = pixConfig();
   const rows = await db.select().from(invoices).where(eq(invoices.organizationId, org.id)).orderBy(desc(invoices.createdAt)).limit(24);
-  const { whatsappUrl } = salesConfig();
   return (
     <BillingPanel
       lang={lang}
@@ -388,7 +387,7 @@ async function PlanTab({ org, lang, isOwner }: { org: NonNullable<Awaited<Return
       status={org.subscriptionStatus}
       periodEnd={org.currentPeriodEnd?.toISOString() ?? null}
       pixAvailable={!!pix}
-      contactUrl={whatsappUrl ?? "/sobre#contato"}
+      contactUrl={contactUrl()}
       invoices={rows.map((i) => ({
         id: i.id,
         plan: i.plan,

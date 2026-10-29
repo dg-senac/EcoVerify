@@ -8,7 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { hasFeature } from "@/lib/plans";
 import { canManage, orgPlan } from "@/lib/saas/org-rules";
 import { ORG_TEXT } from "@/lib/saas/org-text";
-import { MARKETING_TEXT } from "@/lib/marketing-text";
+import { PLAN_TEXT } from "@/lib/saas/plan-text";
 import { membershipRole, orgBySlug, orgImpact, orgRanking } from "@/lib/saas/orgs";
 import { publicBaseUrl } from "@/lib/saas/base-url";
 import { LogoHorizontal } from "@/components/logo";
@@ -28,7 +28,7 @@ export default async function ReportPage({ params }: { params: Promise<{ slug: s
   if (!canManage(role) && user.role !== "admin") notFound();
   const lang = user.language;
   const text = ORG_TEXT[lang];
-  const mk = MARKETING_TEXT[lang];
+  const mk = PLAN_TEXT[lang];
   const plan = orgPlan(org);
   if (!hasFeature(plan, "reports")) redirect(`/org/${org.slug}?tab=report`);
 

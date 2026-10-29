@@ -5,7 +5,7 @@ import { Check } from "lucide-react";
 import type { Lang } from "@/lib/i18n";
 import { createOrganizationAction, type OrgActionState } from "@/lib/actions/orgs";
 import { ORG_TEXT } from "@/lib/saas/org-text";
-import { MARKETING_TEXT } from "@/lib/marketing-text";
+import { PLAN_TEXT } from "@/lib/saas/plan-text";
 import { ORG_TYPES } from "@/lib/saas/org-rules";
 import { PLANS, TRIAL_DAYS, formatBRL, type BillingCycle, type PlanId } from "@/lib/plans";
 
@@ -26,7 +26,7 @@ export function CreateOrgForm({
   trialAvailable: boolean;
 }) {
   const text = ORG_TEXT[lang];
-  const mk = MARKETING_TEXT[lang];
+  const mk = PLAN_TEXT[lang];
   const [state, action, pending] = useActionState<OrgActionState, FormData>(createOrganizationAction, {});
   const [plan, setPlan] = useState<PlanId>(CHOICES.includes(defaultPlan) ? defaultPlan : "free");
   const [cycle, setCycle] = useState<BillingCycle>(defaultCycle);

@@ -23,7 +23,6 @@ import {
 import { addPeriod, isPlanId, PAID_PLANS, planPrice, type BillingCycle, type PlanId, type SubscriptionStatus } from "@/lib/plans";
 import { canActivateMission, canAddMember, initialSubscription, isOrgType, newInviteCode, normalizeInviteCode, slugify, type OrgRole, type OrgType } from "@/lib/saas/org-rules";
 import { newInvoiceReference } from "@/lib/saas/pix";
-import { cleanLead, type CleanLead, type LeadInput } from "@/lib/saas/lead-input";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -197,7 +196,6 @@ export type State = {
   orgs?: DemoOrg[];
   orgMembers?: DemoOrgMember[];
   invoices?: DemoInvoice[];
-  leads?: DemoLead[];
 };
 
 export type DemoOrg = {
@@ -228,7 +226,7 @@ export type DemoInvoice = {
   createdAt: string;
   paidAt: string | null;
 };
-export type DemoLead = CleanLead & { id: string; status: "new" | "contacted" | "won" | "lost"; createdAt: string };
+
 
 const STORAGE_KEY = "ecoverify-demo";
 
@@ -1396,21 +1394,5 @@ export function grantDemoPlan(orgId: string, plan: string, months: number): OrgR
   if (!isAdmin(me()) || !isPlanId(plan)) return { error: "invalid" };
   const end = plan === "free" ? null : new Date(Date.now() + months * 30 * 86_400_000).toISOString();
   commit((s) => ({ ...s, orgs: (s.orgs ?? []).map((o) => (o.id === orgId ? { ...o, plan, subscriptionStatus: "active" as const, currentPeriodEnd: end } : o)) }));
-  return { success: true };
-}
-
-/* Leads (contact form of the landing page) */
-
-export function submitDemoLead(input: LeadInput): OrgResult {
-  if (input.website) return { success: true };
-  const lead = cleanLead(input);
-  if (!lead) return { error: "invalid" };
-  commit((s) => ({ ...s, leads: [{ ...lead, id: uid(), status: "new", createdAt: now() }, ...(s.leads ?? [])] }));
-  return { success: true };
-}
-
-export function setDemoLeadStatus(leadId: string, status: DemoLead["status"]): OrgResult {
-  if (!isAdmin(me())) return { error: "forbidden" };
-  commit((s) => ({ ...s, leads: (s.leads ?? []).map((l) => (l.id === leadId ? { ...l, status } : l)) }));
   return { success: true };
 }

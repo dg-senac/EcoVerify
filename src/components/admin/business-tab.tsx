@@ -2,10 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { formatBRL, PLAN_ORDER, type PlanId } from "@/lib/plans";
-import { MARKETING_TEXT } from "@/lib/marketing-text";
+import { PLAN_TEXT } from "@/lib/saas/plan-text";
 
-const PLAN_NAMES = MARKETING_TEXT.pt.planNames;
-const LEAD_STATUS: Record<"new" | "contacted" | "won" | "lost", string> = { new: "Novo", contacted: "Em contato", won: "Fechado ✅", lost: "Perdido" };
+const PLAN_NAMES = PLAN_TEXT.pt.planNames;
 const STATUS_LABEL: Record<string, string> = { trialing: "Teste", active: "Ativo", past_due: "Vencido", canceled: "Cancelado" };
 
 export interface BusinessData {
@@ -41,26 +40,13 @@ export interface BusinessData {
     members: number;
     ownerEmail: string | null;
   }[];
-  leads: {
-    id: string;
-    name: string;
-    email: string;
-    organization: string;
-    type: string;
-    plan: string | null;
-    message: string | null;
-    status: "new" | "contacted" | "won" | "lost";
-    createdAt: string;
-  }[];
 }
 
 type Result = { error?: string; success?: boolean };
-type LeadStatus = "new" | "contacted" | "won" | "lost";
 /** Server actions in the web app, local functions in the offline demo. */
 export interface BusinessActions {
   confirmInvoice: (invoiceId: string) => Promise<Result>;
   grantPlan: (orgId: string, plan: string, months: number) => Promise<Result>;
-  setLeadStatus: (leadId: string, status: LeadStatus) => Promise<Result>;
 }
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("pt-BR") : "—");
@@ -149,18 +135,6 @@ export function BusinessTab({ data, actions, demoNote }: { data: BusinessData; a
         )}
       </section>
 
-      <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
-        <h2 className="font-bold text-slate-900">📨 Contatos comerciais (formulário do site)</h2>
-        {data.leads.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-500">Nenhum contato ainda. Divulgue a página /sobre.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-slate-100" data-testid="lead-list">
-            {data.leads.map((lead) => (
-              <LeadRow key={lead.id} lead={lead} onStatus={actions.setLeadStatus} />
-            ))}
-          </ul>
-        )}
-      </section>
     </div>
   );
 }
@@ -242,40 +216,5 @@ function GrantPlan({ orgId, current, onGrant }: { orgId: string; current: PlanId
         {done ? "✓" : "Aplicar"}
       </button>
     </div>
-  );
-}
-
-function LeadRow({ lead, onStatus }: { lead: BusinessData["leads"][number]; onStatus: BusinessActions["setLeadStatus"] }) {
-  const [status, setStatus] = useState(lead.status);
-  const [, start] = useTransition();
-  return (
-    <li className="grid gap-1 py-3 sm:grid-cols-[1fr_auto]">
-      <div className="min-w-0">
-        <p className="font-semibold text-slate-800">
-          {lead.organization} <span className="text-xs font-normal text-slate-400">· {lead.type}{lead.plan ? ` · ${lead.plan}` : ""} · {fmtDate(lead.createdAt)}</span>
-        </p>
-        <p className="text-sm text-slate-600">
-          {lead.name} · <a href={`mailto:${lead.email}`} className="text-emerald-700 hover:underline">{lead.email}</a>
-        </p>
-        {lead.message && <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{lead.message}</p>}
-      </div>
-      <select
-        value={status}
-        onChange={(e) => {
-          const next = e.target.value as typeof status;
-          setStatus(next);
-          start(async () => {
-            await onStatus(lead.id, next);
-          });
-        }}
-        className="h-fit rounded-lg border border-slate-200 px-2 py-1 text-sm"
-      >
-        {Object.entries(LEAD_STATUS).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-    </li>
   );
 }
