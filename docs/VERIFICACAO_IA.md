@@ -49,7 +49,7 @@ No cadastro de missão há o campo opcional **"O que a IA deve conferir"** (até
 
 | Variável | Padrão | Observação |
 |---|---|---|
-| `GEMINI_API_KEY` | vazio | Chave grátis em <https://aistudio.google.com/apikey>. Sem chave, a IA fica desligada e só as regras locais (foto repetida) rodam. |
+| `GEMINI_API_KEY` | vazio | Chave grátis em <https://aistudio.google.com/apikey>. As chaves novas ("Auth keys") começam com `AQ.`. As antigas, que começam com `AIza`, deixaram de ser aceitas pelo Google em setembro de 2026: crie uma nova se a sua for desse tipo. Sem chave, a IA fica desligada e só as regras locais (foto repetida) rodam. |
 | `GEMINI_MODEL` | `gemini-flash-lite-latest` | Precisa aceitar imagem. O alias `-latest` é atualizado pelo Google com aviso de 2 semanas; para fixar, use um nome exato (ex.: `gemini-3.1-flash-lite`). |
 | `GEMINI_API_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta` | Só para testes (servidor falso) ou proxy. |
 

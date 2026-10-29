@@ -55,9 +55,16 @@ export function useGeminiKey(): string | null {
   );
 }
 
-/** Light format check: Google AI Studio keys start with "AIza" and have 39 characters. */
+/**
+ * Light format check, only to catch obvious mistakes (spaces, a pasted sentence, a cut key).
+ * Google AI Studio issues "Auth keys" starting with "AQ." since mid-2026; older "Standard keys"
+ * start with "AIza". The real check is the request to Google (testGeminiKey), so any other
+ * single-token string of a plausible size is accepted too, in case the format changes again.
+ */
 export function looksLikeGeminiKey(value: string): boolean {
-  return /^AIza[0-9A-Za-z_-]{30,60}$/.test(value.trim());
+  const key = value.trim();
+  if (/^AQ\.[0-9A-Za-z._~+/=-]{10,}$/.test(key) || /^AIza[0-9A-Za-z_-]{30,60}$/.test(key)) return true;
+  return /^[\x21-\x7e]{30,300}$/.test(key);
 }
 
 export function saveGeminiKey(value: string): boolean {

@@ -335,9 +335,9 @@ const demoDict = {
   byok_hide: { pt: "Ocultar", en: "Hide", es: "Ocultar" },
   byok_saved_as: { pt: "Chave salva: {key}", en: "Saved key: {key}", es: "Clave guardada: {key}" },
   byok_bad_format: {
-    pt: "Isso não parece uma chave do Gemini (ela começa com \"AIza\").",
-    en: "This doesn't look like a Gemini key (it starts with \"AIza\").",
-    es: "Esto no parece una clave de Gemini (empieza con \"AIza\").",
+    pt: "Isso não parece uma chave do Gemini (as chaves novas começam com \"AQ.\"; as antigas, com \"AIza\").",
+    en: "This doesn't look like a Gemini key (new keys start with \"AQ.\"; older ones with \"AIza\").",
+    es: "Esto no parece una clave de Gemini (las nuevas empiezan con \"AQ.\"; las antiguas, con \"AIza\").",
   },
   byok_checking: { pt: "Testando a chave…", en: "Testing the key…", es: "Probando la clave…" },
   byok_ok: { pt: "Chave funcionando ✓ Fotos reais serão analisadas pelo Gemini.", en: "Key working ✓ Real photos will be analysed by Gemini.", es: "Clave funcionando ✓ Las fotos reales las analizará Gemini." },

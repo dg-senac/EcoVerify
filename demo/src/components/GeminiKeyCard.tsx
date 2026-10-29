@@ -88,7 +88,7 @@ export function GeminiKeyCard() {
               type={visible ? "text" : "password"}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="AIza…"
+              placeholder="AQ.…"
               autoComplete="off"
               autoCapitalize="off"
               autoCorrect="off"
