@@ -70,7 +70,7 @@ Marque cada item com `[x]` quando passar. Se algo der errado, anote no modelo do
 
 ### 3.3 Maria: comprovação e a IA (simulada)
 
-Na demo a IA é **simulada** pela foto de exemplo escolhida (a IA de verdade fica para a Parte 3). Abra uma missão, toque em comprovar e use **"Sem câmera? Use uma foto de exemplo"**:
+Sem chave, a IA da demo é **simulada** pela foto de exemplo escolhida (para a IA de verdade, veja a seção 3.3.1). Abra uma missão, toque em comprovar e use **"Sem câmera? Use uma foto de exemplo"**:
 
 | Teste | O que escolher | Resultado esperado |
 | --- | --- | --- |
@@ -84,6 +84,26 @@ Também conferir:
 - [ ] Missão **local** (ex.: Praia de Boa Viagem) longe do local → o app mostra a distância. **Simular que estou no local (demo)** libera o envio (no app real, é preciso estar a até 150 m).
 - [ ] Em **Minhas Submissões**, abrir a comprovação rejeitada automaticamente › **Contestar** › escrever o motivo › *Enviar contestação* → status "Contestação em análise". Tentar contestar de novo → "Você já contestou esta decisão".
 - [ ] As **Notificações** mostram cada aprovação/rejeição com o motivo, e *Marcar todas como lidas* zera o contador.
+
+### 3.3.1 IA de verdade com a sua chave do Gemini (opcional)
+
+Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudio.google.com/apikey) (*Create API key*; ela começa com `AIza`). Use uma chave só de testes, sem cobrança ativada. **Nunca** coloque a chave no GitHub (nem em *Secrets*) ou em grupos.
+
+- [ ] **Configurações → IA de verdade (sua chave do Gemini)** aparece com o selo "IA simulada".
+- [ ] Colar um texto qualquer → "Isso não parece uma chave do Gemini".
+- [ ] Colar a chave → *Salvar e testar* → "Chave funcionando ✓" e o selo muda para "🤖 Gemini ativo". A chave aparece mascarada (ex.: `AIzaSy••••ab12`).
+- [ ] Chave errada (apague uma letra) → "O Google recusou a chave".
+- [ ] Ao comprovar uma missão, a foto da **câmera** mostra o aviso "Esta foto será analisada pelo Gemini de verdade". O botão mostra "Analisando com o Gemini…".
+- [ ] **Foto real que combina** com a missão (ex.: recicláveis separados em "Separe o lixo reciclável em casa") → aprovada sozinha, com a explicação do Gemini no idioma do app.
+- [ ] **Foto de uma tela** (fotografe outra tela mostrando a ação) → rejeitada sozinha, com o motivo de foto de tela.
+- [ ] **Foto sem relação** (ex.: um teclado) → rejeitada ou enviada para a moderação, com o motivo.
+- [ ] Como **Carlos**, os casos duvidosos aparecem na Moderação com o selo "🤖 Gemini (chave de teste)" e a sugestão da IA.
+- [ ] **Sem internet** (modo avião) com a chave salva → aviso "Sem conexão com o Google" e a comprovação vai para a moderação.
+- [ ] As **fotos de exemplo** continuam simuladas, mesmo com a chave salva.
+- [ ] **Exportar meus dados** não contém a chave.
+- [ ] *Remover chave deste aparelho* → volta para "IA simulada".
+
+> O plano gratuito tem limite diário de análises. Se aparecer "Limite gratuito do Gemini atingido", espere o dia seguinte. No plano gratuito, o Google pode usar as fotos para melhorar os modelos: evite rostos e dados pessoais.
 
 ### 3.4 Carlos: moderação
 
@@ -196,7 +216,7 @@ Também conferir:
 | --- | --- |
 | Login real, confirmação de e-mail, troca de senha | Precisa do servidor e do Resend. |
 | Vários usuários vendo os mesmos dados (ranking e chat reais) | Cada aparelho tem a própria demo. |
-| IA real analisando a foto | Precisa do servidor com `GEMINI_API_KEY`. A **Parte 3** vai permitir testar com a sua chave dentro da demo. |
+| IA real com a chave do projeto | Precisa do servidor com `GEMINI_API_KEY`. Na demo dá para testar a IA real com a **sua** chave (seção 3.3.1). |
 | Missões automáticas do OpenStreetMap | Na demo os lugares são de exemplo. |
 | FONE de verdade e conferência no explorer | Os pagamentos são simulados. |
 | Pix de verdade | A chave da demo é fictícia. |

@@ -74,13 +74,28 @@ O plano gratuito (sem faturamento) é ótimo para o piloto, mas:
 
 Não há IA de verdade nem servidor: em *Enviar comprovação* há **fotos de exemplo** (Mutirão de limpeza, Plantio, Reciclagem, Doação, Foto de tela). A categoria certa é aprovada sozinha, outra categoria é rejeitada ("não mostra a ação pedida"), a foto de tela é rejeitada e fotos da câmera vão para a moderação. A decisão usa o mesmo `decideProof` do servidor, e o card da moderação usa o mesmo `AiPanel`. Contestação e "Decisões automáticas recentes" funcionam igual (`demo/src/demoAi.ts`).
 
+### IA de verdade na demo, com a sua chave (sem servidor e sem banco)
+
+Em **Configurações → IA de verdade (sua chave do Gemini)**, quem testa pode colar a própria chave gratuita do [Google AI Studio](https://aistudio.google.com/apikey):
+
+- A chave fica **só no `localStorage` do aparelho**, numa entrada separada (`ecoverify-demo-gemini-key`). Ela não entra no estado da demo nem no "Exportar meus dados", e nunca vai para o código, o GitHub ou o build. A **demo pública não tem chave nenhuma**: sem chave, tudo continua simulado.
+- *Salvar e testar* confere a chave lendo os dados do modelo, o que não gasta a cota de análises. *Remover chave deste aparelho* apaga a chave.
+- Com a chave, **fotos da câmera ou da galeria** vão do aparelho direto para o Gemini (`gemini-flash-lite-latest`), com o **mesmo prompt, o mesmo schema e o mesmo `decideProof` do servidor** (`src/lib/ai/gemini-core.ts`). A explicação vem no idioma do usuário. As **fotos de exemplo continuam simuladas**, porque são desenhos e um modelo real as rejeitaria.
+- Todas as regras (relato, distância, limite diário, foto repetida) são conferidas **antes** de chamar o Gemini, para não gastar cota à toa.
+- Se der erro (chave recusada, limite diário, sem internet), a comprovação vai para a moderação, com um aviso explicando o motivo. Na moderação aparece a origem da análise: "IA simulada" ou "Gemini (chave de teste)".
+- Os cuidados do plano gratuito (abaixo) valem aqui também, e o card de Configurações avisa isso. Use uma chave só de testes, sem cobrança ativada.
+
+**Não coloque a chave em *Secrets and variables* do GitHub para a demo.** A demo e o APK não têm servidor, então a chave teria que ir dentro do código publicado, e qualquer pessoa conseguiria extraí-la. Quando existir o servidor com banco, a chave vai nas variáveis de ambiente da hospedagem (`GEMINI_API_KEY`), nunca no app.
+
 ## Arquivos
 
 | Arquivo | Papel |
 |---|---|
 | `src/lib/ai/decision.ts` | Motivos padronizados (PT/EN/ES), `decideProof`, validação do JSON. Puro, compartilhado com a demo. |
 | `src/lib/ai/photo.ts` | Remove EXIF, reduz, dHash, distância de Hamming. |
-| `src/lib/ai/gemini.ts` | Adaptador do provedor (prompt, schema JSON, erros/timeout). |
+| `src/lib/ai/gemini-core.ts` | Chamada ao Gemini: prompt, schema JSON, erros/timeout e teste da chave. Puro, compartilhado com a demo. |
+| `src/lib/ai/gemini.ts` | Adaptador do servidor: lê `GEMINI_API_KEY`/`GEMINI_MODEL` e usa o `gemini-core`. |
+| `demo/src/byok.ts`, `demo/src/components/GeminiKeyCard.tsx` | Chave própria na demo: guardar, testar, remover e analisar. |
 | `src/lib/ai/pipeline.ts` | Orquestra: foto parecida → modelo → decisão → grava/aplica. |
 | `src/lib/review.ts` | Aprovar/rejeitar (usado pela IA e pela moderação). |
 | `src/components/moderation/ai-panel.tsx` | Sugestão da IA no card da moderação. |

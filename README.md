@@ -142,6 +142,8 @@ Em **Admin → Recompensas**, as recompensas aprovadas aparecem **agrupadas por 
 - **Admin → 🤖 IA**: modo automático / só sugestão / desligada, limites de confiança, valor máximo de FONE que a IA aprova sozinha e métricas.
 - Só sai do servidor a foto reduzida e sem EXIF + a missão + o relato (nunca nome, e-mail ou GPS). As fotos passam a ser guardadas **sem EXIF**.
 
+- **Na demo, sem servidor**: em Configurações, quem testa pode colar a **própria chave do Gemini**. Ela fica só no aparelho e faz as fotos reais serem analisadas pela IA de verdade. A demo pública nunca leva chave.
+
 Detalhes, limites do plano gratuito e como trocar de provedor: [`docs/VERIFICACAO_IA.md`](docs/VERIFICACAO_IA.md).
 
 ## Missões por região
