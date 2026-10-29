@@ -25,10 +25,15 @@ export const REJECTION_CODES = [
   "inappropriate",
   "too_dark_blurry",
   "report_mismatch",
+  "internet_copy",
 ] as const;
 export type RejectionCode = (typeof REJECTION_CODES)[number];
 
-/** Reasons clear enough to reject without a moderator (when confidence is high enough). */
+/**
+ * Reasons clear enough to reject without a moderator (when confidence is high enough).
+ * "internet_copy" is deliberately absent: the model cannot search the web, so a suspected copy is
+ * always decided by a person (see decideProof and INTERNET_COPY_MIN_EXPLANATION).
+ */
 const AUTO_REJECTABLE: ReadonlySet<RejectionCode> = new Set([
   "similar_photo",
   "not_matching_mission",
@@ -79,6 +84,11 @@ export const REJECTION_REASONS: Record<RejectionCode, Record<Lang, string>> = {
     en: "The report does not match what the photo shows.",
     es: "El relato no corresponde a lo que aparece en la foto.",
   },
+  internet_copy: {
+    pt: "A foto parece ter sido copiada da internet (marca d'água, banco de imagens ou foto de outro site). Envie uma foto tirada por você no local.",
+    en: "The photo looks copied from the internet (watermark, stock photo or a picture from another site). Send a photo you took on site.",
+    es: "La foto parece copiada de internet (marca de agua, banco de imágenes o foto de otro sitio). Envía una foto tomada por ti en el lugar.",
+  },
 };
 
 export function rejectionReasonText(code: string | null | undefined, lang: Lang): string | null {
@@ -99,6 +109,14 @@ export type AiAnalysis = {
   reportConsistent: boolean;
   /** People's faces can be recognised (privacy hint for moderators). */
   identifiableFaces: boolean;
+  /**
+   * Signs that the picture was downloaded from the internet (stock-photo watermark, site logo or
+   * caption, professional studio look, frame of a social-network post). Only a hint: it always
+   * sends the proof to a person, who can check it with a reverse image search.
+   */
+  internetCopy: boolean;
+  /** Which signs were seen (short text, empty when none). */
+  internetSigns: string;
   verdict: AiVerdict;
   reasonCode: RejectionCode | null;
   /** 0-100 */
@@ -112,6 +130,13 @@ export type AiChecks = Partial<AiAnalysis> & {
   /** Near-duplicate found by the perceptual hash. */
   similarSubmissionId?: string;
   similarDistance?: number;
+  /** Reverse image search (Cloud Vision Web Detection), when configured. */
+  webChecked?: boolean;
+  webFullMatches?: string[];
+  webPages?: { url: string; title: string | null }[];
+  webPartialCount?: number;
+  webBestGuess?: string | null;
+  webError?: string;
 };
 
 export type AiSettingsValues = {
@@ -155,6 +180,7 @@ export function problemFromAnalysis(a: AiAnalysis): RejectionCode | null {
   if (a.inappropriate) return "inappropriate";
   if (a.screenOrPrint) return "screen_photo";
   if (a.aiGeneratedOrEdited || !a.isRealPhoto) return "ai_generated";
+  if (a.internetCopy) return "internet_copy";
   if (!a.matchesMission) return "not_matching_mission";
   if (a.tooDarkOrBlurry) return "too_dark_blurry";
   if (!a.reportConsistent) return "report_mismatch";
@@ -168,8 +194,10 @@ export function decideProof(input: {
   /** Near-duplicate found by the local rules. */
   similar: { distance: number } | null;
   foneReward: number;
+  /** Reverse image search result: "copy" = the same picture is on the internet. */
+  web?: "copy" | "partial" | "none" | null;
 }): ProofDecision {
-  const { settings, analysis, similar } = input;
+  const { settings, analysis, similar, web } = input;
   const auto = settings.mode === "auto";
 
   if (similar && similar.distance <= SAME_PHOTO_MAX_DISTANCE) {
@@ -178,18 +206,34 @@ export function decideProof(input: {
   if (similar && similar.distance <= SIMILAR_PHOTO_MAX_DISTANCE) {
     return { action: "review", verdict: "reject", confidence: analysis?.confidence ?? 0, reasonCode: "similar_photo" };
   }
-  if (!analysis || settings.mode === "off") {
+  if (settings.mode === "off") {
+    return { action: "review", verdict: "review", confidence: 0, reasonCode: null };
+  }
+  // The same picture was found on the internet: strong evidence, but still decided by a person
+  // (it may be the author's own photo published elsewhere). Inappropriate content keeps its path.
+  if (web === "copy" && !analysis?.inappropriate) {
+    return { action: "review", verdict: "review", confidence: analysis ? clampConfidence(analysis.confidence) : 0, reasonCode: "internet_copy" };
+  }
+  if (!analysis) {
     return { action: "review", verdict: "review", confidence: 0, reasonCode: null };
   }
 
   const confidence = clampConfidence(analysis.confidence);
   const problem = problemFromAnalysis(analysis);
 
+  // Suspected internet copy: never decided by the AI alone, in either direction. A person checks it
+  // (reverse image search) and, when rejecting, writes the explanation themselves.
+  // Inappropriate content keeps its own (stricter) path.
+  if (analysis.internetCopy && !analysis.inappropriate) {
+    return { action: "review", verdict: "review", confidence, reasonCode: "internet_copy" };
+  }
+
   if (analysis.verdict === "approve") {
     // An "approve" that contradicts the model's own answers is not trusted.
     if (problem) return { action: "review", verdict: "review", confidence, reasonCode: problem };
+    // Crops/edits of the picture found online: not enough to flag, but enough to need a person.
     const canAutoApprove =
-      auto && confidence >= settings.approveMinConfidence && input.foneReward <= settings.maxAutoApproveFone;
+      auto && web !== "partial" && confidence >= settings.approveMinConfidence && input.foneReward <= settings.maxAutoApproveFone;
     return { action: canAutoApprove ? "approve" : "review", verdict: "approve", confidence, reasonCode: null };
   }
 
@@ -224,6 +268,8 @@ export function parseAiAnalysis(raw: unknown): AiAnalysis | null {
     identifiableFaces: bool("identifiable_faces"),
   };
   if (Object.values(fields).some((value) => value === null)) return null;
+  // Optional for compatibility with answers produced before the field existed.
+  const internetCopy = bool("internet_copy") ?? false;
 
   const verdict = r.verdict;
   if (verdict !== "approve" && verdict !== "reject" && verdict !== "review") return null;
@@ -237,5 +283,55 @@ export function parseAiAnalysis(raw: unknown): AiAnalysis | null {
     reasonCode: isRejectionCode(r.reason_code) ? r.reason_code : null,
     confidence,
     explanation: str("explanation", 400),
+    internetCopy,
+    internetSigns: internetCopy ? str("internet_signs", 300) : "",
   };
 }
+
+/** True when the automatic verification flagged the proof as a possible copy from the internet. */
+export function isInternetCopyFlag(aiReasonCode: string | null | undefined): boolean {
+  return aiReasonCode === "internet_copy";
+}
+
+/** Minimum length of the explanation a moderator must write to reject a flagged proof. */
+export const INTERNET_COPY_MIN_EXPLANATION = 15;
+
+/** What the moderator actually wrote: the text without any ready-made reason pasted into it. */
+export function ownWords(text: string): string {
+  let value = text;
+  for (const code of REJECTION_CODES) {
+    for (const preset of Object.values(REJECTION_REASONS[code])) value = value.split(preset).join(" ");
+  }
+  return value.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Validates a moderator's rejection. Proofs flagged as a possible internet copy need an explanation
+ * written by the moderator (what they found, e.g. "the same photo is on site X"), not just a
+ * ready-made reason: the person deserves to know why, and it keeps the decision human (LGPD art. 20).
+ */
+export function validateRejection(input: { flagged: boolean; text: string }): "reason_too_short" | "explanation_required" | null {
+  const text = input.text.trim();
+  if (input.flagged && ownWords(text).length < INTERNET_COPY_MIN_EXPLANATION) return "explanation_required";
+  if (text.length < 5) return "reason_too_short";
+  return null;
+}
+
+const EXPLANATION_LABEL: Record<Lang, string> = {
+  pt: "Explicação da equipe",
+  en: "Team explanation",
+  es: "Explicación del equipo",
+};
+
+/**
+ * Message shown to the user: the standard reason in their language, plus the moderator's own words
+ * when they wrote something other than the ready-made text.
+ */
+export function composeRejectionMessage(code: string | null | undefined, text: string, lang: Lang): string {
+  const standard = rejectionReasonText(code, lang);
+  if (!standard) return text.trim();
+  const custom = ownWords(text);
+  if (!custom) return standard;
+  return `${standard} ${EXPLANATION_LABEL[lang]}: ${custom}`;
+}
+

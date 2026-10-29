@@ -30,11 +30,14 @@ export function AiTab({
   stats,
   model,
   hasKey,
+  vision,
 }: {
   settings: AiSettingsValues;
   stats: AiStats;
   model: string;
   hasKey: boolean;
+  /** Reverse image search (Cloud Vision Web Detection): configured? used / limit this month. */
+  vision?: { configured: boolean; used: number; limit: number };
 }) {
   const [state, formAction, pending] = useActionState(updateAiSettingsAction, initialState);
   const cards = [
@@ -61,6 +64,27 @@ export function AiTab({
           </>
         )}
       </div>
+
+      {vision && (
+        <div
+          className={`rounded-2xl px-4 py-3 text-sm ${vision.configured ? (vision.used >= vision.limit ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800") : "bg-slate-50 text-slate-600"}`}
+          data-testid="vision-status"
+        >
+          {vision.configured ? (
+            <>
+              🌐 Busca reversa de imagens (Google Cloud Vision): <strong>{vision.used}</strong> de {vision.limit} fotos este mês.
+              {vision.used >= vision.limit
+                ? " Limite do mês atingido: as próximas fotos não passam pela busca (use o Google Lens na moderação)."
+                : " Foto achada na internet vai para a moderação com os links, nunca é decidida sozinha."}
+            </>
+          ) : (
+            <>
+              🌐 Busca reversa automática desligada. Para ligar, crie uma chave do Cloud Vision (projeto com cobrança ativa; as primeiras
+              1.000 fotos do mês são grátis) e defina <code>GOOGLE_VISION_API_KEY</code>. Sem ela, a moderação confere no Google Lens.
+            </>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         {cards.map((card) => (

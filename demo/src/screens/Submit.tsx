@@ -194,6 +194,9 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
               </span>
             )}
           </button>
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-slate-500" data-testid="internet-warning">
+            <span aria-hidden="true">🔎</span> {t(lang, "submit_internet_warning")}
+          </p>
           <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3" data-testid="sample-photos">
             <p className="text-xs font-bold text-slate-700">🤖 {dt(lang, "sample_title")}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">

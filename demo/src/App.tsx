@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { onStorageError, setGuestLanguage, updateSettings, useCurrentUser, useLang, type User } from "./store";
+import { moderatorsOn, onStorageError, setGuestLanguage, updateSettings, useCurrentUser, useLang, useStore, type User } from "./store";
+import { canReview } from "@/lib/nav";
 import { startTour, TourPanel } from "./components/Tour";
 import { matchRoute, navigate, useRoute } from "./router";
 import { dt } from "./i18n";
@@ -71,7 +72,7 @@ function Redirect({ to }: { to: string }) {
 }
 
 function AuthedRoutes({ user, path }: { user: User; path: string }) {
-  const staff = user.role === "moderator" || user.role === "admin";
+  const staff = useStore((s) => canReview(user.role, moderatorsOn(s)));
   const submit = matchRoute("/missions/:id/submit", path);
   if (submit) return <SubmitScreen key={submit.id} missionId={submit.id} />;
   if (path === "/org") return <OrgListScreen user={user} />;
@@ -103,7 +104,7 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
     case "/admin":
       return user.role === "admin" ? <AdminScreen user={user} /> : <Redirect to="/missions" />;
     default:
-      return <Redirect to={user.role === "citizen" ? "/missions" : user.role === "moderator" ? "/moderation" : "/admin"} />;
+      return <Redirect to={user.role === "admin" ? "/admin" : staff ? "/moderation" : "/missions"} />;
   }
 }
 

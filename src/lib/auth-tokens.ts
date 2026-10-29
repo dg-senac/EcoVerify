@@ -3,11 +3,12 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { authTokens } from "@/db/schema";
 
-export type TokenPurpose = "verify_email" | "reset_password";
+export type TokenPurpose = "verify_email" | "reset_password" | "ban_appeal";
 
 export const TOKEN_TTL_MS: Record<TokenPurpose, number> = {
   verify_email: 48 * 60 * 60 * 1000,
   reset_password: 60 * 60 * 1000,
+  ban_appeal: 30 * 60 * 1000,
 };
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -68,4 +69,22 @@ export async function peekAuthToken(token: string, purpose: TokenPurpose): Promi
     )
     .limit(1);
   return !!row;
+}
+
+/** Like peekAuthToken, but returns the token's user (null when invalid, expired or used). */
+export async function peekAuthTokenUser(token: string, purpose: TokenPurpose): Promise<string | null> {
+  if (!TOKEN_PATTERN.test(token)) return null;
+  const [row] = await db
+    .select({ userId: authTokens.userId })
+    .from(authTokens)
+    .where(
+      and(
+        eq(authTokens.tokenHash, hashToken(token)),
+        eq(authTokens.purpose, purpose),
+        isNull(authTokens.usedAt),
+        gt(authTokens.expiresAt, new Date()),
+      ),
+    )
+    .limit(1);
+  return row?.userId ?? null;
 }

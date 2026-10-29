@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { missions, notifications, pointsLedger, rewardQueue, submissions, users } from "@/db/schema";
-import { rejectionReasonText, type RejectionCode } from "@/lib/ai/decision";
+import { composeRejectionMessage, rejectionReasonText, type RejectionCode } from "@/lib/ai/decision";
 import type { Lang } from "@/lib/i18n";
 import { holdReasonForNewReward } from "@/lib/payouts";
 import type { HoldReason } from "@/lib/payout-rules";
@@ -192,7 +192,7 @@ export async function rejectSubmission(
         message:
           reviewer.kind === "ai"
             ? text.rejected(missionTitle, localizedReason)
-            : `Sua comprovação para "${missionTitle}" foi rejeitada. Motivo: ${reason.text}. Você pode enviar uma nova comprovação para esta missão.`,
+            : `Sua comprovação para "${missionTitle}" foi rejeitada. Motivo: ${composeRejectionMessage(reason.code, reason.text, submitter.language).replace(/[.!\s]+$/, "")}. Você pode enviar uma nova comprovação para esta missão.`,
       });
     }
     return true;

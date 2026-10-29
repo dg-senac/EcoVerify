@@ -1,5 +1,5 @@
 import { useRef, useSyncExternalStore } from "react";
-import type { Lang } from "@/lib/i18n";
+import { t, tf, type Lang } from "@/lib/i18n";
 import type { Role } from "@/lib/nav";
 import { dt, botReplies } from "./i18n";
 import { createSeed, STATE_VERSION } from "./seed";
@@ -7,8 +7,33 @@ import { centsToFone, foneToCents, isValidFoneAddress, normalizeHex, pickChallen
 import { TERMS_VERSION } from "@/lib/legal";
 import type { Theme } from "@/lib/theme";
 import { distanceMeters, fakeTxHash, MAX_DISTANCE_METERS, MAX_GPS_ACCURACY_METERS, uid } from "./media";
-import { decideProof, DEFAULT_AI_SETTINGS, rejectionReasonText, type AiAnalysis, type AiChecks, type AiVerdict, type RejectionCode } from "@/lib/ai/decision";
-import { simulateAnalysis, type SampleKind } from "./demoAi";
+import {
+  composeRejectionMessage,
+  decideProof,
+  DEFAULT_AI_SETTINGS,
+  isInternetCopyFlag,
+  ownWords,
+  rejectionReasonText,
+  validateRejection,
+  type AiAnalysis, type AiChecks, type AiVerdict, type RejectionCode } from "@/lib/ai/decision";
+import { simulateAnalysis, simulateWebSearch, type SampleKind } from "./demoAi";
+import { webVerdict } from "@/lib/ai/web-detection-core";
+import {
+  CARD_APPEAL_MIN,
+  CARD_NOTE_MIN,
+  CARD_REASON_LABELS,
+  cardExpiresAt,
+  cardNoticeText,
+  cardReasonForRejection,
+  countingYellows,
+  isCardActive,
+  isSuspended,
+  yellowOutcome,
+  type CardReason,
+  type CardType,
+} from "@/lib/cards";
+import { canReview } from "@/lib/nav";
+import { formatDate } from "@/lib/utils";
 import type { Region, RegionRadius } from "@/lib/region";
 import { OSM_TEMPLATES, type OsmKind } from "@/lib/regional/templates";
 import {
@@ -44,6 +69,13 @@ export type User = {
   adultDeclaredAt: string | null;
   isBanned: boolean;
   banReason: string | null;
+  /** Like users.banned_at / ban_appeal_message / ban_appealed_at (one appeal per block). */
+  bannedAt?: string | null;
+  banAppealMessage?: string | null;
+  banAppealedAt?: string | null;
+  /** 3rd yellow card: suspended until this date (kept after it ends, like users.suspended_until). */
+  suspendedUntil?: string | null;
+  suspensionReason?: string | null;
   createdAt: string;
   /** LGPD: when the Terms of Use / Privacy Policy were accepted (like users.terms_accepted_at). */
   termsAcceptedAt?: string | null;
@@ -198,6 +230,31 @@ export type State = {
   orgs?: DemoOrg[];
   orgMembers?: DemoOrgMember[];
   invoices?: DemoInvoice[];
+  /** Yellow/red cards (src/lib/cards.ts). */
+  cards?: DemoCard[];
+  /**
+   * Moderators may review proofs. The real app starts with this OFF (MODERATORS_ENABLED); the demo
+   * starts ON so Carlos can be tried, and Ana can turn it off in Admin → Users.
+   */
+  moderatorsEnabled?: boolean;
+};
+
+export type DemoCard = {
+  id: string;
+  userId: string;
+  type: CardType;
+  reasonCode: CardReason;
+  note: string;
+  submissionId: string | null;
+  issuedBy: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+  consumedAt: string | null;
+  causedSuspension: boolean;
+  revokedAt: string | null;
+  appealMessage: string | null;
+  appealedAt: string | null;
+  appealRejectedAt: string | null;
 };
 
 export type DemoOrg = {
@@ -349,6 +406,17 @@ function notify(s: State, userId: string, build: (lang: Lang) => { title: string
   return [{ id: uid(), userId, title, message, isRead: false, createdAt: now() }, ...s.notifications];
 }
 
+/** In-app alert to the platform staff (like src/lib/staff-alerts.ts). */
+function notifyStaff(s: State, roles: Role[], build: (lang: Lang) => { title: string; message: string }): Notification[] {
+  let notifications = s.notifications;
+  for (const member of s.users) {
+    if (!roles.includes(member.role) || member.isBot || member.isBanned || member.deletedAt) continue;
+    const { title, message } = build(member.language);
+    notifications = [{ id: uid(), userId: member.id, title, message, isRead: false, createdAt: now() }, ...notifications];
+  }
+  return notifications;
+}
+
 /* ------------------------------------------------------------------ */
 /* Auth                                                                */
 /* ------------------------------------------------------------------ */
@@ -357,6 +425,7 @@ export function loginAs(userId: string): Result {
   const user = userById(userId);
   if (!user) return { error: "generic" };
   if (user.isBanned) return { error: "banned" };
+  if (isSuspended(user.suspendedUntil)) return { error: "suspended" };
   commit((s) => ({ ...s, currentUserId: userId }));
   return {};
 }
@@ -544,7 +613,9 @@ export function submitProof(input: NewSubmission): Result {
   const realAnalysis = real && "analysis" in real ? real : null;
   const analysis = input.sample ? simulateAnalysis(input.sample, mission.category, lang) : (realAnalysis?.analysis ?? null);
   const aiFailed = !!real && "failed" in real;
-  const decision = decideProof({ settings: DEFAULT_AI_SETTINGS, analysis, similar: null, foneReward: Number(mission.foneReward) });
+  const web = simulateWebSearch(input.sample ?? null);
+  const decision = decideProof({ settings: DEFAULT_AI_SETTINGS, analysis, similar: null, foneReward: Number(mission.foneReward), web: webVerdict(web) });
+  const webChecks = web ? { webChecked: true, webFullMatches: web.fullMatches, webPages: web.pages, webPartialCount: web.partialCount, webBestGuess: web.bestGuess } : {};
   const submission: Submission = {
     id: uid(),
     userId: user.id,
@@ -567,12 +638,22 @@ export function submitProof(input: NewSubmission): Result {
     aiConfidence: analysis ? decision.confidence : null,
     aiReasonCode: decision.reasonCode,
     aiSummary: analysis ? analysis.explanation : null,
-    aiChecks: analysis ? { ...analysis } : null,
+    aiChecks: analysis ? { ...analysis, ...webChecks } : null,
   };
   const ok = commit((s) => {
     const next: State = { ...s, submissions: [submission, ...s.submissions] };
     if (decision.action === "approve") return applyApproval(next, submission.id, null);
     if (decision.action === "reject" && decision.reasonCode) return applyRejection(next, submission.id, null, decision.reasonCode, "");
+    // Possible copy from the internet: never decided by the AI, the staff is alerted.
+    if (decision.reasonCode === "internet_copy") {
+      return {
+        ...next,
+        notifications: notifyStaff(next, moderatorsOn(next) ? ["admin", "moderator"] : ["admin"], (l) => ({
+          title: t(l, "staff_internet_title"),
+          message: tf(l, "staff_internet_message", { name: user.name, mission: localizedTitle(mission, l) }),
+        })),
+      };
+    }
     return next;
   });
   return ok ? {} : { error: "storage" };
@@ -648,7 +729,8 @@ function applyRejection(s: State, submissionId: string, reviewerId: string | nul
     ...next,
     notifications: notify(next, sub.userId, (l) => {
       const title = mission ? localizedTitle(mission, l) : "";
-      const text = reason || rejectionReasonText(code, l) || "";
+      // The message template adds the final period.
+      const text = composeRejectionMessage(code, reason, l).replace(/[.!\s]+$/, "");
       return reviewerId
         ? { title: dt(l, "notif_rejected_title"), message: dt(l, "notif_rejected_msg", { mission: title, reason: text }) }
         : { title: dt(l, "notif_ai_rejected_title"), message: dt(l, "notif_ai_rejected_msg", { mission: title, reason: text }) };
@@ -684,7 +766,7 @@ export function appealSubmission(submissionId: string, message: string): Result 
 /* ------------------------------------------------------------------ */
 
 function canModerate(user: User | null): user is User {
-  return !!user && (user.role === "moderator" || user.role === "admin") && !user.isBanned;
+  return !!user && canReview(user.role, moderatorsOn()) && !user.isBanned;
 }
 
 export function approveSubmission(submissionId: string): Result {
@@ -698,15 +780,23 @@ export function approveSubmission(submissionId: string): Result {
   return {};
 }
 
-export function rejectSubmission(submissionId: string, reason: string, code: RejectionCode | null = null): Result {
+export function rejectSubmission(submissionId: string, reason: string, code: RejectionCode | null = null, giveCard = false): Result {
   const reviewer = me();
   if (!canModerate(reviewer)) return { error: "error_generic" };
-  const cleanReason = reason.trim();
-  if (cleanReason.length < 5) return { error: "reason_too_short" };
+  const cleanReason = reason.trim().slice(0, 1000);
   const sub = state.submissions.find((s) => s.id === submissionId);
   if (!sub || sub.status !== "pending") return { error: "error_generic" };
   if (sub.userId === reviewer.id) return { error: "own_submission_warning" };
-  commit((s) => applyRejection(s, sub.id, reviewer.id, code, cleanReason));
+  // Same rule as the server: a flagged internet copy needs the moderator's own explanation.
+  const invalid = validateRejection({ flagged: isInternetCopyFlag(sub.aiReasonCode), text: cleanReason });
+  if (invalid) return { error: invalid === "explanation_required" ? "internet_explain_required" : "reason_too_short" };
+  if (giveCard && cleanReason.length < CARD_NOTE_MIN) return { error: "card_note_short" };
+  commit((s) => {
+    const next = applyRejection(s, sub.id, reviewer.id, code, cleanReason);
+    if (!giveCard) return next;
+    // Same as the server: the yellow card is explained by the moderator's own words.
+    return applyCard(next, { userId: sub.userId, type: "yellow", reason: cardReasonForRejection(code), note: ownWords(cleanReason) || cleanReason, issuerId: reviewer.id, submissionId: sub.id });
+  });
   return {};
 }
 
@@ -855,8 +945,211 @@ export function setUserBan(userId: string, banned: boolean, reason?: string): Re
   if (!isAdmin(admin) || admin.id === userId) return { error: "error_generic" };
   commit((s) => ({
     ...s,
-    users: s.users.map((u) => (u.id === userId ? { ...u, isBanned: banned, banReason: banned ? reason?.trim() || null : null } : u)),
+    users: s.users.map((u) =>
+      u.id === userId
+        ? {
+            ...u,
+            isBanned: banned,
+            banReason: banned ? reason?.trim() || null : null,
+            bannedAt: banned ? now() : null,
+            banAppealMessage: null,
+            banAppealedAt: null,
+          }
+        : u,
+    ),
   }));
+  return {};
+}
+
+/** Minimum length of a block appeal (like lib/actions/ban-appeal.ts). */
+export const BAN_APPEAL_MIN = 20;
+
+/**
+ * Appeal of a blocked account, sent from the "account blocked" screen (no session, like the
+ * server). One appeal per block; the admins are alerted.
+ */
+export function appealBan(userId: string, message: string): Result {
+  const text = message.trim().slice(0, 1500);
+  const user = userById(userId);
+  if (!user || (!user.isBanned && !isSuspended(user.suspendedUntil)) || user.deletedAt) return { error: "error_generic" };
+  if (user.banAppealedAt) return { error: "error_generic" };
+  if (text.length < BAN_APPEAL_MIN) return { error: "banned_appeal_too_short" };
+  commit((s) => {
+    const next: State = { ...s, users: s.users.map((u) => (u.id === userId ? { ...u, banAppealMessage: text, banAppealedAt: now() } : u)) };
+    return {
+      ...next,
+      notifications: notifyStaff(next, ["admin"], (l) => ({
+        title: t(l, "staff_ban_appeal_title"),
+        message: tf(l, "staff_ban_appeal_message", { name: user.name }),
+      })),
+    };
+  });
+  return {};
+}
+
+/* ------------------------------------------------------------------ */
+/* Cards and suspension (same rules as src/lib/cards-server.ts)        */
+/* ------------------------------------------------------------------ */
+
+export function moderatorsOn(s: State = state): boolean {
+  return s.moderatorsEnabled ?? true;
+}
+
+export function setModeratorsEnabled(enabled: boolean): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  commit((s) => ({ ...s, moderatorsEnabled: enabled }));
+  return {};
+}
+
+export function cardsOf(s: State, userId: string): DemoCard[] {
+  return (s.cards ?? []).filter((c) => c.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+type CardInput = { userId: string; type: CardType; reason: CardReason; note: string; issuerId: string; submissionId?: string | null };
+
+function applyCard(s: State, input: CardInput): State {
+  const target = userById(input.userId, s);
+  if (!target || target.deletedAt) return s;
+  const at = new Date();
+  const existing = cardsOf(s, input.userId);
+  const outcome = input.type === "yellow" ? yellowOutcome(existing, target.suspendedUntil ?? null, at) : null;
+  const note = input.note.trim().slice(0, 1000);
+  const card: DemoCard = {
+    id: uid(),
+    userId: input.userId,
+    type: input.type,
+    reasonCode: input.reason,
+    note,
+    submissionId: input.submissionId ?? null,
+    issuedBy: input.issuerId,
+    createdAt: at.toISOString(),
+    expiresAt: cardExpiresAt(input.type, at)?.toISOString() ?? null,
+    consumedAt: outcome?.suspend ? at.toISOString() : null,
+    causedSuspension: !!outcome?.suspend,
+    revokedAt: null,
+    appealMessage: null,
+    appealedAt: null,
+    appealRejectedAt: null,
+  };
+  const consumed = new Set(outcome?.suspend ? countingYellows(existing, at).map((c) => c.id) : []);
+  const label = CARD_REASON_LABELS[input.reason].pt;
+  const next: State = {
+    ...s,
+    cards: [card, ...(s.cards ?? []).map((c) => (consumed.has(c.id) ? { ...c, consumedAt: at.toISOString() } : c))],
+    users: s.users.map((u) => {
+      if (u.id !== input.userId) return u;
+      if (input.type === "red") return { ...u, isBanned: true, banReason: `${label}. ${note}`, bannedAt: at.toISOString(), banAppealMessage: null, banAppealedAt: null };
+      if (outcome?.suspend) return { ...u, suspendedUntil: outcome.suspendedUntil?.toISOString() ?? null, suspensionReason: `${label}. ${note}`, banAppealMessage: null, banAppealedAt: null };
+      return u;
+    }),
+    // The person is logged out when suspended or blocked.
+    currentUserId: (input.type === "red" || outcome?.suspend) && s.currentUserId === input.userId ? null : s.currentUserId,
+  };
+  const notice = cardNoticeText(target.language, {
+    type: input.type,
+    reason: input.reason,
+    note,
+    outcome,
+    until: outcome?.suspendedUntil ? formatDate(outcome.suspendedUntil.toISOString(), target.language) : undefined,
+  });
+  // Always delivered (even with notifications off): the person must know why.
+  let notifications: Notification[] = target.isBot
+    ? next.notifications
+    : [{ id: uid(), userId: target.id, title: notice.title, message: notice.message, isRead: false, createdAt: now() }, ...next.notifications];
+  if (outcome?.repeatOffence) {
+    notifications = notifyStaff({ ...next, notifications }, ["admin"], (l) => ({
+      title: t(l, "staff_repeat_title"),
+      message: tf(l, "staff_repeat_message", { name: target.name }),
+    }));
+  }
+  return { ...next, notifications };
+}
+
+/** Yellow card: moderators (when enabled) and admins. Red card: admins only. */
+export function giveCard(userId: string, type: CardType, reason: CardReason, note: string): Result {
+  const staff = me();
+  if (!canModerate(staff)) return { error: "error_generic" };
+  if (userId === staff.id) return { error: "error_generic" };
+  if (type === "red" && staff.role !== "admin") return { error: "error_generic" };
+  if (note.trim().length < CARD_NOTE_MIN) return { error: "card_note_short" };
+  commit((s) => applyCard(s, { userId, type, reason, note, issuerId: staff.id }));
+  return {};
+}
+
+export function appealCard(cardId: string, message: string): Result {
+  const user = me();
+  const text = message.trim();
+  if (!user) return { error: "error_generic" };
+  if (text.length < CARD_APPEAL_MIN) return { error: "banned_appeal_too_short" };
+  const card = (state.cards ?? []).find((c) => c.id === cardId && c.userId === user.id);
+  if (!card || !isCardActive(card) || card.appealedAt) return { error: "error_generic" };
+  commit((s) => {
+    const next: State = { ...s, cards: (s.cards ?? []).map((c) => (c.id === cardId ? { ...c, appealMessage: text.slice(0, 1500), appealedAt: now() } : c)) };
+    return {
+      ...next,
+      notifications: notifyStaff(next, ["admin"], (l) => ({ title: t(l, "staff_card_appeal_title"), message: tf(l, "staff_card_appeal_message", { name: user.name }) })),
+    };
+  });
+  return {};
+}
+
+function notifyUser(s: State, userId: string, build: (lang: Lang) => { title: string; message: string }): Notification[] {
+  const user = userById(userId, s);
+  if (!user || user.isBot) return s.notifications;
+  const { title, message } = build(user.language);
+  return [{ id: uid(), userId, title, message, isRead: false, createdAt: now() }, ...s.notifications];
+}
+
+/** Cancels a card; a suspension card lifts the suspension and gives back the series; a red card unblocks. */
+export function revokeCard(cardId: string): Result {
+  const admin = me();
+  if (!isAdmin(admin)) return { error: "error_generic" };
+  const card = (state.cards ?? []).find((c) => c.id === cardId);
+  if (!card || card.revokedAt) return { error: "error_generic" };
+  commit((s) => {
+    const at = now();
+    const series = card.causedSuspension && card.consumedAt ? card.consumedAt : null;
+    const next: State = {
+      ...s,
+      cards: (s.cards ?? []).map((c) =>
+        c.id === cardId ? { ...c, revokedAt: at, consumedAt: null } : series && c.userId === card.userId && c.consumedAt === series && !c.revokedAt ? { ...c, consumedAt: null } : c,
+      ),
+      users: s.users.map((u) => {
+        if (u.id !== card.userId) return u;
+        let updated = u;
+        if (series && isSuspended(u.suspendedUntil)) updated = { ...updated, suspendedUntil: null, suspensionReason: null, banAppealMessage: null, banAppealedAt: null };
+        if (card.type === "red") updated = { ...updated, isBanned: false, banReason: null, bannedAt: null, banAppealMessage: null, banAppealedAt: null };
+        return updated;
+      }),
+    };
+    return {
+      ...next,
+      notifications: notifyUser(next, card.userId, (l) => ({ title: t(l, "card_revoked_title"), message: tf(l, "card_revoked_message", { reason: CARD_REASON_LABELS[card.reasonCode][l] }) })),
+    };
+  });
+  return {};
+}
+
+export function keepCard(cardId: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  const card = (state.cards ?? []).find((c) => c.id === cardId);
+  if (!card || card.revokedAt || card.appealRejectedAt) return { error: "error_generic" };
+  commit((s) => {
+    const next: State = { ...s, cards: (s.cards ?? []).map((c) => (c.id === cardId ? { ...c, appealRejectedAt: now() } : c)) };
+    return {
+      ...next,
+      notifications: notifyUser(next, card.userId, (l) => ({ title: t(l, "card_kept_title"), message: tf(l, "card_kept_message", { reason: CARD_REASON_LABELS[card.reasonCode][l] }) })),
+    };
+  });
+  return {};
+}
+
+export function liftSuspension(userId: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  commit((s) => {
+    const next: State = { ...s, users: s.users.map((u) => (u.id === userId ? { ...u, suspendedUntil: now(), banAppealMessage: null, banAppealedAt: null } : u)) };
+    return { ...next, notifications: notifyUser(next, userId, (l) => ({ title: t(l, "suspension_lifted_title"), message: t(l, "suspension_lifted_message") })) };
+  });
   return {};
 }
 
@@ -911,6 +1204,8 @@ export function userPayout(s: State, userId: string) {
 export function simulateUserPayout(userId: string): Result {
   if (!isAdmin(me())) return { error: "error_generic" };
   const owner = userById(userId);
+  // FONE of a suspended or blocked account stays frozen (kept, not lost).
+  if (owner && (owner.isBanned || isSuspended(owner.suspendedUntil))) return { error: "payout_account_restricted" };
   if (!owner?.walletAddress) return { error: "no_wallet_warning" };
   const split = userPayout(state, userId);
   if (!split.payable.length) return { error: "payout_nothing_ready" };

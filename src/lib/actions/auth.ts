@@ -8,7 +8,11 @@ import { isUniqueViolation, safeNextPath } from "@/lib/utils";
 import { headers } from "next/headers";
 import { createSession, destroySession, hashPassword, verifyPassword } from "@/lib/auth";
 import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
+import { isSeedEmail, seedAccountsAllowed } from "@/lib/staff-config";
+import { promoteOwnerIfNeeded } from "@/lib/admin-bootstrap";
 import { sendVerificationEmail } from "@/lib/account-email";
+import { createAuthToken } from "@/lib/auth-tokens";
+import { isSuspended } from "@/lib/cards";
 import { TERMS_VERSION } from "@/lib/legal";
 
 export type ActionState = { error?: string; success?: boolean };
@@ -37,6 +41,11 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     return { error: "too_many_attempts" };
   }
 
+  // Seed accounts have a public password: never usable in production (ALLOW_SEED_ACCOUNTS overrides).
+  if (isSeedEmail(email) && !seedAccountsAllowed()) {
+    return { error: "invalid" };
+  }
+
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (!user) {
     return { error: "invalid" };
@@ -48,12 +57,15 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   }
   resetRateLimit(emailKey);
 
-  if (user.isBanned) {
-    return { error: "banned" };
+  if (user.isBanned || isSuspended(user.suspendedUntil)) {
+    // No session: a short-lived token only lets the person read the reason and appeal.
+    const token = await createAuthToken(user.id, "ban_appeal");
+    redirect(`/conta-bloqueada?t=${token}`);
   }
 
+  const promoted = await promoteOwnerIfNeeded(user);
   await createSession(user.id);
-  redirect(safeNextPath(formData.get("next")) ?? "/missions");
+  redirect(safeNextPath(formData.get("next")) ?? (promoted || user.role === "admin" ? "/admin" : "/missions"));
 }
 
 export async function registerAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

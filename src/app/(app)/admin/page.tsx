@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { invoices, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, users } from "@/db/schema";
+import { invoices, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, userCards, users } from "@/db/schema";
+import type { UserDetails } from "@/components/admin/user-sheet";
 import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
 import { confirmInvoiceAction, grantPlanAction } from "@/lib/actions/billing";
 import { PLANS } from "@/lib/plans";
@@ -9,6 +10,7 @@ import { orgPlan } from "@/lib/saas/org-rules";
 import { municipalityByIbge } from "@/lib/municipalities";
 import { formatDate } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth";
+import { adminEmails, isOwnerEmail, isSeedEmail, moderatorsEnabled, seedAccountsAllowed } from "@/lib/staff-config";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 import { MetricsTab } from "@/components/admin/metrics-tab";
 import { MissionsTab } from "@/components/admin/missions-tab";
@@ -18,6 +20,7 @@ import { WalletsTab } from "@/components/admin/wallets-tab";
 import { AiTab } from "@/components/admin/ai-tab";
 import { getAiSettings } from "@/lib/ai/pipeline";
 import { geminiApiKey, geminiModel } from "@/lib/ai/gemini";
+import { visionApiKey, visionMonthlyLimit, visionUsedThisMonth } from "@/lib/ai/vision";
 import type { PayoutGroup } from "@/components/admin/payout-row";
 import { getFoneConfig } from "@/lib/fone-config";
 import { emailMode } from "@/lib/email";
@@ -97,11 +100,54 @@ export default async function AdminPage() {
       createdAt: users.createdAt,
       isBanned: users.isBanned,
       banReason: users.banReason,
+      bannedAt: users.bannedAt,
+      banAppealMessage: users.banAppealMessage,
+      banAppealedAt: users.banAppealedAt,
+      suspendedUntil: users.suspendedUntil,
+      suspensionReason: users.suspensionReason,
+      walletVerifiedAt: users.walletVerifiedAt,
     })
     .from(users)
     // Accounts deleted by their owner are anonymised records, not people to manage.
     .where(isNull(users.deletedAt))
-    .orderBy(desc(users.totalPoints));
+    // Blocked people waiting for an answer to their appeal come first.
+    .orderBy(sql`${users.banAppealedAt} is null`, desc(users.totalPoints));
+
+  // User sheet: cards, proofs and FONE of each person (Admin → Users).
+  const [cardRows, proofRows, foneRows] = await Promise.all([
+    db.select().from(userCards).orderBy(desc(userCards.createdAt)),
+    db
+      .select({ userId: submissions.userId, status: submissions.status, count: sql<number>`count(*)::int` })
+      .from(submissions)
+      .groupBy(submissions.userId, submissions.status),
+    db
+      .select({
+        userId: rewardQueue.userId,
+        paid: sql<string>`coalesce(sum(${rewardQueue.foneAmount}) filter (where ${rewardQueue.status} = 'paid'), 0)::text`,
+        open: sql<string>`coalesce(sum(${rewardQueue.foneAmount}) filter (where ${rewardQueue.status} <> 'paid'), 0)::text`,
+      })
+      .from(rewardQueue)
+      .groupBy(rewardQueue.userId),
+  ]);
+  const userDetails: Record<string, UserDetails> = {};
+  for (const u of allUsers) {
+    userDetails[u.id] = { cards: [], approved: 0, rejected: 0, pending: 0, fonePaid: "0", foneOpen: "0" };
+  }
+  for (const card of cardRows) userDetails[card.userId]?.cards.push(card);
+  for (const row of proofRows) {
+    const details = userDetails[row.userId];
+    if (details) details[row.status] = row.count;
+  }
+  for (const row of foneRows) {
+    const details = userDetails[row.userId];
+    if (details) Object.assign(details, { fonePaid: row.paid, foneOpen: row.open });
+  }
+  const usersBadge =
+    cardRows.filter((card) => card.appealedAt && !card.revokedAt && !card.appealRejectedAt).length +
+    allUsers.filter((u) => u.banAppealedAt && (u.isBanned || (u.suspendedUntil && u.suspendedUntil > new Date()))).length;
+  const cardAppeals = cardRows
+    .filter((card) => card.appealedAt && !card.revokedAt && !card.appealRejectedAt)
+    .map((card) => ({ ...card, userName: allUsers.find((u) => u.id === card.userId)?.name ?? "?" }));
 
   const { treasury, explorerUrl } = getFoneConfig();
 
@@ -295,6 +341,21 @@ export default async function AdminPage() {
   };
   const businessBadge = invoiceRows.filter((i) => i.reportedAt).length;
 
+  // Admin security summary (Phase C): owner accounts, reserved admin role, seed accounts.
+  const reservedAdmin = adminEmails().length > 0;
+  const security = {
+    ownerIds: allUsers.filter((u) => isOwnerEmail(u.email)).map((u) => u.id),
+    adminEmailsCount: adminEmails().length,
+    ownersRegistered: allUsers.filter((u) => isOwnerEmail(u.email)).length,
+    reservedAdmin,
+    unlistedAdmins: reservedAdmin ? allUsers.filter((u) => u.role === "admin" && !isOwnerEmail(u.email)).map((u) => u.name) : [],
+    seedAccountsAllowed: seedAccountsAllowed(),
+    seedAccountsPresent: allUsers.some((u) => isSeedEmail(u.email)),
+    production: process.env.NODE_ENV === "production",
+  };
+
+  const vision = { configured: !!visionApiKey(), used: visionApiKey() ? await visionUsedThisMonth() : 0, limit: visionMonthlyLimit() };
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">📊 Painel Administrativo</h1>
@@ -353,7 +414,7 @@ export default async function AdminPage() {
                 />
               ),
             },
-            { key: "users", label: "Usuários", icon: "👥", content: <UsersTab users={allUsers} currentUserId={user.id} /> },
+            { key: "users", label: usersBadge ? `Usuários (${usersBadge})` : "Usuários", icon: "👥", content: <UsersTab users={allUsers} currentUserId={user.id} details={userDetails} cardAppeals={cardAppeals} moderatorsEnabled={moderatorsEnabled()} security={security} /> },
             {
               key: "wallets",
               label: pendingWallets.length ? `Carteiras (${pendingWallets.length})` : "Carteiras",
@@ -398,7 +459,7 @@ export default async function AdminPage() {
               key: "ai",
               label: "IA",
               icon: "🤖",
-              content: <AiTab settings={aiConfig} stats={aiStats} model={geminiModel()} hasKey={!!geminiApiKey()} />,
+              content: <AiTab settings={aiConfig} stats={aiStats} model={geminiModel()} hasKey={!!geminiApiKey()} vision={vision} />,
             },
           ]}
         />

@@ -16,6 +16,7 @@ const errors: Record<string, string> = {
   invalid_tx: "Hash inválido: precisa ter 64 caracteres hexadecimais.",
   tx_in_use: "Este hash já foi usado para outro usuário ou numa verificação de carteira.",
   wallet_not_verified: "O usuário não tem carteira verificada.",
+  account_restricted: "Conta suspensa ou bloqueada: os FONE ficam congelados até a restrição acabar.",
   nothing_to_pay: "Essas recompensas já foram pagas ou mudaram. Atualize a página.",
   below_min: "O valor liberado ainda está abaixo do pagamento mínimo.",
   in_hold: "Essas recompensas ainda estão no período de carência.",

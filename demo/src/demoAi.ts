@@ -2,7 +2,8 @@
  * Simulated automatic verification for the offline demo.
  *
  * There is no vision model in the demo, so the "analysis" comes from what the user picked:
- * a sample photo of a category (matching the mission or not), a "photo of a screen", or a real
+ * a sample photo of a category (matching the mission or not), a "photo of a screen", a "photo from
+ * the internet" (stock-photo watermark: always goes to a person), or a real
  * camera photo (which the demo cannot analyse, so it goes to the moderators). The decision itself
  * uses the same rules as the server (decideProof in src/lib/ai/decision.ts).
  */
@@ -10,9 +11,10 @@ import { categoryEmoji, categoryLabels, type Lang } from "@/lib/i18n";
 import type { AiAnalysis } from "@/lib/ai/decision";
 import { dt } from "./i18n";
 import type { Category } from "./store";
+import type { WebMatches } from "@/lib/ai/web-detection-core";
 
-export type SampleKind = Exclude<Category, "other"> | "screen";
-export const SAMPLE_KINDS: SampleKind[] = ["cleanup", "planting", "recycling", "donation", "screen"];
+export type SampleKind = Exclude<Category, "other"> | "screen" | "internet";
+export const SAMPLE_KINDS: SampleKind[] = ["cleanup", "planting", "recycling", "donation", "screen", "internet"];
 
 const GRADIENTS: Record<SampleKind, [string, string]> = {
   cleanup: ["#38bdf8", "#f5d0a9"],
@@ -20,14 +22,17 @@ const GRADIENTS: Record<SampleKind, [string, string]> = {
   recycling: ["#5eead4", "#0f766e"],
   donation: ["#fda4af", "#9d174d"],
   screen: ["#1e293b", "#0f172a"],
+  internet: ["#bae6fd", "#15803d"],
 };
 
 export function sampleEmoji(kind: SampleKind) {
-  return kind === "screen" ? "📱" : (categoryEmoji[kind] ?? "🌱");
+  return kind === "screen" ? "📱" : kind === "internet" ? "🌐" : (categoryEmoji[kind] ?? "🌱");
 }
 
 export function sampleLabel(kind: SampleKind, lang: Lang) {
-  return kind === "screen" ? dt(lang, "sample_screen") : (categoryLabels[kind]?.[lang] ?? kind);
+  if (kind === "screen") return dt(lang, "sample_screen");
+  if (kind === "internet") return dt(lang, "sample_internet");
+  return categoryLabels[kind]?.[lang] ?? kind;
 }
 
 /**
@@ -71,7 +76,25 @@ export function drawSamplePhoto(kind: SampleKind): string {
   ctx.font = "220px serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(kind === "screen" ? "🌳" : sampleEmoji(kind), 400, kind === "screen" ? 300 : 310);
+  ctx.fillText(kind === "screen" || kind === "internet" ? "🌳" : sampleEmoji(kind), 400, kind === "screen" ? 300 : 310);
+  if (kind === "internet") {
+    // A "stock photo": watermark repeated diagonally and a site caption, what the AI should flag.
+    ctx.save();
+    ctx.translate(400, 300);
+    ctx.rotate(-Math.PI / 7);
+    ctx.font = "bold 46px sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    for (let row = -3; row <= 3; row++) {
+      for (let col = -2; col <= 2; col++) ctx.fillText("© fotosgratis", col * 330 + (row % 2) * 160, row * 110);
+    }
+    ctx.restore();
+    ctx.fillStyle = "rgba(15,23,42,0.75)";
+    ctx.fillRect(0, 548, 800, 52);
+    ctx.font = "bold 20px sans-serif";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(`fotosgratis.exemplo · ID ${Math.floor(100000 + Math.random() * 900000)}`, 400, 575);
+    return canvas.toDataURL("image/jpeg", 0.8);
+  }
   ctx.font = "bold 22px sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.85)";
   ctx.fillText("EcoVerify · demo", 400, 570);
@@ -91,6 +114,8 @@ export function simulateAnalysis(sample: SampleKind | null, missionCategory: Cat
     tooDarkOrBlurry: false,
     reportConsistent: true,
     identifiableFaces: false,
+    internetCopy: false,
+    internetSigns: "",
     verdict: "approve",
     reasonCode: null,
     confidence: 92,
@@ -99,10 +124,39 @@ export function simulateAnalysis(sample: SampleKind | null, missionCategory: Cat
   if (sample === "screen") {
     return { ...base, isRealPhoto: false, screenOrPrint: true, verdict: "reject", reasonCode: "screen_photo", confidence: 95, explanation: dt(lang, "sim_screen") };
   }
+  if (sample === "internet") {
+    return {
+      ...base,
+      internetCopy: true,
+      internetSigns: dt(lang, "sim_internet_signs"),
+      verdict: "review",
+      reasonCode: "internet_copy",
+      confidence: 88,
+      explanation: dt(lang, "sim_internet"),
+    };
+  }
   // "Other" missions accept any kind of action photo, but not with full confidence.
   if (missionCategory === "other") return { ...base, verdict: "review", confidence: 70, explanation: dt(lang, "sim_other") };
   if (sample !== missionCategory) {
     return { ...base, matchesMission: false, verdict: "reject", reasonCode: "not_matching_mission", confidence: 93, explanation: dt(lang, "sim_mismatch") };
   }
   return base;
+}
+
+/**
+ * Simulated reverse image search (Cloud Vision Web Detection on the server). The "internet" sample
+ * is "found" on two example sites (reserved .example domains, nothing real); the others find nothing.
+ */
+export function simulateWebSearch(sample: SampleKind | null): WebMatches | null {
+  if (!sample) return null;
+  if (sample !== "internet") return { fullMatches: [], pages: [], partialCount: 0, bestGuess: null };
+  return {
+    fullMatches: ["https://banco-de-imagens.example/fotos/arvore-parque.jpg"],
+    pages: [
+      { url: "https://banco-de-imagens.example/fotos/arvore-parque", title: "Árvore no parque — foto grátis (exemplo simulado)" },
+      { url: "https://noticias.example/meio-ambiente/plantio", title: "Mutirão de plantio na cidade (exemplo simulado)" },
+    ],
+    partialCount: 3,
+    bestGuess: "tree planting",
+  };
 }

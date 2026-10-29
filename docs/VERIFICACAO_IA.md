@@ -28,6 +28,31 @@ decideProof() (src/lib/ai/decision.ts, função pura, usada também pela demo)
 - **Cota esgotada, erro, timeout ou resposta inválida** → a comprovação fica pendente, como antes da IA. O card mostra "A IA não conseguiu analisar" e o botão **Analisar de novo**.
 - Aprovar/rejeitar usa o mesmo código da moderação humana (`src/lib/review.ts`): pontos, fila de FONE, notificação e proteção contra decisão dupla são idênticos. `decided_by` registra `ai` ou `human`.
 
+## Foto copiada da internet
+
+O Gemini **não faz busca reversa de imagem** (não consegue saber se a foto existe em outro site). Por isso, a IA só aponta **sinais** e quem decide é uma pessoa:
+
+1. O prompt pede `internet_copy` (sim/não) e `internet_signs` (quais sinais): marca d'água de banco de imagens, logo/endereço de site sobreposto, legenda ou moldura de post de rede social, aparência de foto de banco de imagens. **Não contam** marcas de produtos (garrafas, camisetas, placas), data/hora da câmera ou uma foto bonita tirada por uma pessoa comum.
+2. Com `internet_copy = true`, `decideProof()` **sempre** manda para a moderação, com o motivo `internet_copy`. A IA nunca aprova nem rejeita sozinha nesse caso (o motivo não está em `AUTO_REJECTABLE`). Só conteúdo impróprio mantém o caminho próprio, mais rígido.
+3. **Admins e moderadores recebem uma notificação** ("⚠️ Possível foto da internet"), uma vez por comprovação (reanalisar não repete o aviso).
+4. Na Moderação, a comprovação sinalizada vai para o **topo da fila** (logo depois das contestações), com o selo vermelho **⚠️ Possível cópia da internet**, os sinais vistos e dois botões: **⬇️ Baixar foto** e **🔎 Abrir Google Lens**. As fotos ficam atrás do login, então não dá para mandar o link direto ao Lens: baixe e envie (ou arraste) o arquivo.
+5. **Para rejeitar, a explicação tem que ser escrita pelo moderador**, com pelo menos 15 caracteres próprios (o motivo pronto não conta, nem colado no meio do texto). A regra está em `validateRejection()`, que é usada no modal, na action do servidor e na demo. A pessoa recebe o motivo padrão no idioma dela e, depois, "Explicação da equipe: …".
+
+Outras defesas que já existiam continuam valendo: foto igual (SHA-256) bloqueada no envio, foto parecida (hash perceptual) e o raio de GPS.
+
+### Busca reversa automática (Google Cloud Vision, opcional)
+
+Com `GOOGLE_VISION_API_KEY`, cada comprovação também passa pelo **Web Detection** do Cloud Vision, que procura a foto na internet:
+
+- **A mesma foto encontrada** (imagem igual ou páginas que a exibem) → motivo `internet_copy`, vai para o topo da Moderação com os **links das páginas** no alerta vermelho, e a equipe é avisada. Funciona mesmo sem Gemini. **Nunca rejeita sozinho nem dá cartão**: pode ser a própria pessoa que publicou a foto antes.
+- **Só partes parecidas** (recortes, cenas comuns) → sinal fraco: aparece no painel e impede a aprovação automática, mas não sinaliza.
+- **Nada encontrado** → o painel mostra "Busca reversa: nada encontrado".
+- **Foto idêntica a uma anterior** não gasta busca (já é barrada pelas regras locais).
+- **Custo:** as primeiras **1.000 fotos do mês são grátis**; depois, US$ 3,50 a cada 1.000. Precisa de projeto no Google Cloud **com cobrança ativa**. O app para de buscar quando chega a `VISION_MONTHLY_LIMIT` (padrão 1.000), então a conta fica em zero se você não mudar o limite. O uso do mês aparece em Admin → 🤖 IA.
+- **Privacidade:** só a imagem reduzida e sem EXIF vai para o Google. Sem relato, sem dados da conta. O Cloud Vision é pago e o Google não usa o conteúdo para treinar modelos; a imagem é apagada em poucas horas.
+- **Como criar a chave:** console.cloud.google.com → criar projeto → ativar faturamento → "APIs e serviços" → ativar **Cloud Vision API** → Credenciais → Criar chave de API → **restringir a chave à Cloud Vision API**. Coloque em `GOOGLE_VISION_API_KEY` nas variáveis da Vercel (nunca no GitHub nem no APK).
+- Código: `src/lib/ai/web-detection-core.ts` (leitura da resposta e regra, compartilhado com a demo) e `src/lib/ai/vision.ts` (chamada, limite do mês). Na demo, a amostra "Foto da internet" simula dois sites de exemplo (`.example`).
+
 ## Contestação (LGPD, art. 20)
 
 Rejeições automáticas mostram **Contestar** em *Minhas Submissões* (mensagem de 10 a 500 caracteres, uma vez por comprovação). A comprovação volta para *pendente*, aparece primeiro na moderação com a mensagem e só uma pessoa decide. A métrica "Contestações (revertidas)" na aba IA mostra quantas a moderação aprovou.
@@ -52,6 +77,8 @@ No cadastro de missão há o campo opcional **"O que a IA deve conferir"** (até
 | `GEMINI_API_KEY` | vazio | Chave grátis em <https://aistudio.google.com/apikey>. As chaves novas ("Auth keys") começam com `AQ.`. As antigas, que começam com `AIza`, deixaram de ser aceitas pelo Google em setembro de 2026: crie uma nova se a sua for desse tipo. Sem chave, a IA fica desligada e só as regras locais (foto repetida) rodam. |
 | `GEMINI_MODEL` | `gemini-flash-lite-latest` | Precisa aceitar imagem. O alias `-latest` é atualizado pelo Google com aviso de 2 semanas; para fixar, use um nome exato (ex.: `gemini-3.1-flash-lite`). |
 | `GEMINI_API_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta` | Só para testes (servidor falso) ou proxy. |
+| `GOOGLE_VISION_API_KEY` | vazio | Opcional. Busca reversa de imagens (Cloud Vision Web Detection). Exige cobrança ativa no Google Cloud. |
+| `VISION_MONTHLY_LIMIT` | `1000` | Máximo de buscas por mês (1.000 = cota grátis). |
 
 Depois de atualizar o código: `npm run db:push` (novas colunas em `submissions`, `missions.ai_checklist` e a tabela `ai_settings`).
 
@@ -98,10 +125,14 @@ Em **Configurações → IA de verdade (sua chave do Gemini)**, quem testa pode 
 | `demo/src/byok.ts`, `demo/src/components/GeminiKeyCard.tsx` | Chave própria na demo: guardar, testar, remover e analisar. |
 | `src/lib/ai/pipeline.ts` | Orquestra: foto parecida → modelo → decisão → grava/aplica. |
 | `src/lib/review.ts` | Aprovar/rejeitar (usado pela IA e pela moderação). |
-| `src/components/moderation/ai-panel.tsx` | Sugestão da IA no card da moderação. |
+| `src/components/moderation/ai-panel.tsx` | Sugestão da IA no card da moderação, com o alerta de possível cópia da internet (`InternetCopyAlert`). |
+| `src/components/moderation/reject-modal.tsx` | Modal de rejeição, que exige a explicação do moderador nas comprovações sinalizadas. |
+| `src/lib/staff-alerts.ts` | Notificações para admins/moderadores (foto da internet, contestação de bloqueio). |
 | `src/components/admin/ai-tab.tsx` | Aba IA do admin. |
 | `src/components/submissions/appeal-form.tsx` | Contestação. |
 
 ## Testes feitos
 
 Ponta a ponta no navegador com Postgres local e um servidor Gemini falso (41 verificações): aprovação automática com pontos/FONE/notificação; rejeição por foto de tela com motivo e contestação; confiança baixa, cota esgotada (429), resposta inválida, "aprovar" contraditório, relato incoerente, missão acima do limite de FONE e veredito "revisar" indo para a moderação; foto redimensionada/recomprimida reconhecida como repetida; reanálise; motivo sugerido no modal de rejeição; modos "só sugestão" e "desligada"; e conferência do que foi enviado (chave no cabeçalho, JPEG ≤ 1024 px sem EXIF, prompt sem nome/e-mail/GPS) e do arquivo guardado (sem EXIF).
+
+**v1.7.0 (foto copiada da internet e conta bloqueada):** 12 testes das regras puras (flag ausente = falso; flag nunca aprova nem rejeita sozinha, mesmo com 100% de confiança; conteúdo impróprio continua rejeitando; o motivo pronto, sozinho ou colado no texto, não conta como explicação) e 27 verificações ponta a ponta na demo: aviso na tela de envio, prova pendente com os sinais, notificação só para a equipe, topo da fila, botões Baixar/Lens, botão de rejeitar travado até haver explicação própria, mensagem com "Explicação da equipe", banimento com data, tela de bloqueio sem sessão, contestação e aviso só para o admin.

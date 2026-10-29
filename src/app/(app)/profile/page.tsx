@@ -12,6 +12,8 @@ import { getFoneConfig } from "@/lib/fone-config";
 import { centsToFone, explorerTxUrl, shortHex, verifiedWallet, walletRequestState } from "@/lib/fone";
 import { logoutAction } from "@/lib/actions/auth";
 import { FoneAmount, FoneMark } from "@/components/brand/fone";
+import { MyCards } from "@/components/cards/my-cards";
+import { cardsOf } from "@/lib/cards-server";
 
 const roleLabels: Record<string, string> = {
   citizen: "Cidadão(ã)",
@@ -59,6 +61,7 @@ export default async function ProfilePage() {
     .orderBy(desc(sql`max(${rewardQueue.paidAt})`))
     .limit(10);
   const queuedFone = Number(queued.sum);
+  const cards = await cardsOf(user.id);
 
   return (
     <div>
@@ -186,6 +189,10 @@ export default async function ProfilePage() {
 
         <div className="mt-5 border-t border-slate-100 pt-5 text-sm text-slate-500">
           Na plataforma desde {formatDate(user.createdAt, user.language)}
+        </div>
+
+        <div className="mt-6">
+          <MyCards lang={user.language} cards={cards} />
         </div>
 
         <form action={logoutAction} className="mt-6">

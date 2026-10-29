@@ -3,8 +3,9 @@ import { Copy, Star, Wallet, CheckCircle2, Clock, Users, ShieldCheck } from "luc
 import { t, tf } from "@/lib/i18n";
 import { centsToFone } from "@/lib/fone";
 import { formatDate, formatFone, levelForPoints } from "@/lib/utils";
-import { dt } from "../i18n";
-import { payoutSettingsOf, useLang, useStore, userPayout, type User } from "../store";
+import { dt, errorText } from "../i18n";
+import { appealCard, cardsOf, payoutSettingsOf, useLang, useStore, userPayout, type User } from "../store";
+import { CardsPanel } from "@/components/cards/cards-panel";
 import { Avatar, PageHeader, card, toast } from "../components/ui";
 import { roleTone, ProfileSwitcher } from "../components/ProfileSwitcher";
 import { WalletForm } from "./Wallet";
@@ -14,6 +15,7 @@ import { FoneMark } from "@/components/brand/fone";
 const FoneStatIcon = ({ className }: { className?: string }) => <FoneMark size={20} className={className} />;
 
 export function ProfileScreen({ user }: { user: User }) {
+  const myCards = useStore((s) => cardsOf(s, user.id));
   const lang = useLang();
   const [editingWallet, setEditingWallet] = useState(false);
   const [switcher, setSwitcher] = useState(false);
@@ -124,6 +126,10 @@ export function ProfileScreen({ user }: { user: User }) {
           </>
         )}
         <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">⚠️ {dt(lang, "wallet_demo_note")} {dt(lang, "wallet_demo_note_verify")}</p>
+      </div>
+
+      <div className="mt-4">
+        <CardsPanel lang={lang} cards={myCards} onAppeal={appealCard} errorText={(code) => errorText(lang, code)} />
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">

@@ -76,6 +76,16 @@ export const users = pgTable("users", {
   adultDeclaredAt: timestamp("adult_declared_at", { withTimezone: true }),
   isBanned: boolean("is_banned").notNull().default(false),
   banReason: text("ban_reason"),
+  bannedAt: timestamp("banned_at", { withTimezone: true }),
+  /** One appeal per ban: the blocked person's explanation, read by the admins. */
+  banAppealMessage: text("ban_appeal_message"),
+  banAppealedAt: timestamp("ban_appealed_at", { withTimezone: true }),
+  /**
+   * Temporary suspension (3rd yellow card, src/lib/cards.ts). Kept after it ends: the date tells
+   * whether a new card is a repeat offence. The ban_appeal_* columns hold the appeal.
+   */
+  suspendedUntil: timestamp("suspended_until", { withTimezone: true }),
+  suspensionReason: text("suspension_reason"),
   /** E-mail ownership confirmed through the link sent by e-mail. */
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   /** LGPD: when and which version of the Terms of Use / Privacy Policy was accepted. */
@@ -99,9 +109,13 @@ export const users = pgTable("users", {
   index("users_pending_wallet_idx").on(table.pendingWalletAddress),
 ]);
 
-export const authTokenPurposeEnum = pgEnum("auth_token_purpose", ["verify_email", "reset_password"]);
+export const authTokenPurposeEnum = pgEnum("auth_token_purpose", ["verify_email", "reset_password", "ban_appeal"]);
 
-/** One-time tokens sent by e-mail. Only the SHA-256 of the token is stored. */
+/**
+ * One-time tokens sent by e-mail (or, for "ban_appeal", handed to a blocked user who typed the
+ * right password, so they can read the reason and appeal without getting a session).
+ * Only the SHA-256 of the token is stored.
+ */
 export const authTokens = pgTable("auth_tokens", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -361,6 +375,39 @@ export const rewardQueue = pgTable("reward_queue", {
   uniqueIndex("reward_queue_submission_unique").on(table.submissionId),
   index("reward_queue_status_idx").on(table.status),
   index("reward_queue_tx_hash_idx").on(table.txHash),
+]);
+
+export const cardTypeEnum = pgEnum("card_type", ["yellow", "red"]);
+
+/** Cards given by a person (never the AI) for fraud attempts. Rules: src/lib/cards.ts. */
+export const userCards = pgTable("user_cards", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  type: cardTypeEnum("type").notNull(),
+  reasonCode: varchar("reason_code", { length: 40 }).notNull(),
+  /** Explanation written by the reviewer, shown to the person. */
+  note: text("note").notNull(),
+  submissionId: uuid("submission_id").references(() => submissions.id, { onDelete: "set null" }),
+  issuedBy: uuid("issued_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Yellow cards expire (180 days); red cards don't. */
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  /** Used up by a suspension (stops counting towards the next one). */
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  /** This card triggered a suspension. */
+  causedSuspension: boolean("caused_suspension").notNull().default(false),
+  /** Cancelled by an admin (accepted appeal or mistake). */
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokedBy: uuid("revoked_by").references(() => users.id, { onDelete: "set null" }),
+  appealMessage: text("appeal_message"),
+  appealedAt: timestamp("appealed_at", { withTimezone: true }),
+  /** Admin answer to the appeal: card kept (cancelled cards have revokedAt). */
+  appealRejectedAt: timestamp("appeal_rejected_at", { withTimezone: true }),
+}, (table) => [
+  index("user_cards_user_idx").on(table.userId, table.createdAt),
+  index("user_cards_appeal_idx").on(table.appealedAt),
 ]);
 
 export const notifications = pgTable("notifications", {

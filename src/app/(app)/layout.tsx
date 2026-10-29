@@ -1,3 +1,5 @@
+import { isSuspended } from "@/lib/cards";
+import { moderatorsEnabled } from "@/lib/staff-config";
 import { redirect } from "next/navigation";
 import { eq, and, count } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
@@ -11,7 +13,7 @@ import { isEmailVerificationRequired } from "@/lib/email";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.isBanned || user.deletedAt) redirect("/login");
+  if (user.isBanned || user.deletedAt || isSuspended(user.suspendedUntil)) redirect("/login");
   // New version of the Terms/Privacy Policy (or an account created before they existed): ask for acceptance first.
   if (user.termsVersion !== TERMS_VERSION) redirect("/accept-terms");
 
@@ -23,7 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const showEmailBanner = !user.emailVerifiedAt && isEmailVerificationRequired();
 
   return (
-    <AppShell user={{ name: user.name, email: user.email, role: user.role }} lang={user.language} unreadCount={unreadCount}>
+    <AppShell user={{ name: user.name, email: user.email, role: user.role }} lang={user.language} unreadCount={unreadCount} moderatorsEnabled={moderatorsEnabled()}>
       {showEmailBanner && <EmailBanner lang={user.language} email={user.email} />}
       {children}
     </AppShell>

@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { aiSettings, foneSettings, missions, notifications, rewardQueue, sessions, sponsorTopups, sponsors, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { isSuspended } from "@/lib/cards";
+import { canHoldAdminRole, isOwnerEmail } from "@/lib/staff-config";
 import { placeOf } from "@/lib/municipalities";
 import { getPayoutSettings } from "@/lib/payouts";
 import { isHoldReason, splitOpenRewards } from "@/lib/payout-rules";
@@ -150,13 +152,37 @@ export async function reviewMissionAction(_prev: AdminActionState, formData: For
   return { success: true };
 }
 
-export async function updateUserRoleAction(userId: string, role: Role) {
+/** Protected targets: owner accounts (ADMIN_EMAILS) and the last remaining admin. */
+async function protectedTarget(userId: string, change: "demote" | "block"): Promise<string | null> {
+  const [target] = await db.select({ email: users.email, role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!target) return "not_found";
+  if (isOwnerEmail(target.email)) return "owner_protected";
+  if (target.role === "admin" && change === "demote") {
+    const [{ admins }] = await db
+      .select({ admins: sql<number>`count(*)::int` })
+      .from(users)
+      .where(and(eq(users.role, "admin"), eq(users.isBanned, false), isNull(users.deletedAt)));
+    if (admins <= 1) return "last_admin";
+  }
+  return null;
+}
+
+export async function updateUserRoleAction(userId: string, role: Role): Promise<AdminActionState> {
   const admin = await assertAdmin();
-  if (admin.id === userId) return;
-  if (!ROLES.includes(role)) return;
+  if (admin.id === userId) return { error: "self" };
+  if (!ROLES.includes(role)) return { error: "invalid" };
+  const [target] = await db.select({ email: users.email, role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!target) return { error: "not_found" };
+  // With ADMIN_EMAILS set, only those accounts can be admins (a stolen admin session can't create more).
+  if (role === "admin" && !canHoldAdminRole(target.email)) return { error: "admin_reserved" };
+  if (target.role === "admin" && role !== "admin") {
+    const blocked = await protectedTarget(userId, "demote");
+    if (blocked) return { error: blocked };
+  }
   // Accounts deleted by their owner (LGPD) are anonymised and must stay inert.
   await db.update(users).set({ role }).where(and(eq(users.id, userId), isNull(users.deletedAt)));
   revalidatePath("/admin");
+  return { success: true };
 }
 
 export async function banUserAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
@@ -165,9 +191,14 @@ export async function banUserAction(_prev: AdminActionState, formData: FormData)
   const reason = String(formData.get("reason") ?? "").trim();
   if (admin.id === userId) return { error: "self" };
   if (!reason) return { error: "reason_required" };
+  const blocked = await protectedTarget(userId, "demote");
+  if (blocked) return { error: blocked };
 
   await db.transaction(async (tx) => {
-    await tx.update(users).set({ isBanned: true, banReason: reason }).where(eq(users.id, userId));
+    await tx
+      .update(users)
+      .set({ isBanned: true, banReason: reason.slice(0, 1000), bannedAt: new Date(), banAppealMessage: null, banAppealedAt: null })
+      .where(eq(users.id, userId));
     // Log the user out everywhere immediately.
     await tx.delete(sessions).where(eq(sessions.userId, userId));
   });
@@ -179,7 +210,10 @@ export async function banUserAction(_prev: AdminActionState, formData: FormData)
 export async function unbanUserAction(userId: string) {
   const admin = await assertAdmin();
   if (admin.id === userId) return;
-  await db.update(users).set({ isBanned: false, banReason: null }).where(and(eq(users.id, userId), isNull(users.deletedAt)));
+  await db
+    .update(users)
+    .set({ isBanned: false, banReason: null, bannedAt: null, banAppealMessage: null, banAppealedAt: null })
+    .where(and(eq(users.id, userId), isNull(users.deletedAt)));
   revalidatePath("/admin");
 }
 
@@ -326,10 +360,12 @@ export async function payUserRewardsAction(_prev: AdminActionState, formData: Fo
   const settings = await getPayoutSettings();
   const result = await db.transaction(async (tx) => {
     const [target] = await tx
-      .select({ walletAddress: users.walletAddress, walletVerifiedAt: users.walletVerifiedAt })
+      .select({ walletAddress: users.walletAddress, walletVerifiedAt: users.walletVerifiedAt, isBanned: users.isBanned, suspendedUntil: users.suspendedUntil })
       .from(users)
       .where(eq(users.id, userId))
       .for("update");
+    // FONE of a suspended or blocked account stays frozen (kept, not lost) until it is lifted.
+    if (target && (target.isBanned || isSuspended(target.suspendedUntil))) return { error: "account_restricted" as const };
     const wallet = target ? verifiedWallet(target) : null;
     if (!wallet) return { error: "wallet_not_verified" as const };
 

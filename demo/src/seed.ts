@@ -4,7 +4,7 @@ import { placeholderPhoto } from "./media";
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 6;
+export const STATE_VERSION = 7;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -497,6 +497,27 @@ export function createSeed(): State {
     orgMembers,
     invoices,
     sponsors: [{ id: "sp-recicla", name: "Cooperativa Recicla PE (exemplo)", budgetFone: "30.00", isActive: true, createdAt: ago(20 * DAY) }],
+    // One example yellow card, so Admin → Users shows the badge and the sheet has something.
+    cards: [
+      {
+        id: "card-example-1",
+        userId: "u-bot-5",
+        type: "yellow",
+        reasonCode: "internet_copy",
+        note: "A foto enviada é a mesma de um site de notícias (achamos no Google Lens).",
+        submissionId: null,
+        issuedBy: DEMO_IDS.admin,
+        createdAt: ago(12 * DAY),
+        expiresAt: new Date(Date.now() + 168 * DAY).toISOString(),
+        consumedAt: null,
+        causedSuspension: false,
+        revokedAt: null,
+        appealMessage: null,
+        appealedAt: null,
+        appealRejectedAt: null,
+      },
+    ],
+    moderatorsEnabled: true,
   };
 }
 

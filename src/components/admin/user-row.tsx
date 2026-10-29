@@ -9,12 +9,23 @@ import {
   type AdminActionState,
 } from "@/lib/actions/admin";
 import { formatDate } from "@/lib/utils";
+import { isSuspended } from "@/lib/cards";
+import { CardBadges, UserSheet, type UserDetails } from "@/components/admin/user-sheet";
 
 const initialState: AdminActionState = {};
+
+const ADMIN_GUARD_TEXT: Record<string, string> = {
+  owner_protected: "Conta do dono (ADMIN_EMAILS): não pode ser rebaixada nem bloqueada pelo painel.",
+  last_admin: "É o último administrador ativo: promova outra conta antes.",
+  admin_reserved: "Com ADMIN_EMAILS definido, só esses e-mails podem ser administradores.",
+};
 
 export function UserRow({
   user,
   currentUserId,
+  details,
+  isOwner = false,
+  canBeAdmin = true,
 }: {
   user: {
     id: string;
@@ -25,14 +36,28 @@ export function UserRow({
     createdAt: Date;
     isBanned: boolean;
     banReason: string | null;
+    bannedAt: Date | null;
+    banAppealMessage: string | null;
+    banAppealedAt: Date | null;
+    suspendedUntil: Date | null;
+    suspensionReason: string | null;
+    walletVerifiedAt: Date | null;
   };
   currentUserId: string;
+  details?: UserDetails;
+  /** Owner account (ADMIN_EMAILS): can't be demoted, banned or carded from the panel. */
+  isOwner?: boolean;
+  /** With ADMIN_EMAILS set, only those accounts can be made admin. */
+  canBeAdmin?: boolean;
 }) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const suspended = isSuspended(user.suspendedUntil);
   const [role, setRole] = useState(user.role);
   const [isPending, startTransition] = useTransition();
   const [contactOpen, setContactOpen] = useState(false);
   const [banOpen, setBanOpen] = useState(false);
   const isSelf = user.id === currentUserId;
+  const [roleError, setRoleError] = useState<string | null>(null);
 
   const [contactState, contactFormAction, contactPending] = useActionState(
     async (prev: AdminActionState, formData: FormData) => {
@@ -56,13 +81,29 @@ export function UserRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-semibold text-slate-800">{user.name}</p>
+          {isOwner && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800" title="ADMIN_EMAILS" data-testid="owner-badge">
+              👑 DONO
+            </span>
+          )}
           {user.isBanned && (
             <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">BANIDO</span>
           )}
+          {details && <CardBadges cards={details.cards} suspendedUntil={user.suspendedUntil} />}
         </div>
         <p className="text-xs text-slate-400">{user.email}</p>
         {user.isBanned && user.banReason && (
-          <p className="mt-1 text-xs font-medium text-red-500">Motivo: {user.banReason}</p>
+          <p className="mt-1 text-xs font-medium text-red-500">
+            Motivo: {user.banReason}
+            {user.bannedAt && <span className="font-normal text-red-400"> · desde {formatDate(user.bannedAt, "pt")}</span>}
+          </p>
+        )}
+        {(user.isBanned || suspended) && user.banAppealedAt && (
+          <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900" data-testid="ban-appeal">
+            <p className="font-bold">⚖️ Contestação enviada em {formatDate(user.banAppealedAt, "pt")}</p>
+            <p className="mt-0.5 whitespace-pre-line">“{user.banAppealMessage}”</p>
+            <p className="mt-1 text-sky-700">Responda pelo e-mail {user.email} e, se for o caso, desbloqueie a conta.</p>
+          </div>
         )}
         <p className="mt-0.5 text-xs text-slate-400">Desde {formatDate(user.createdAt, "pt")}</p>
       </div>
@@ -71,21 +112,42 @@ export function UserRow({
         <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">⭐ {user.totalPoints}</span>
         <select
           value={role}
-          disabled={isSelf || isPending}
+          disabled={isSelf || isOwner || isPending}
           onChange={(e) => {
             const newRole = e.target.value as typeof role;
+            const previous = role;
             setRole(newRole);
-            startTransition(() => updateUserRoleAction(user.id, newRole));
+            setRoleError(null);
+            startTransition(async () => {
+              const result = await updateUserRoleAction(user.id, newRole);
+              if (result.error) {
+                setRole(previous);
+                setRoleError(ADMIN_GUARD_TEXT[result.error] ?? "Não foi possível mudar o papel.");
+              }
+            });
           }}
           className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-50"
         >
           <option value="citizen">Cidadão</option>
           <option value="moderator">Moderador</option>
-          <option value="admin">Administrador</option>
+          <option value="admin" disabled={!canBeAdmin && role !== "admin"}>
+            Administrador{!canBeAdmin && role !== "admin" ? " (reservado)" : ""}
+          </option>
         </select>
+        {roleError && <span className="text-xs font-medium text-red-600">{roleError}</span>}
       </div>
 
       <div className="flex gap-2">
+        {details && (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            data-testid="open-sheet"
+          >
+            Ficha
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setContactOpen(true)}
@@ -105,7 +167,7 @@ export function UserRow({
         ) : (
           <button
             type="button"
-            disabled={isSelf}
+            disabled={isSelf || isOwner}
             onClick={() => setBanOpen(true)}
             className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40"
           >
@@ -113,6 +175,8 @@ export function UserRow({
           </button>
         )}
       </div>
+
+      {sheetOpen && details && <UserSheet user={user} details={details} onClose={() => setSheetOpen(false)} />}
 
       {contactOpen && (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4 animate-fade-in">
@@ -174,6 +238,7 @@ export function UserRow({
                 placeholder="Motivo do banimento..."
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
               />
+              {banState.error && ADMIN_GUARD_TEXT[banState.error] && <p className="text-xs font-medium text-red-600">{ADMIN_GUARD_TEXT[banState.error]}</p>}
               {banState.error === "reason_required" && (
                 <p className="text-xs font-medium text-red-500">Informe um motivo.</p>
               )}

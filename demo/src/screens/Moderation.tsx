@@ -8,7 +8,17 @@ import { distanceMeters, formatDistance } from "../media";
 import { Avatar, EmptyState, Modal, PageHeader, btnDanger, btnPrimary, btnSecondary, card, toast } from "../components/ui";
 import { PhotoViewer } from "../components/PhotoViewer";
 import { AiPanel } from "@/components/moderation/ai-panel";
-import { isRejectionCode, REJECTION_CODES, REJECTION_REASONS, rejectionReasonText, type RejectionCode } from "@/lib/ai/decision";
+import {
+  INTERNET_COPY_MIN_EXPLANATION,
+  isInternetCopyFlag,
+  isRejectionCode,
+  ownWords,
+  REJECTION_CODES,
+  REJECTION_REASONS,
+  rejectionReasonText,
+  type RejectionCode,
+} from "@/lib/ai/decision";
+import { CARDABLE_REJECTIONS } from "@/lib/cards";
 
 export function ModerationScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -20,11 +30,20 @@ export function ModerationScreen({ user }: { user: User }) {
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [reasonCode, setReasonCode] = useState<RejectionCode | null>(null);
+  const [giveCard, setGiveCard] = useState(false);
 
-  // Appeals first (a person must answer them), then oldest first.
+  // Appeals first (a person must answer them), then possible internet copies, then oldest first.
   const pending = submissions
     .filter((s) => s.status === "pending")
-    .sort((a, b) => Number(!!b.appealedAt) - Number(!!a.appealedAt) || a.submittedAt.localeCompare(b.submittedAt));
+    .sort(
+      (a, b) =>
+        Number(!!b.appealedAt) - Number(!!a.appealedAt) ||
+        Number(isInternetCopyFlag(b.aiReasonCode)) - Number(isInternetCopyFlag(a.aiReasonCode)) ||
+        a.submittedAt.localeCompare(b.submittedAt),
+    );
+  const rejectingSub = rejecting ? submissions.find((s) => s.id === rejecting) : undefined;
+  const flagged = isInternetCopyFlag(rejectingSub?.aiReasonCode);
+  const ownLength = ownWords(reason).length;
   const recentAuto = submissions
     .filter((s) => s.decidedBy === "ai" && s.reviewedAt)
     .sort((a, b) => (b.reviewedAt ?? "").localeCompare(a.reviewedAt ?? ""))
@@ -32,15 +51,25 @@ export function ModerationScreen({ user }: { user: User }) {
 
   const openReject = (id: string) => {
     const sub = submissions.find((s) => s.id === id);
+    // A flagged internet copy: the reason is pre-selected but the moderator writes the explanation.
+    if (isInternetCopyFlag(sub?.aiReasonCode)) {
+      setRejecting(id);
+      setReasonCode("internet_copy");
+      setGiveCard(false);
+      setReason("");
+      setReasonError(null);
+      return;
+    }
     const suggested = sub?.aiVerdict === "reject" && isRejectionCode(sub.aiReasonCode) ? sub.aiReasonCode : null;
     setRejecting(id);
+    setGiveCard(false);
     setReasonCode(suggested);
     setReason(suggested ? (rejectionReasonText(suggested, lang) ?? "") : "");
     setReasonError(null);
   };
   const pickCode = (code: RejectionCode) => {
     setReasonCode(code);
-    setReason(rejectionReasonText(code, lang) ?? "");
+    if (!flagged) setReason(rejectionReasonText(code, lang) ?? "");
   };
 
   const approve = (id: string) => {
@@ -52,7 +81,8 @@ export function ModerationScreen({ user }: { user: User }) {
   const confirmReject = () => {
     if (!rejecting) return;
     const preset = reasonCode && reason.trim() === (rejectionReasonText(reasonCode, lang) ?? "").trim();
-    const result = rejectSubmission(rejecting, reason, preset ? reasonCode : null);
+    const cardable = !!reasonCode && CARDABLE_REJECTIONS.has(reasonCode);
+    const result = rejectSubmission(rejecting, reason, flagged || preset ? reasonCode : null, giveCard && cardable);
     if (result.error) return setReasonError(errorText(lang, result.error));
     toast(t(lang, "status_rejected"));
     setRejecting(null);
@@ -112,6 +142,7 @@ export function ModerationScreen({ user }: { user: User }) {
                   <div className="-mt-4">
                     <AiPanel
                       lang={lang}
+                      photoUrl={sub.photo}
                       data={{
                         aiStatus: sub.aiStatus ?? null,
                         aiVerdict: sub.aiVerdict ?? null,
@@ -190,12 +221,22 @@ export function ModerationScreen({ user }: { user: User }) {
 
       {rejecting && (
         <Modal title={t(lang, "rejection_reason_title")} onClose={() => setRejecting(null)}>
+          {flagged && (
+            <div className="mb-3 grid gap-1.5">
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">⚠️ {t(lang, "internet_explain_required")}</p>
+              {reasonCode && <p className="text-xs text-slate-600">{REJECTION_REASONS[reasonCode][lang]}</p>}
+              <label htmlFor="reject-reason" className="text-xs font-bold text-slate-700">{t(lang, "internet_explain_label")}</label>
+            </div>
+          )}
           <textarea
+            id="reject-reason"
+            data-testid="reject-reason"
             rows={4}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
+            placeholder={flagged ? t(lang, "internet_explain_placeholder") : undefined}
             autoFocus
-            maxLength={500}
+            maxLength={1000}
             className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
           />
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -212,10 +253,36 @@ export function ModerationScreen({ user }: { user: User }) {
               </button>
             ))}
           </div>
+          {reasonCode && CARDABLE_REJECTIONS.has(reasonCode) && (
+            <label className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <input
+                type="checkbox"
+                checked={giveCard}
+                onChange={(e) => setGiveCard(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-amber-500"
+                data-testid="give-card"
+              />
+              <span>
+                <span className="font-bold">{t(lang, "card_give_label")}</span>
+                <span className="mt-0.5 block text-amber-800">{t(lang, "card_give_hint")}</span>
+              </span>
+            </label>
+          )}
+          {flagged && reason.length > 0 && ownLength < INTERNET_COPY_MIN_EXPLANATION && (
+            <p className="mt-2 text-xs font-medium text-amber-600">{ownLength}/{INTERNET_COPY_MIN_EXPLANATION}</p>
+          )}
           {reasonError && <p className="mt-2 text-sm text-red-600">{reasonError}</p>}
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button type="button" className={btnSecondary} onClick={() => setRejecting(null)}>{t(lang, "cancel")}</button>
-            <button type="button" className={btnDanger} onClick={confirmReject}>{t(lang, "confirm_rejection")}</button>
+            <button
+              type="button"
+              className={`${btnDanger} disabled:opacity-60`}
+              disabled={flagged && ownLength < INTERNET_COPY_MIN_EXPLANATION}
+              onClick={confirmReject}
+              data-testid="confirm-reject"
+            >
+              {t(lang, "confirm_rejection")}
+            </button>
           </div>
         </Modal>
       )}

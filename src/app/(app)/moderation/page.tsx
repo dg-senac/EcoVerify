@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { missions, missionSuggestions, submissions, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { canReview } from "@/lib/nav";
+import { moderatorsEnabled } from "@/lib/staff-config";
 import { t, type Lang } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { rejectionReasonText, type AiChecks } from "@/lib/ai/decision";
@@ -23,7 +25,7 @@ function AiModeBanner({ lang, mode, hasModel }: { lang: Lang; mode: "off" | "sug
 export default async function ModerationPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "moderator" && user.role !== "admin") redirect("/missions");
+  if (!canReview(user.role, moderatorsEnabled())) redirect("/missions");
   const lang = user.language;
 
   const [rows, recentAi, settings, suggestions] = await Promise.all([
@@ -52,8 +54,12 @@ export default async function ModerationPage() {
       .innerJoin(missions, eq(submissions.missionId, missions.id))
       .innerJoin(users, eq(submissions.userId, users.id))
       .where(eq(submissions.status, "pending"))
-      // Appeals first, then oldest first.
-      .orderBy(sql`${submissions.appealedAt} is null`, asc(submissions.submittedAt)),
+      // Appeals first, then possible copies from the internet, then oldest first.
+      .orderBy(
+        sql`${submissions.appealedAt} is null`,
+        sql`${submissions.aiReasonCode} is distinct from 'internet_copy'`,
+        asc(submissions.submittedAt),
+      ),
     db
       .select({
         id: submissions.id,
@@ -111,6 +117,7 @@ export default async function ModerationPage() {
               lang={lang}
               moderatorId={user.id}
               canRetryAi={willAnalyzeWithModel(settings)}
+              canGiveCard
               submission={{ ...row, aiChecks: (row.aiChecks as AiChecks | null) ?? null }}
             />
           ))}

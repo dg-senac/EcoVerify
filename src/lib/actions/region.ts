@@ -1,5 +1,7 @@
 "use server";
 
+import { canReview } from "@/lib/nav";
+import { moderatorsEnabled } from "@/lib/staff-config";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, count, eq } from "drizzle-orm";
@@ -136,7 +138,7 @@ export async function suggestMissionAction(_prev: RegionActionState, formData: F
 
 async function assertModerator() {
   const user = await requireUser();
-  if (user.role !== "moderator" && user.role !== "admin") redirect("/missions");
+  if (!canReview(user.role, moderatorsEnabled())) redirect("/missions");
   return user;
 }
 

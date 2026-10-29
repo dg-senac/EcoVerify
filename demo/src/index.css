@@ -9,6 +9,8 @@
 @source "../../src/components/org/impact-view.tsx";
 @source "../../src/components/admin/business-tab.tsx";
 @source "../../src/components/brand";
+@source "../../src/components/cards/cards-panel.tsx";
+@source "../../src/components/admin/user-sheet-view.tsx";
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Ubuntu, sans-serif;

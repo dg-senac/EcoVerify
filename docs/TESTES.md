@@ -77,9 +77,11 @@ Sem chave, a IA da demo é **simulada** pela foto de exemplo escolhida (para a I
 | [ ] Foto certa | Exemplo da **mesma categoria** da missão (ex.: Reciclagem em "Separe o lixo reciclável em casa") | **Aprovada sozinha**, com o motivo "A foto mostra a ação pedida…" e os pontos creditados. |
 | [ ] Categoria errada | Exemplo de **outra categoria** (ex.: Plantio numa missão de reciclagem) | **Rejeitada sozinha**, com o motivo "A foto mostra outro tipo de ação…". |
 | [ ] Foto de tela | **Foto de tela** | **Rejeitada**, com o motivo "Parece a foto de uma tela de celular…". |
+| [ ] Foto da internet | **Foto da internet** (imagem com marca d'água "© fotosgratis") | Fica **pendente**: a IA não decide sozinha. Carlos e Ana recebem a notificação "⚠️ Possível foto da internet". |
 | [ ] Foto real | **Câmera** do celular (ou arquivo do PC) | Vai para a **moderação** (Carlos), com o aviso de que a demo não tem IA real. |
 
 Também conferir:
+- [ ] Abaixo da foto aparece o aviso "Fotos copiadas da internet são detectadas e analisadas pela equipe".
 - [ ] Relato com **menos de 50 caracteres** → o contador "Faltam N caracteres" impede o envio.
 - [ ] Missão **local** (ex.: Praia de Boa Viagem) longe do local → o app mostra a distância. **Simular que estou no local (demo)** libera o envio (no app real, é preciso estar a até 150 m).
 - [ ] Em **Minhas Submissões**, abrir a comprovação rejeitada automaticamente › **Contestar** › escrever o motivo › *Enviar contestação* → status "Contestação em análise". Tentar contestar de novo → "Você já contestou esta decisão".
@@ -111,9 +113,15 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 - [ ] Abrir uma comprovação: aparecem a foto (que dá para ampliar), o relato, a distância até o local, o histórico da pessoa e a sugestão da IA (quando houver).
 - [ ] **Aprovar** → some da fila. Ao trocar para a Maria (se for dela), aparecem a notificação e os pontos.
 - [ ] **Rejeitar** escolhendo um **motivo padronizado** (ou escrevendo um com pelo menos 5 caracteres) → a pessoa recebe o motivo.
+- [ ] A comprovação com **Foto da internet** (3.3) aparece no **topo da fila**, com o selo vermelho **⚠️ Possível cópia da internet**, os sinais vistos e os botões **⬇️ Baixar foto** e **🔎 Abrir Google Lens**.
+- [ ] No mesmo alerta aparece **"🌐 A mesma foto foi encontrada na internet"** com dois links de exemplo (busca reversa simulada; no servidor é o Google Cloud Vision). As outras amostras mostram "Busca reversa: nada encontrado".
+- [ ] **Rejeitar** essa comprovação: o motivo "copiada da internet" já vem marcado e o botão só libera depois de você **escrever sua própria explicação** (15 caracteres ou mais; só o texto pronto não basta). A Maria recebe o motivo + "Explicação da equipe: …".
 - [ ] A **contestação** feita pela Maria (3.3) aparece com o selo "Contestação", o texto dela e o motivo anterior.
 - [ ] A seção de **decisões recentes da IA** lista o que foi aprovado ou rejeitado sozinho (para auditoria).
 - [ ] Se o Carlos enviar uma comprovação, ele vê o aviso de que **não pode moderar a própria**.
+- [ ] **Cartão amarelo na rejeição:** ao rejeitar por um motivo de fraude (foto da internet, de tela, repetida, localização falsa…), aparece a caixa **"Dar cartão amarelo"**. Ela não aparece para motivos de erro honesto (foto escura, fora do local por engano). Marcar e confirmar → a Maria recebe "🟨 Cartão amarelo" com a explicação escrita pelo Carlos.
+
+> **Moderação só para admin:** no app real a Moderação começa **só com administradores** (`MODERATORS_ENABLED` desligado). Na demo ela começa liberada para você testar o Carlos; a Ana pode desligar em **Admin → Usuários** (ver 3.5).
 
 ### 3.5 Ana: administração
 
@@ -128,7 +136,19 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 
 **Usuários**
 - [ ] Mudar o papel de alguém (cidadão ↔ moderador).
-- [ ] **Banir** com motivo → o usuário aparece como BANIDO e, ao entrar com ele, fica bloqueado. **Desbanir** desfaz.
+- [ ] **Banir** com motivo → o usuário aparece como BANIDO, com o motivo e a data. **Desbanir** desfaz.
+- [ ] Sair e escolher o perfil banido → abre a tela **"Sua conta está bloqueada"**, com o motivo, a data e o formulário **"Acha que foi um engano?"** (mínimo de 20 caracteres). Enviar → "Contestação recebida…". O app não entra na conta.
+- [ ] Como Ana: chega a notificação "⚖️ Contestação de bloqueio" e, em **Usuários**, a pessoa aparece no topo com o texto da contestação. O moderador não recebe esse aviso.
+
+**Cartões e suspensão** (regras completas em `docs/CARTOES.md`)
+- [ ] A demo começa com um cartão de exemplo: o **Rafael** mostra o selo 🟨 1/3 na lista.
+- [ ] **Ficha** de qualquer pessoa → situação, pontos, comprovações aprovadas/rejeitadas/pendentes, FONE pago/a pagar, cartões e o formulário **Dar cartão** (amarelo ou vermelho, motivo e explicação de 15+ caracteres).
+- [ ] Dar o **3º amarelo** válido à Maria → ela fica **SUSPENSA por 14 dias**: aparece o selo com a data, a caixa "Suspenso até…" e o aviso de que os FONE a pagar ficam **congelados**. Em Recompensas, pagar a Maria → "Conta suspensa ou bloqueada: o FONE fica congelado".
+- [ ] Sair e escolher a Maria → tela **"Sua conta está suspensa"**, com o motivo, a data de volta e o formulário de contestação. O app não entra.
+- [ ] Na Ficha, **Encerrar suspensão agora** → a Maria entra de novo e recebe "✅ Suspensão encerrada".
+- [ ] **Cartão vermelho** → bloqueia a conta (igual ao banimento). **Cancelar cartão** no vermelho → desbloqueia.
+- [ ] **Contestações de cartões:** quando a Maria contesta um cartão (3.6), a aba mostra **Usuários (1)** e o painel "⚖️ Contestações de cartões". *Aceitar* cancela o cartão (e desfaz a suspensão se foi ele que suspendeu); *Manter* avisa a Maria que o cartão continua.
+- [ ] **Moderadores podem revisar comprovações:** desligar → o Carlos entra direto em Missões, sem o menu Moderação, e `#/moderation` volta para Missões. Ligar de novo para seguir os testes.
 
 **Recompensas (FONE simulado)**
 - [ ] A fila mostra os FONE "em carência" (7 dias) e o aviso de mínimo de 5 FONE e da taxa da rede (≈ 0,15 FONE).
@@ -152,6 +172,7 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 **Perfil e ranking**
 - [ ] O Perfil mostra nível, pontos, FONE recebido, FONE a receber, ações aprovadas e o histórico com link de transação (simulado).
 - [ ] O **Ranking** coloca a Maria na posição certa, conforme os pontos ganhos nos testes.
+- [ ] **Meus cartões** (no Perfil): sem cartões → "Nenhum cartão". Com cartão → tipo, motivo, explicação da equipe e "Vale até…". *Contestar* (20+ caracteres) → "Contestação enviada"; só dá para contestar uma vez.
 
 **Comunidade (só cidadãos)**
 - [ ] Como Maria: enviar mensagem, **responder** uma mensagem e **apagar** a própria.
@@ -218,6 +239,10 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 | Vários usuários vendo os mesmos dados (ranking e chat reais) | Cada aparelho tem a própria demo. |
 | IA real com a chave do projeto | Precisa do servidor com `GEMINI_API_KEY`. Na demo dá para testar a IA real com a **sua** chave (seção 3.3.1). |
 | Missões automáticas do OpenStreetMap | Na demo os lugares são de exemplo. |
+| Busca reversa automática de verdade | Na demo ela é simulada (links `.example`). No servidor usa o Google Cloud Vision com `GOOGLE_VISION_API_KEY` (conta com cobrança; 1.000 fotos/mês grátis). |
+| Conta de admin pelo `ADMIN_EMAILS`, contas de exemplo bloqueadas | Precisam do servidor e do banco. Ver `docs/SEGURANCA_ADMIN.md`. |
+| Tela de conta bloqueada com senha real (`/conta-bloqueada`) | No servidor, ela abre ao entrar com a senha certa, por um link que vale 30 minutos e não cria sessão. Na demo, abre ao escolher o perfil banido. |
+| Chave `MODERATORS_ENABLED` do servidor | Na demo ela é a opção da Ana em Admin → Usuários. |
 | FONE de verdade e conferência no explorer | Os pagamentos são simulados. |
 | Pix de verdade | A chave da demo é fictícia. |
 | GIFs e áudios no chat, sugerir uma ação | Precisam do servidor. |
@@ -260,4 +285,4 @@ Dá para seguir para a fase com banco quando:
 - [ ] Pelo menos **3 pessoas de fora** (ex.: colegas do Mediotec) testaram com o roteiro e relataram.
 - [ ] Os testes de 3.7 (modo noturno e acessibilidade) passam em pelo menos um celular.
 
-Depois disso, siga o README (*Rodando localmente* e *Variáveis de ambiente*): `npm run db:push`, `npm run db:seed` e as variáveis de produção.
+Depois disso, siga o README (*Rodando localmente* e *Variáveis de ambiente*): `npm run db:push`, as variáveis de produção e o passo a passo da conta de admin em `docs/SEGURANCA_ADMIN.md` (defina `ADMIN_EMAILS`, crie sua conta e confirme o e-mail). Em produção, não rode o `npm run db:seed`.

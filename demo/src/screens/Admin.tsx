@@ -12,6 +12,14 @@ import {
   reviewMission,
   setUserBan,
   setUserRole,
+  cardsOf,
+  giveCard,
+  keepCard,
+  liftSuspension,
+  moderatorsOn,
+  revokeCard,
+  setModeratorsEnabled,
+  type State,
   createSponsor,
   payoutSettingsOf,
   releaseHeldRewards,
@@ -33,7 +41,9 @@ import { placeOf } from "../municipalities";
 import { getCurrentPosition } from "../media";
 import { Avatar, Modal, PageHeader, btnPrimary, btnSecondary, card, input, label, toast } from "../components/ui";
 import { FoneAmount, FoneMark } from "@/components/brand/fone";
-import { centsToFone } from "@/lib/fone";
+import { centsToFone, foneToCents } from "@/lib/fone";
+import { CARD_REASON_LABELS, isSuspended } from "@/lib/cards";
+import { CardBadges, UserSheetView, type SheetUser, type UserDetails } from "@/components/admin/user-sheet-view";
 import { HOLD_REASONS, isReadyToPay } from "@/lib/payout-rules";
 import { Link } from "../router";
 import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
@@ -102,6 +112,12 @@ export function AdminScreen({ user }: { user: User }) {
     return wanted === "rewards" || wanted === "missions" || wanted === "users" || wanted === "business" ? wanted : "metrics";
   });
   const businessBadge = useStore((st) => (st.invoices ?? []).filter((i) => i.status === "pending" && i.reportedAt).length);
+  // Appeals waiting for an answer: card appeals plus blocked/suspended accounts.
+  const usersBadge = useStore(
+    (st) =>
+      (st.cards ?? []).filter((c) => c.appealedAt && !c.revokedAt && !c.appealRejectedAt).length +
+      st.users.filter((u) => u.banAppealedAt && (u.isBanned || isSuspended(u.suspendedUntil))).length,
+  );
   const tabs: { id: Tab; key: "admin_tab_metrics" | "admin_tab_missions" | "admin_tab_users" | "admin_tab_rewards" | null }[] = [
     { id: "metrics", key: "admin_tab_metrics" },
     { id: "business", key: null },
@@ -120,7 +136,7 @@ export function AdminScreen({ user }: { user: User }) {
             onClick={() => setTab(tb.id)}
             className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition ${tab === tb.id ? "bg-emerald-500 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}
           >
-            {tb.key ? t(lang, tb.key) : `💼 ${BUSINESS_LABEL[lang]}${businessBadge ? ` (${businessBadge})` : ""}`}
+            {tb.key ? `${t(lang, tb.key)}${tb.id === "users" && usersBadge ? ` (${usersBadge})` : ""}` : `💼 ${BUSINESS_LABEL[lang]}${businessBadge ? ` (${businessBadge})` : ""}`}
           </button>
         ))}
       </div>
@@ -385,57 +401,207 @@ function MissionsTab() {
   );
 }
 
+function demoDetails(s: State, userId: string): UserDetails {
+  const subs = s.submissions.filter((x) => x.userId === userId);
+  const rewards = s.rewards.filter((r) => r.userId === userId);
+  const sum = (status: "paid" | "pending") => centsToFone(rewards.filter((r) => r.status === status).reduce((acc, r) => acc + foneToCents(r.foneAmount), 0));
+  return {
+    cards: cardsOf(s, userId),
+    approved: subs.filter((x) => x.status === "approved").length,
+    rejected: subs.filter((x) => x.status === "rejected").length,
+    pending: subs.filter((x) => x.status === "pending").length,
+    fonePaid: sum("paid"),
+    foneOpen: sum("pending"),
+  };
+}
+
+function sheetUser(u: User): SheetUser {
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    totalPoints: u.totalPoints,
+    createdAt: u.createdAt,
+    isBanned: u.isBanned,
+    banReason: u.banReason ?? null,
+    suspendedUntil: u.suspendedUntil ?? null,
+    suspensionReason: u.suspensionReason ?? null,
+    walletVerifiedAt: u.walletAddress ? u.createdAt : null,
+  };
+}
+
+/** Same sheet as the web app (src/components/admin/user-sheet-view.tsx), fed by the local store. */
+function DemoUserSheet({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const user = useStore((s) => s.users.find((u) => u.id === userId));
+  const details = useStore((s) => demoDetails(s, userId));
+  if (!user) return null;
+  return (
+    <UserSheetView
+      user={sheetUser(user)}
+      details={details}
+      onClose={onClose}
+      handlers={{
+        onGive: ({ type, reason, note }) => {
+          const result = giveCard(user.id, type, reason, note);
+          return result.error ? result : { success: true };
+        },
+        onRevoke: revokeCard,
+        onKeep: keepCard,
+        onLift: () => liftSuspension(user.id),
+      }}
+    />
+  );
+}
+
+function ModeratorsSwitch() {
+  const enabled = useStore((s) => moderatorsOn(s));
+  return (
+    <label className={`${card} mb-4 flex items-start gap-3 p-4 text-sm`} data-testid="moderators-switch">
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={(e) => setModeratorsEnabled(e.target.checked)}
+        className="mt-0.5 h-5 w-5 accent-emerald-500"
+        data-testid="moderators-toggle"
+      />
+      <span>
+        <span className="font-bold text-slate-900">Moderadores podem revisar comprovações</span>
+        <span className="mt-0.5 block text-xs text-slate-500">
+          {enabled
+            ? "Ligado: quem tem o papel Moderador revisa comprovações e dá cartão amarelo. Vermelho, suspensão, banimento e FONE são só do admin."
+            : "Desligado: só administradores veem a Moderação."}{" "}
+          No app real começa desligado (MODERATORS_ENABLED); na demo começa ligado para você testar o Carlos.
+        </span>
+      </span>
+    </label>
+  );
+}
+
+function CardAppealsPanel({ onOpen }: { onOpen: (userId: string) => void }) {
+  const lang = useLang();
+  const appeals = useStore((s) =>
+    (s.cards ?? [])
+      .filter((c) => c.appealedAt && !c.revokedAt && !c.appealRejectedAt)
+      .map((c) => ({ ...c, userName: s.users.find((u) => u.id === c.userId)?.name ?? "?" })),
+  );
+  if (!appeals.length) return null;
+  return (
+    <div className={`${card} mb-4 border-sky-200 p-4`} data-testid="card-appeals">
+      <h3 className="mb-2 font-bold text-slate-900">⚖️ Contestações de cartões ({appeals.length})</h3>
+      <ul className="space-y-2">
+        {appeals.map((c) => (
+          <li key={c.id} className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+            <p className="font-bold">
+              {c.type === "red" ? "🟥" : "🟨"} {c.userName} · {CARD_REASON_LABELS[c.reasonCode].pt} · {c.appealedAt ? formatDate(c.appealedAt, lang) : ""}
+            </p>
+            <p className="mt-0.5 whitespace-pre-line">“{c.appealMessage}”</p>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              <button type="button" onClick={() => revokeCard(c.id)} className="rounded-lg border border-emerald-300 bg-white px-2.5 py-1 font-bold text-emerald-700" data-testid="appeal-accept">
+                Aceitar (cancelar cartão)
+              </button>
+              <button type="button" onClick={() => keepCard(c.id)} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-bold text-slate-700" data-testid="appeal-keep">
+                Manter cartão
+              </button>
+              <button type="button" onClick={() => onOpen(c.userId)} className="rounded-lg px-2.5 py-1 font-bold text-sky-800 underline">
+                Ver ficha
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function UsersTab({ me }: { me: User }) {
   const lang = useLang();
-  const users = useStore((s) => s.users.filter((u) => !u.deletedAt));
+  const allUsers = useStore((s) => s.users.filter((u) => !u.deletedAt));
+  const allCards = useStore((s) => s.cards ?? []);
+  const [sheetId, setSheetId] = useState<string | null>(null);
+  const blocked = (u: User) => u.isBanned || isSuspended(u.suspendedUntil);
+  // Blocked or suspended people waiting for an answer to their appeal come first.
+  const users = [...allUsers].sort((a, b) => Number(!!(blocked(b) && b.banAppealedAt)) - Number(!!(blocked(a) && a.banAppealedAt)));
   const roles: { id: Role; key: DemoKey }[] = [
     { id: "citizen", key: "demo_role_citizen" },
     { id: "moderator", key: "demo_role_moderator" },
     { id: "admin", key: "demo_role_admin" },
   ];
   return (
-    <div className={`${card} divide-y divide-slate-100`}>
-      {users.map((u) => (
-        <div key={u.id} className="flex flex-wrap items-center gap-3 p-4">
-          <Avatar name={u.name} size={38} />
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-slate-900">
-              {u.name}
-              {u.id === me.id && <span className="text-xs text-emerald-600">({dt(lang, "you")})</span>}
-              {u.isBanned && <span className="rounded bg-red-100 px-1.5 text-[10px] font-bold text-red-700">{dt(lang, "banned_label")}</span>}
-            </p>
-            <p className="truncate text-xs text-slate-500">{u.email} · {u.totalPoints} {t(lang, "reward_points")}</p>
-          </div>
-          {u.id !== me.id && (
-            <div className="flex items-center gap-2">
-              <select
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700"
-                value={u.role}
-                onChange={(e) => {
-                  const result = setUserRole(u.id, e.target.value as Role);
-                  if (result.error) toast(errorText(lang, result.error), "error");
-                }}
-              >
-                {roles.map((r) => <option key={r.id} value={r.id}>{dt(lang, r.key)}</option>)}
-              </select>
-              <button
-                type="button"
-                onClick={() => {
-                  if (u.isBanned) setUserBan(u.id, false);
-                  else {
-                    const reason = window.prompt(dt(lang, "ban_reason_prompt"));
-                    if (reason !== null) setUserBan(u.id, true, reason);
-                  }
-                }}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-bold ${u.isBanned ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}
-              >
-                {dt(lang, u.isBanned ? "unban" : "ban")}
-              </button>
+    <>
+      <ModeratorsSwitch />
+      <CardAppealsPanel onOpen={setSheetId} />
+      <div className={`${card} divide-y divide-slate-100`}>
+        {users.map((u) => {
+          const suspended = !u.isBanned && isSuspended(u.suspendedUntil);
+          return (
+            <div key={u.id} className="flex flex-wrap items-center gap-3 p-4" data-testid="admin-user-row">
+              <Avatar name={u.name} size={38} />
+              <div className="min-w-0 flex-1 basis-40">
+                <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-slate-900">
+                  <span className="truncate">{u.name}</span>
+                  {u.id === me.id && <span className="text-xs text-emerald-600">({dt(lang, "you")})</span>}
+                  {u.isBanned && <span className="rounded bg-red-100 px-1.5 text-[10px] font-bold text-red-700">{dt(lang, "banned_label")}</span>}
+                  <CardBadges cards={allCards.filter((c) => c.userId === u.id)} suspendedUntil={u.suspendedUntil ?? null} />
+                </p>
+                <p className="truncate text-xs text-slate-500">{u.email} · {u.totalPoints} {t(lang, "reward_points")}</p>
+                {u.isBanned && (
+                  <p className="mt-0.5 text-xs text-red-600">
+                    {t(lang, "banned_reason")}: {u.banReason || t(lang, "banned_no_reason")}
+                    {u.bannedAt && <span className="text-red-400"> · {t(lang, "banned_since")} {formatDate(u.bannedAt, lang)}</span>}
+                  </p>
+                )}
+                {suspended && u.suspensionReason && <p className="mt-0.5 text-xs text-orange-700">{u.suspensionReason}</p>}
+                {(u.isBanned || suspended) && u.banAppealedAt && (
+                  <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900" data-testid="ban-appeal">
+                    <p className="font-bold">⚖️ {t(lang, "staff_ban_appeal_title").replace("⚖️ ", "")} · {formatDate(u.banAppealedAt, lang)}</p>
+                    <p className="mt-0.5 whitespace-pre-line">“{u.banAppealMessage}”</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setSheetId(u.id)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  data-testid="open-user-sheet"
+                >
+                  Ficha
+                </button>
+                {u.id !== me.id && (
+                  <>
+                    <select
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700"
+                      value={u.role}
+                      onChange={(e) => {
+                        const result = setUserRole(u.id, e.target.value as Role);
+                        if (result.error) toast(errorText(lang, result.error), "error");
+                      }}
+                    >
+                      {roles.map((r) => <option key={r.id} value={r.id}>{dt(lang, r.key)}</option>)}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (u.isBanned) setUserBan(u.id, false);
+                        else {
+                          const reason = window.prompt(dt(lang, "ban_reason_prompt"));
+                          if (reason !== null) setUserBan(u.id, true, reason);
+                        }
+                      }}
+                      className={`rounded-lg px-2.5 py-1.5 text-xs font-bold ${u.isBanned ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}
+                    >
+                      {dt(lang, u.isBanned ? "unban" : "ban")}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          )}
-        </div>
-      ))}
-    </div>
+          );
+        })}
+      </div>
+      {sheetId && <DemoUserSheet userId={sheetId} onClose={() => setSheetId(null)} />}
+    </>
   );
 }
 
