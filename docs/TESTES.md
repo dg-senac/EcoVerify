@@ -87,11 +87,11 @@ Também conferir:
 
 ### 3.3.1 IA de verdade com a sua chave do Gemini (opcional)
 
-Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudio.google.com/apikey) (*Create API key*; ela começa com `AIza`). Use uma chave só de testes, sem cobrança ativada. **Nunca** coloque a chave no GitHub (nem em *Secrets*) ou em grupos.
+Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudio.google.com/apikey) (*Create API key*; as chaves novas começam com `AQ.`, as antigas com `AIza`). Use uma chave só de testes, sem cobrança ativada. **Nunca** coloque a chave no GitHub (nem em *Secrets*) ou em grupos.
 
 - [ ] **Configurações → IA de verdade (sua chave do Gemini)** aparece com o selo "IA simulada".
 - [ ] Colar um texto qualquer → "Isso não parece uma chave do Gemini".
-- [ ] Colar a chave → *Salvar e testar* → "Chave funcionando ✓" e o selo muda para "🤖 Gemini ativo". A chave aparece mascarada (ex.: `AIzaSy••••ab12`).
+- [ ] Colar a chave → *Salvar e testar* → "Chave funcionando ✓" e o selo muda para "🤖 Gemini ativo". A chave aparece mascarada (ex.: `AQ.Ab8••••ab12`).
 - [ ] Chave errada (apague uma letra) → "O Google recusou a chave".
 - [ ] Ao comprovar uma missão, a foto da **câmera** mostra o aviso "Esta foto será analisada pelo Gemini de verdade". O botão mostra "Analisando com o Gemini…".
 - [ ] **Foto real que combina** com a missão (ex.: recicláveis separados em "Separe o lixo reciclável em casa") → aprovada sozinha, com a explicação do Gemini no idioma do app.
