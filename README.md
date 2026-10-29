@@ -7,6 +7,8 @@ O EcoVerify conecta ações sustentáveis do mundo real (reciclagem, plantio de 
 > 🥉 **3º lugar no Fone Protocol SDK Hackathon (2025)**. Projeto de Douglas Gabriel, aluno do Mediotec do Senac Recife.
 > [Matéria do Senac‑PE](https://www.pe.senac.br/aluno-do-mediotec-do-senac-recife-e-finalista-em-hackathon-internacional/)
 
+> 🧪 **Testar agora, sem instalar nada:** [demo offline](https://eco-verify-ruddy.vercel.app/) · APK em [Releases](https://github.com/dg-senac/EcoVerify/releases) · roteiro de testes em [`docs/TESTES.md`](docs/TESTES.md).
+
 ---
 
 ## Como funciona
@@ -185,6 +187,8 @@ O APK tem dois modos:
 - **Servidor**: com `CAPACITOR_SERVER_URL` (HTTPS), o APK abre o app web real.
 
 Para testar a demo no navegador: `npm run demo:dev` (http://localhost:5173).
+
+**Roteiro de testes sem banco** (o que testar em cada perfil, no navegador e no APK, e como relatar problemas): [`docs/TESTES.md`](docs/TESTES.md).
 
 A demo web também é **instalável** (PWA: "Adicionar à tela inicial"), tem prévia de link para WhatsApp/redes e um **modo apresentação** guiado de 3 minutos (Maria → IA → moderação → pagamento → perfil → transparência). Links úteis para compartilhar:
 
