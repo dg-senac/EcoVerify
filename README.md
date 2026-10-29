@@ -146,6 +146,12 @@ Em **Admin → Recompensas**, as recompensas aprovadas aparecem **agrupadas por 
 
 Detalhes, limites do plano gratuito e como trocar de provedor: [`docs/VERIFICACAO_IA.md`](docs/VERIFICACAO_IA.md).
 
+## Cartões e moderação
+
+- Tentativa de fraude pode receber **cartão amarelo** (dado por uma pessoa, nunca pela IA, sempre com explicação). **3 amarelos válidos = 14 dias de suspensão** (FONE pendente congelado); amarelo vale 6 meses; **vermelho** bloqueia e só o admin dá. Todo cartão pode ser contestado.
+- **Moderação só para admin por padrão.** `MODERATORS_ENABLED=true` libera o papel Moderador (revisar comprovações e dar amarelo).
+- Admin → Usuários tem a **Ficha** de cada pessoa e o painel de contestações. Regras completas: [`docs/CARTOES.md`](docs/CARTOES.md).
+
 ## Missões por região
 
 - A tela de missões pergunta **onde você está**: pelo GPS (só para descobrir a cidade, com coordenadas arredondadas guardadas num cookie do aparelho) ou digitando a cidade. Mostra **"Perto de você"** (raio de 10, 30 ou 100 km, mais perto primeiro), **"Em qualquer lugar"** (missões feitas de casa, sem conferir distância) e quantas missões existem em outras regiões.

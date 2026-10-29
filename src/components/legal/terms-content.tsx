@@ -39,7 +39,7 @@ export function TermsContent({ info }: { info: LegalInfo }) {
             "O app usa a localização do aparelho no momento da comprovação para conferir se você está no local da missão.",
             "Cada comprovação passa por uma verificação automática (regras do app e um modelo de inteligência artificial) e pela equipe de moderação. Casos claros podem ser aprovados ou rejeitados automaticamente, sempre com o motivo informado; os demais são decididos por uma pessoa.",
             "Se uma comprovação sua for rejeitada automaticamente, você pode contestar em Minhas Submissões: a contestação é sempre analisada por uma pessoa da moderação.",
-            "Fotos repetidas, montagens, fotos de tela, localização falsificada ou qualquer tentativa de fraude levam à rejeição e podem levar ao banimento e ao cancelamento de recompensas.",
+            "Fotos repetidas, montagens, fotos de tela, localização falsificada ou qualquer tentativa de fraude levam à rejeição e podem levar a cartões (item 8), à suspensão, ao bloqueio e ao cancelamento de recompensas.",
             "Ao enviar uma foto, você autoriza o EcoVerify a armazená-la, a exibi-la à equipe de moderação e a enviá-la, reduzida e sem dados pessoais, ao serviço de verificação automática. Não publicamos sua foto fora do app sem a sua autorização. Evite fotografar rostos de outras pessoas.",
           ]}
         />
@@ -79,11 +79,18 @@ export function TermsContent({ info }: { info: LegalInfo }) {
         </p>
       </LegalSection>
 
-      <LegalSection n={8} title="Suspensão e encerramento">
-        <p>
-          Podemos suspender ou banir contas que descumprirem estes Termos, com indicação do motivo. Também podemos encerrar
-          missões ou o serviço, avisando com antecedência sempre que possível.
-        </p>
+      <LegalSection n={8} title="Cartões, suspensão e encerramento">
+        <LegalList
+          items={[
+            "Tentativas de fraude (foto da internet, foto de tela, foto reaproveitada, localização falsificada, relato inventado) e ofensas na comunidade podem receber cartão. Erro honesto, como foto escura ou fora do local por engano, não recebe cartão: a comprovação só é rejeitada com o motivo.",
+            "Cartões são dados por uma pessoa da equipe, nunca automaticamente pela inteligência artificial, e sempre com uma explicação escrita que você recebe no app.",
+            "Cartão amarelo: o 1º e o 2º são avisos. O 3º amarelo válido suspende a conta por 14 dias. Cada amarelo vale por 6 meses e depois deixa de contar.",
+            "Durante a suspensão você não consegue entrar no app e os FONE ainda não pagos ficam congelados (guardados, não perdidos) até a suspensão terminar.",
+            "Cartão vermelho: bloqueia a conta. É usado em casos graves ou quando há nova tentativa de fraude logo depois de uma suspensão, e é decidido por um administrador.",
+            "Todo cartão pode ser contestado uma vez, em Perfil → Meus cartões. Uma conta suspensa ou bloqueada pode contestar pela tela que aparece ao tentar entrar. A contestação é analisada por um administrador; se for aceita, o cartão é cancelado e a suspensão ou o bloqueio, desfeitos.",
+            "Também podemos encerrar missões ou o serviço, avisando com antecedência sempre que possível.",
+          ]}
+        />
       </LegalSection>
 
       <LegalSection n={9} title="Responsabilidade">

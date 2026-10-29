@@ -537,7 +537,7 @@ function UsersTab({ me }: { me: User }) {
           return (
             <div key={u.id} className="flex flex-wrap items-center gap-3 p-4" data-testid="admin-user-row">
               <Avatar name={u.name} size={38} />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-40">
                 <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-slate-900">
                   <span className="truncate">{u.name}</span>
                   {u.id === me.id && <span className="text-xs text-emerald-600">({dt(lang, "you")})</span>}
@@ -559,7 +559,7 @@ function UsersTab({ me }: { me: User }) {
                   </div>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setSheetId(u.id)}

@@ -118,6 +118,9 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 - [ ] A **contestação** feita pela Maria (3.3) aparece com o selo "Contestação", o texto dela e o motivo anterior.
 - [ ] A seção de **decisões recentes da IA** lista o que foi aprovado ou rejeitado sozinho (para auditoria).
 - [ ] Se o Carlos enviar uma comprovação, ele vê o aviso de que **não pode moderar a própria**.
+- [ ] **Cartão amarelo na rejeição:** ao rejeitar por um motivo de fraude (foto da internet, de tela, repetida, localização falsa…), aparece a caixa **"Dar cartão amarelo"**. Ela não aparece para motivos de erro honesto (foto escura, fora do local por engano). Marcar e confirmar → a Maria recebe "🟨 Cartão amarelo" com a explicação escrita pelo Carlos.
+
+> **Moderação só para admin:** no app real a Moderação começa **só com administradores** (`MODERATORS_ENABLED` desligado). Na demo ela começa liberada para você testar o Carlos; a Ana pode desligar em **Admin → Usuários** (ver 3.5).
 
 ### 3.5 Ana: administração
 
@@ -135,6 +138,16 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 - [ ] **Banir** com motivo → o usuário aparece como BANIDO, com o motivo e a data. **Desbanir** desfaz.
 - [ ] Sair e escolher o perfil banido → abre a tela **"Sua conta está bloqueada"**, com o motivo, a data e o formulário **"Acha que foi um engano?"** (mínimo de 20 caracteres). Enviar → "Contestação recebida…". O app não entra na conta.
 - [ ] Como Ana: chega a notificação "⚖️ Contestação de bloqueio" e, em **Usuários**, a pessoa aparece no topo com o texto da contestação. O moderador não recebe esse aviso.
+
+**Cartões e suspensão** (regras completas em `docs/CARTOES.md`)
+- [ ] A demo começa com um cartão de exemplo: o **Rafael** mostra o selo 🟨 1/3 na lista.
+- [ ] **Ficha** de qualquer pessoa → situação, pontos, comprovações aprovadas/rejeitadas/pendentes, FONE pago/a pagar, cartões e o formulário **Dar cartão** (amarelo ou vermelho, motivo e explicação de 15+ caracteres).
+- [ ] Dar o **3º amarelo** válido à Maria → ela fica **SUSPENSA por 14 dias**: aparece o selo com a data, a caixa "Suspenso até…" e o aviso de que os FONE a pagar ficam **congelados**. Em Recompensas, pagar a Maria → "Conta suspensa ou bloqueada: o FONE fica congelado".
+- [ ] Sair e escolher a Maria → tela **"Sua conta está suspensa"**, com o motivo, a data de volta e o formulário de contestação. O app não entra.
+- [ ] Na Ficha, **Encerrar suspensão agora** → a Maria entra de novo e recebe "✅ Suspensão encerrada".
+- [ ] **Cartão vermelho** → bloqueia a conta (igual ao banimento). **Cancelar cartão** no vermelho → desbloqueia.
+- [ ] **Contestações de cartões:** quando a Maria contesta um cartão (3.6), a aba mostra **Usuários (1)** e o painel "⚖️ Contestações de cartões". *Aceitar* cancela o cartão (e desfaz a suspensão se foi ele que suspendeu); *Manter* avisa a Maria que o cartão continua.
+- [ ] **Moderadores podem revisar comprovações:** desligar → o Carlos entra direto em Missões, sem o menu Moderação, e `#/moderation` volta para Missões. Ligar de novo para seguir os testes.
 
 **Recompensas (FONE simulado)**
 - [ ] A fila mostra os FONE "em carência" (7 dias) e o aviso de mínimo de 5 FONE e da taxa da rede (≈ 0,15 FONE).
@@ -158,6 +171,7 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 **Perfil e ranking**
 - [ ] O Perfil mostra nível, pontos, FONE recebido, FONE a receber, ações aprovadas e o histórico com link de transação (simulado).
 - [ ] O **Ranking** coloca a Maria na posição certa, conforme os pontos ganhos nos testes.
+- [ ] **Meus cartões** (no Perfil): sem cartões → "Nenhum cartão". Com cartão → tipo, motivo, explicação da equipe e "Vale até…". *Contestar* (20+ caracteres) → "Contestação enviada"; só dá para contestar uma vez.
 
 **Comunidade (só cidadãos)**
 - [ ] Como Maria: enviar mensagem, **responder** uma mensagem e **apagar** a própria.
@@ -226,6 +240,7 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 | Missões automáticas do OpenStreetMap | Na demo os lugares são de exemplo. |
 | Busca reversa automática de fotos da internet | A IA só aponta sinais (marca d'água, legenda de site); a confirmação é feita pela equipe no Google Lens. A busca automática (Google Cloud Vision) precisa de conta com cobrança. |
 | Tela de conta bloqueada com senha real (`/conta-bloqueada`) | No servidor, ela abre ao entrar com a senha certa, por um link que vale 30 minutos e não cria sessão. Na demo, abre ao escolher o perfil banido. |
+| Chave `MODERATORS_ENABLED` do servidor | Na demo ela é a opção da Ana em Admin → Usuários. |
 | FONE de verdade e conferência no explorer | Os pagamentos são simulados. |
 | Pix de verdade | A chave da demo é fictícia. |
 | GIFs e áudios no chat, sugerir uma ação | Precisam do servidor. |
