@@ -128,5 +128,10 @@ export async function orgImpact(orgId: string) {
     .from(submissions)
     .innerJoin(missions, eq(missions.id, submissions.missionId))
     .where(and(eq(missions.organizationId, orgId), eq(submissions.status, "approved")));
-  return { ...totals, byCategory, byMonth, since: first?.first ?? null };
+  const [recycled] = await db
+    .select({ kg: sql<string>`coalesce(sum(${submissions.weightKg}), 0)::text` })
+    .from(submissions)
+    .innerJoin(missions, eq(missions.id, submissions.missionId))
+    .where(and(eq(missions.organizationId, orgId), eq(submissions.status, "approved")));
+  return { ...totals, recycledKg: Number(recycled?.kg ?? 0), byCategory, byMonth, since: first?.first ?? null };
 }

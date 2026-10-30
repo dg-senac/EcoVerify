@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { BarChart3, Crosshair, Loader2, Plus, Users, Clock, CheckCircle2, Coins, Hourglass, Target } from "lucide-react";
-import { categoryEmoji, categoryLabels, t } from "@/lib/i18n";
+import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
 import { formatDate, formatFone } from "@/lib/utils";
 import type { Role } from "@/lib/nav";
 import { dt, errorText, type DemoKey } from "../i18n";
@@ -29,6 +29,7 @@ import {
   toggleMission,
   topUpSponsor,
   treasuryMonthCents,
+  impactRows,
   updatePayoutSettings,
   userPayout,
   useLang,
@@ -50,10 +51,39 @@ import { BusinessTab, type BusinessData } from "@/components/admin/business-tab"
 import { PLANS } from "@/lib/plans";
 import { orgPlan } from "@/lib/saas/org-rules";
 import { monthStart } from "@/lib/payout-rules";
+import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
+import { dataTables, recyclingSummary } from "@/lib/impact";
 
-type Tab = "metrics" | "business" | "missions" | "users" | "rewards";
+type Tab = "metrics" | "business" | "missions" | "users" | "rewards" | "recycling" | "data";
 export const ADMIN_TAB_KEY = "ecoverify-admin-tab";
 const BUSINESS_LABEL = { pt: "Negócios", en: "Business", es: "Negocios" };
+const EXTRA_TABS: Partial<Record<Tab, { icon: string; label: Record<Lang, string> }>> = {
+  business: { icon: "💼", label: BUSINESS_LABEL },
+  recycling: { icon: "♻️", label: { pt: "Reciclagem", en: "Recycling", es: "Reciclaje" } },
+  data: { icon: "🗺️", label: { pt: "Dados", en: "Data", es: "Datos" } },
+};
+
+/** Same panels as the web app (src/components/admin/impact-tabs.tsx); the CSV is built in the browser. */
+function DemoRecyclingTab() {
+  const all = useStore((s) => impactRows(s));
+  return (
+    <RecyclingTab
+      summary={recyclingSummary(all)}
+      rows={all}
+      demoNote="Demonstração: entregas de exemplo. Aprove a entrega da Beatriz na Moderação (dá para corrigir o peso) e veja os números mudarem aqui."
+    />
+  );
+}
+
+function DemoDataTab() {
+  const tables = useStore((s) => dataTables(impactRows(s)));
+  return (
+    <DataTab
+      tables={tables}
+      demoNote="Demonstração: poucos participantes de exemplo, por isso vários grupos aparecem ocultos (menos de 5 pessoas). É exatamente o que protege a identidade de cada um."
+    />
+  );
+}
 
 /** Same panel as the web app (src/components/admin/business-tab.tsx), fed by the local store. */
 function DemoBusinessTab() {
@@ -109,7 +139,9 @@ export function AdminScreen({ user }: { user: User }) {
     // The presentation tour opens the Rewards tab directly.
     const wanted = sessionStorage.getItem(ADMIN_TAB_KEY);
     sessionStorage.removeItem(ADMIN_TAB_KEY);
-    return wanted === "rewards" || wanted === "missions" || wanted === "users" || wanted === "business" ? wanted : "metrics";
+    return wanted === "rewards" || wanted === "missions" || wanted === "users" || wanted === "business" || wanted === "recycling" || wanted === "data"
+      ? wanted
+      : "metrics";
   });
   const businessBadge = useStore((st) => (st.invoices ?? []).filter((i) => i.status === "pending" && i.reportedAt).length);
   // Appeals waiting for an answer: card appeals plus blocked/suspended accounts.
@@ -124,6 +156,8 @@ export function AdminScreen({ user }: { user: User }) {
     { id: "missions", key: "admin_tab_missions" },
     { id: "users", key: "admin_tab_users" },
     { id: "rewards", key: "admin_tab_rewards" },
+    { id: "recycling", key: null },
+    { id: "data", key: null },
   ];
   return (
     <>
@@ -136,7 +170,9 @@ export function AdminScreen({ user }: { user: User }) {
             onClick={() => setTab(tb.id)}
             className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition ${tab === tb.id ? "bg-emerald-500 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}
           >
-            {tb.key ? `${t(lang, tb.key)}${tb.id === "users" && usersBadge ? ` (${usersBadge})` : ""}` : `💼 ${BUSINESS_LABEL[lang]}${businessBadge ? ` (${businessBadge})` : ""}`}
+            {tb.key
+              ? `${t(lang, tb.key)}${tb.id === "users" && usersBadge ? ` (${usersBadge})` : ""}`
+              : `${EXTRA_TABS[tb.id]?.icon} ${EXTRA_TABS[tb.id]?.label[lang]}${tb.id === "business" && businessBadge ? ` (${businessBadge})` : ""}`}
           </button>
         ))}
       </div>
@@ -145,6 +181,8 @@ export function AdminScreen({ user }: { user: User }) {
       {tab === "missions" && <MissionsTab />}
       {tab === "users" && <UsersTab me={user} />}
       {tab === "rewards" && <RewardsTab />}
+      {tab === "recycling" && <DemoRecyclingTab />}
+      {tab === "data" && <DemoDataTab />}
     </>
   );
 }

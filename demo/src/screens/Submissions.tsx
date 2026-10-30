@@ -9,6 +9,7 @@ import { composeRejectionMessage } from "@/lib/ai/decision";
 import { EmptyState, PageHeader, StatusBadge, card, toast } from "../components/ui";
 import { PhotoViewer } from "../components/PhotoViewer";
 import { FoneAmount } from "@/components/brand/fone";
+import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS } from "@/lib/impact";
 
 export function SubmissionsScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -53,6 +54,14 @@ export function SubmissionsScreen({ user }: { user: User }) {
                   </div>
                   <p className="mt-0.5 text-xs text-slate-400">{dt(lang, "submitted_at")} {formatDate(sub.submittedAt, lang)}</p>
                   <p className="mt-1.5 line-clamp-2 text-sm text-slate-600">{sub.report}</p>
+                  {sub.material && (
+                    <p className="mt-1 text-xs font-semibold text-emerald-700" data-testid="delivery">
+                      {MATERIAL_EMOJI[sub.material]} {MATERIAL_LABELS[sub.material][lang]} · {formatKg(sub.weightKg ?? 0, lang)}
+                      {sub.declaredWeightKg != null && sub.weightKg != null && sub.declaredWeightKg !== sub.weightKg && (
+                        <span className="font-normal text-slate-400"> ({t(lang, "recycling_weight_corrected")})</span>
+                      )}
+                    </p>
+                  )}
                   {sub.status === "approved" && mission && (
                     <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
                       <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-700"><Star className="h-3.5 w-3.5" /> +{mission.pointsReward}</span>

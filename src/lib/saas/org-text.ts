@@ -32,6 +32,7 @@ export interface OrgText {
   statActions: string;
   statPoints: string;
   statMissions: string;
+  statRecycled: string;
   ranking: string;
   rankingEmpty: string;
   orgMissions: string;
@@ -161,6 +162,7 @@ const pt: OrgText = {
   statActions: "ações aprovadas",
   statPoints: "pontos",
   statMissions: "missões ativas",
+  statRecycled: "reciclados (declarado e verificado por foto)",
   ranking: "Ranking da organização",
   rankingEmpty: "O ranking aparece quando as primeiras ações forem aprovadas.",
   orgMissions: "Missões da organização",
@@ -302,6 +304,7 @@ const en: OrgText = {
   statActions: "approved actions",
   statPoints: "points",
   statMissions: "active missions",
+  statRecycled: "recycled (declared and checked by photo)",
   ranking: "Organization ranking",
   rankingEmpty: "The ranking appears once the first actions are approved.",
   orgMissions: "Organization missions",
@@ -443,6 +446,7 @@ const es: OrgText = {
   statActions: "acciones aprobadas",
   statPoints: "puntos",
   statMissions: "misiones activas",
+  statRecycled: "reciclados (declarado y verificado por foto)",
   ranking: "Ranking de la organización",
   rankingEmpty: "El ranking aparece cuando se aprueben las primeras acciones.",
   orgMissions: "Misiones de la organización",

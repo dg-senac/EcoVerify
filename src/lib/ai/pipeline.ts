@@ -21,6 +21,7 @@ import { notifyStaff } from "@/lib/staff-alerts";
 import { moderatorsEnabled } from "@/lib/staff-config";
 import { t, tf } from "@/lib/i18n";
 import { FILES_ROUTE_PREFIX, isValidStoragePath, readStoredFile } from "@/lib/storage";
+import { MATERIAL_LABELS } from "@/lib/impact";
 
 export async function getAiSettings(): Promise<AiSettingsValues> {
   const [row] = await db.select().from(aiSettings).where(eq(aiSettings.id, 1)).limit(1);
@@ -144,7 +145,10 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
           context: mission.context,
           aiChecklist: mission.aiChecklist,
         },
-        report: submission.report,
+        // The model also checks whether the photo matches the declared delivery.
+        report: submission.material
+          ? `${submission.report}\n\n[Entrega declarada: ${MATERIAL_LABELS[submission.material].pt}, cerca de ${submission.weightKg} kg]`
+          : submission.report,
       });
       analysis = result.analysis;
       model = result.model;
@@ -154,7 +158,14 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
     }
   }
 
-  const decision = decideProof({ settings, analysis, similar, foneReward: Number(mission.foneReward), web: webVerdict(web) });
+  const decision = decideProof({
+    settings,
+    analysis,
+    similar,
+    foneReward: Number(mission.foneReward),
+    web: webVerdict(web),
+    weightKg: submission.weightKg === null ? null : Number(submission.weightKg),
+  });
 
   await db
     .update(submissions)

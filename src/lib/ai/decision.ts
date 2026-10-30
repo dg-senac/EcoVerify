@@ -13,6 +13,7 @@
  *      human together with the AI suggestion. Users can appeal automatic decisions (LGPD art. 20).
  */
 import type { Lang } from "@/lib/i18n";
+import { MAX_AUTO_APPROVE_KG } from "@/lib/impact";
 
 export type AiMode = "off" | "suggest" | "auto";
 export type AiVerdict = "approve" | "reject" | "review";
@@ -196,6 +197,8 @@ export function decideProof(input: {
   foneReward: number;
   /** Reverse image search result: "copy" = the same picture is on the internet. */
   web?: "copy" | "partial" | "none" | null;
+  /** Declared weight of a recycling delivery: heavy ones always go to a person. */
+  weightKg?: number | null;
 }): ProofDecision {
   const { settings, analysis, similar, web } = input;
   const auto = settings.mode === "auto";
@@ -233,7 +236,11 @@ export function decideProof(input: {
     if (problem) return { action: "review", verdict: "review", confidence, reasonCode: problem };
     // Crops/edits of the picture found online: not enough to flag, but enough to need a person.
     const canAutoApprove =
-      auto && web !== "partial" && confidence >= settings.approveMinConfidence && input.foneReward <= settings.maxAutoApproveFone;
+      auto &&
+      web !== "partial" &&
+      confidence >= settings.approveMinConfidence &&
+      input.foneReward <= settings.maxAutoApproveFone &&
+      !((input.weightKg ?? 0) > MAX_AUTO_APPROVE_KG);
     return { action: canAutoApprove ? "approve" : "review", verdict: "approve", confidence, reasonCode: null };
   }
 

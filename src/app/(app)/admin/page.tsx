@@ -18,6 +18,9 @@ import { UsersTab } from "@/components/admin/users-tab";
 import { RewardsTab, type PaidBatch } from "@/components/admin/rewards-tab";
 import { WalletsTab } from "@/components/admin/wallets-tab";
 import { AiTab } from "@/components/admin/ai-tab";
+import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
+import { dataTables, recyclingSummary } from "@/lib/impact";
+import { loadImpactRows } from "@/lib/impact-server";
 import { getAiSettings } from "@/lib/ai/pipeline";
 import { geminiApiKey, geminiModel } from "@/lib/ai/gemini";
 import { visionApiKey, visionMonthlyLimit, visionUsedThisMonth } from "@/lib/ai/vision";
@@ -354,6 +357,9 @@ export default async function AdminPage() {
     production: process.env.NODE_ENV === "production",
   };
 
+  // Recycling report and anonymous aggregated data (docs/MONETIZACAO.md).
+  const impactRows = await loadImpactRows();
+
   const vision = { configured: !!visionApiKey(), used: visionApiKey() ? await visionUsedThisMonth() : 0, limit: visionMonthlyLimit() };
 
   return (
@@ -454,6 +460,18 @@ export default async function AdminPage() {
                   held={Object.entries(heldByReason).map(([reason, value]) => ({ reason: reason as HoldReason, fone: centsToFone(value.cents), count: value.count }))}
                 />
               ),
+            },
+            {
+              key: "recycling",
+              label: "Reciclagem",
+              icon: "♻️",
+              content: <RecyclingTab summary={recyclingSummary(impactRows)} exportBase="/api/admin/export" />,
+            },
+            {
+              key: "data",
+              label: "Dados",
+              icon: "🗺️",
+              content: <DataTab tables={dataTables(impactRows)} exportBase="/api/admin/export" />,
             },
             {
               key: "ai",

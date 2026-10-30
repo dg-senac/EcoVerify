@@ -48,6 +48,7 @@ import {
 import { addPeriod, isPlanId, PAID_PLANS, planPrice, type BillingCycle, type PlanId, type SubscriptionStatus } from "@/lib/plans";
 import { canActivateMission, canAddMember, initialSubscription, isOrgType, newInviteCode, normalizeInviteCode, slugify, type OrgRole, type OrgType } from "@/lib/saas/org-rules";
 import { newInvoiceReference } from "@/lib/saas/pix";
+import { checkRecyclingInput, parseWeightKg, type ImpactRow, type Material } from "@/lib/impact";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -143,6 +144,10 @@ export type Submission = {
   longitude: number;
   accuracy: number;
   simulatedLocation: boolean;
+  /** Recycling missions: material and weight in kg (src/lib/impact.ts). */
+  material?: Material | null;
+  weightKg?: number | null;
+  declaredWeightKg?: number | null;
   status: SubmissionStatus;
   reviewedBy: string | null;
   rejectionReason: string | null;
@@ -559,6 +564,9 @@ export type NewSubmission = {
   longitude: number;
   accuracy: number;
   simulatedLocation: boolean;
+  /** Recycling missions: raw values typed on the form. */
+  material?: string | null;
+  weight?: string | null;
   /** Sample photo picked in the demo (drives the simulated AI). null = camera/gallery photo. */
   sample?: SampleKind | null;
   /** Real analysis of a camera/gallery photo with the tester's own Gemini key (see byok.ts). */
@@ -579,6 +587,8 @@ export function checkProof(input: NewSubmission): Result {
   if (!input.photo) return { error: "error_photo_required" };
   const report = input.report.trim();
   if (report.length < 50 || report.length > 1000) return { error: "error_report_length" };
+  const recycling = checkRecyclingInput(mission.category, input.material, input.weight);
+  if (recycling.error) return { error: `error_${recycling.error}` };
 
   if (!(input.accuracy <= MAX_GPS_ACCURACY_METERS)) return { error: "error_location_inaccurate" };
   if (
@@ -614,7 +624,15 @@ export function submitProof(input: NewSubmission): Result {
   const analysis = input.sample ? simulateAnalysis(input.sample, mission.category, lang) : (realAnalysis?.analysis ?? null);
   const aiFailed = !!real && "failed" in real;
   const web = simulateWebSearch(input.sample ?? null);
-  const decision = decideProof({ settings: DEFAULT_AI_SETTINGS, analysis, similar: null, foneReward: Number(mission.foneReward), web: webVerdict(web) });
+  const recycling = checkRecyclingInput(mission.category, input.material, input.weight);
+  const decision = decideProof({
+    settings: DEFAULT_AI_SETTINGS,
+    analysis,
+    similar: null,
+    foneReward: Number(mission.foneReward),
+    web: webVerdict(web),
+    weightKg: recycling.weightKg,
+  });
   const webChecks = web ? { webChecked: true, webFullMatches: web.fullMatches, webPages: web.pages, webPartialCount: web.partialCount, webBestGuess: web.bestGuess } : {};
   const submission: Submission = {
     id: uid(),
@@ -627,6 +645,9 @@ export function submitProof(input: NewSubmission): Result {
     longitude: input.longitude,
     accuracy: input.accuracy,
     simulatedLocation: input.simulatedLocation,
+    material: recycling.material,
+    weightKg: recycling.weightKg,
+    declaredWeightKg: recycling.weightKg,
     status: "pending",
     reviewedBy: null,
     rejectionReason: null,
@@ -769,14 +790,20 @@ function canModerate(user: User | null): user is User {
   return !!user && canReview(user.role, moderatorsOn()) && !user.isBanned;
 }
 
-export function approveSubmission(submissionId: string): Result {
+/** `weight`: the reviewer may correct the declared weight of a recycling delivery (same rule as the server). */
+export function approveSubmission(submissionId: string, weight?: string): Result {
   const reviewer = me();
   if (!canModerate(reviewer)) return { error: "error_generic" };
   const sub = state.submissions.find((s) => s.id === submissionId);
   if (!sub || sub.status !== "pending") return { error: "error_generic" };
   if (sub.userId === reviewer.id) return { error: "own_submission_warning" };
   if (!state.missions.some((m) => m.id === sub.missionId)) return { error: "error_generic" };
-  commit((s) => applyApproval(s, sub.id, reviewer.id));
+  let weightKg = sub.weightKg ?? null;
+  if (sub.material && weight && weight.trim()) {
+    weightKg = parseWeightKg(weight);
+    if (weightKg === null) return { error: "error_weight_invalid" };
+  }
+  commit((s) => applyApproval({ ...s, submissions: s.submissions.map((x) => (x.id === sub.id ? { ...x, weightKg } : x)) }, sub.id, reviewer.id));
   return {};
 }
 
@@ -1712,4 +1739,34 @@ export function grantDemoPlan(orgId: string, plan: string, months: number): OrgR
   const end = plan === "free" ? null : new Date(Date.now() + months * 30 * 86_400_000).toISOString();
   commit((s) => ({ ...s, orgs: (s.orgs ?? []).map((o) => (o.id === orgId ? { ...o, plan, subscriptionStatus: "active" as const, currentPeriodEnd: end } : o)) }));
   return { success: true };
+}
+
+/* ------------------------------------------------------------------ */
+/* Recycling report and anonymous data (Admin → Reciclagem / Dados)    */
+/* ------------------------------------------------------------------ */
+
+/** Same rows as src/lib/impact-server.ts: approved proofs with the mission point (never the person's GPS). */
+export function impactRows(s: State = state): ImpactRow[] {
+  const byId = new Map(s.missions.map((m) => [m.id, m]));
+  const rows: ImpactRow[] = [];
+  for (const sub of s.submissions) {
+    if (sub.status !== "approved") continue;
+    const mission = byId.get(sub.missionId);
+    if (!mission) continue;
+    rows.push({
+      submissionId: sub.id,
+      userId: sub.userId,
+      approvedAt: sub.reviewedAt ?? sub.submittedAt,
+      category: mission.category,
+      missionTitle: mission.title,
+      scope: mission.scope ?? "local",
+      city: mission.city ?? null,
+      stateCode: mission.stateCode ?? null,
+      latitude: mission.scope === "anywhere" ? null : mission.latitude,
+      longitude: mission.scope === "anywhere" ? null : mission.longitude,
+      material: sub.material ?? null,
+      weightKg: sub.weightKg ?? null,
+    });
+  }
+  return rows;
 }

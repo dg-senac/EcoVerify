@@ -1,10 +1,11 @@
 import type { ChatMessage, DemoInvoice, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
+import type { Material } from "@/lib/impact";
 
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 7;
+export const STATE_VERSION = 8;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -237,6 +238,37 @@ export function createSeed(): State {
     };
   };
   const [boaViagem, jaqueira, marcoZero, donaLindu, capibaribe] = missions;
+  const olindaOleo = missions.find((m) => m.id === "m-olinda-oleo") ?? marcoZero;
+  /** Approved deliveries of the example people in the last months (no FONE: already paid out before the demo). */
+  const impactHistory = (): Submission[] => {
+    const entries: [string, Mission, Material, number, number][] = [
+      ["u-bot-1", marcoZero, "plastic", 6.0, 20],
+      ["u-bot-2", marcoZero, "paper", 8.5, 34],
+      ["u-bot-3", marcoZero, "glass", 5.0, 47],
+      ["u-bot-5", marcoZero, "plastic", 3.0, 15],
+      ["u-bot-1", olindaOleo, "oil", 2.0, 52],
+      ["u-bot-2", olindaOleo, "oil", 1.5, 70],
+      ["u-bot-4", olindaOleo, "oil", 3.0, 25],
+    ];
+    return entries.map(([userId, mission, material, kg, days]) =>
+      sub({
+        id: `s-hist-${userId}-${mission.id}`,
+        userId,
+        missionId: mission.id,
+        at: mission,
+        photo: placeholderPhoto(material === "oil" ? "🛢️" : "♻️", "#2dd4bf", "#0f766e", "Entrega de recicláveis"),
+        report: "Separei o material em casa ao longo das semanas e entreguei no ponto de coleta indicado na missão, com foto no local.",
+        material,
+        weightKg: kg,
+        declaredWeightKg: kg,
+        status: "approved",
+        reviewedBy: DEMO_IDS.moderator,
+        rejectionReason: null,
+        submittedAt: ago(days * DAY + 3 * 60 * 60 * 1000),
+        reviewedAt: ago(days * DAY),
+      }),
+    );
+  };
 
   const submissions: Submission[] = [
     // Waiting for moderation (log in as moderator to review them)
@@ -273,6 +305,9 @@ export function createSeed(): State {
       at: marcoZero,
       photo: placeholderPhoto("♻️", "#2dd4bf", "#0d9488", "Recicláveis separados"),
       report: "Separei garrafas PET, latinhas e papelão durante a semana e entreguei tudo no ponto de coleta seletiva do Marco Zero.",
+      material: "plastic",
+      weightKg: 4.5,
+      declaredWeightKg: 4.5,
       status: "pending",
       reviewedBy: null,
       rejectionReason: null,
@@ -287,6 +322,9 @@ export function createSeed(): State {
       at: marcoZero,
       photo: placeholderPhoto("♻️", "#2dd4bf", "#0f766e", "Garrafas e latinhas"),
       report: "Juntei as garrafas e latinhas lá de casa durante duas semanas e levei ao ponto de coleta do Marco Zero no domingo.",
+      material: "metal",
+      weightKg: 2.5,
+      declaredWeightKg: 2.5,
       status: "approved",
       reviewedBy: DEMO_IDS.moderator,
       rejectionReason: null,
@@ -346,6 +384,8 @@ export function createSeed(): State {
       submittedAt: ago(2 * DAY),
       reviewedAt: ago(1 * DAY),
     }),
+    // Older history: feeds Admin → Reciclagem and Admin → Dados (anonymous aggregates need 5+ people).
+    ...impactHistory(),
   ];
 
   const rewards: Reward[] = [

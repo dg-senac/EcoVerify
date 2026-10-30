@@ -22,6 +22,8 @@ import { categoryStyles } from "../components/MissionCard";
 import { drawSamplePhoto, SAMPLE_KINDS, sampleEmoji, sampleLabel, type SampleKind } from "../demoAi";
 import { btnPrimary, btnSecondary, card, EmptyState, label, toast } from "../components/ui";
 import { FoneAmount } from "@/components/brand/fone";
+import { RecyclingFields, type RecyclingValue } from "@/components/missions/recycling-fields";
+import { asksForWeight } from "@/lib/impact";
 
 type Location = Coords & { simulated: boolean };
 
@@ -36,6 +38,7 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [recycling, setRecycling] = useState<RecyclingValue>({ material: "", weight: "" });
   const myKey = useGeminiKey();
 
   if (!mission) return <EmptyState emoji="🔎" text={t(lang, "missions_empty")} />;
@@ -111,6 +114,8 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
       longitude: location.longitude,
       accuracy: location.accuracy,
       simulatedLocation: location.simulated,
+      material: recycling.material || null,
+      weight: recycling.weight,
       sample: photo.sample,
     };
     // Check every rule first, so no Gemini request is spent on a proof that would be refused.
@@ -247,6 +252,8 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
             <span className="text-slate-400">{report.length}/1000</span>
           </div>
         </div>
+
+        {asksForWeight(mission.category) && <RecyclingFields lang={lang} value={recycling} onChange={setRecycling} />}
 
         {/* Location */}
         <div className="grid gap-2">

@@ -14,6 +14,7 @@ import { saveFile } from "@/lib/storage";
 import { isUniqueViolation, startOfTodayUTC } from "@/lib/utils";
 import { prepareProofPhoto } from "@/lib/ai/photo";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
+import { checkRecyclingInput } from "@/lib/impact";
 
 export type SubmissionActionState = { error?: string; success?: boolean };
 
@@ -75,6 +76,10 @@ export async function createSubmissionAction(
   if (mission.organizationId && !(await membershipRole(mission.organizationId, user.id))) {
     return { error: "mission_not_found" };
   }
+
+  // Recycling missions: material and approximate weight of the delivery.
+  const recycling = checkRecyclingInput(mission.category, formData.get("material"), formData.get("weightKg"));
+  if (recycling.error) return { error: recycling.error };
 
   // ---- Location: user must be at the mission point --------------------------
   // "Anywhere" missions (e.g. at home) still record a GPS reading, but have no distance check.
@@ -150,6 +155,9 @@ export async function createSubmissionAction(
         report,
         latitude: String(userLatitude),
         longitude: String(userLongitude),
+        material: recycling.material,
+        weightKg: recycling.weightKg === null ? null : String(recycling.weightKg),
+        declaredWeightKg: recycling.weightKg === null ? null : String(recycling.weightKg),
         aiStatus: willAnalyzeWithModel(aiConfig) ? "queued" : null,
       })
       .returning({ id: submissions.id });

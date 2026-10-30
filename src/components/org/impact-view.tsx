@@ -1,10 +1,13 @@
 import { categoryEmoji, categoryLabels, type Lang } from "@/lib/i18n";
 import { ORG_TEXT } from "@/lib/saas/org-text";
+import { formatKg } from "@/lib/impact";
 
 export interface ImpactData {
   actions: number;
   people: number;
   points: number;
+  /** kg of approved recycling deliveries (0 = no recycling missions). */
+  recycledKg?: number;
   byCategory: { category: string; count: number }[];
   byMonth: { month: string; count: number }[];
 }
@@ -38,6 +41,16 @@ export function ImpactView({ lang, impact, missionsCount }: { lang: Lang; impact
           </div>
         ))}
       </div>
+
+      {!!impact.recycledKg && impact.recycledKg > 0 && (
+        <p className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 print:break-inside-avoid" data-testid="impact-recycled">
+          <span className="text-2xl" aria-hidden="true">♻️</span>
+          <span>
+            <strong className="text-2xl font-extrabold">{formatKg(impact.recycledKg, lang)}</strong>{" "}
+            <span className="text-sm font-medium">{text.statRecycled}</span>
+          </span>
+        </p>
+      )}
 
       <div className="grid gap-5 md:grid-cols-2">
         <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm print:break-inside-avoid print:shadow-none">

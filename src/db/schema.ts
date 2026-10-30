@@ -22,6 +22,8 @@ export const categoryEnum = pgEnum("mission_category", [
   "cleanup",
   "other",
 ]);
+/** Recyclable material of a delivery (src/lib/impact.ts). */
+export const recyclingMaterialEnum = pgEnum("recycling_material", ["plastic", "paper", "metal", "glass", "electronics", "oil", "other"]);
 export const submissionStatusEnum = pgEnum("submission_status", [
   "pending",
   "approved",
@@ -280,6 +282,12 @@ export const submissions = pgTable("submissions", {
   report: text("report").notNull(),
   latitude: numeric("latitude", { precision: 10, scale: 6 }),
   longitude: numeric("longitude", { precision: 10, scale: 6 }),
+  // ---- Recycling missions: what was delivered and how much (src/lib/impact.ts) ----
+  material: recyclingMaterialEnum("material"),
+  /** Weight in kg after the review (the moderator may correct the declared value). */
+  weightKg: numeric("weight_kg", { precision: 7, scale: 1 }),
+  /** Weight typed by the person, kept for the record when a moderator corrects it. */
+  declaredWeightKg: numeric("declared_weight_kg", { precision: 7, scale: 1 }),
   status: submissionStatusEnum("status").notNull().default("pending"),
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   rejectionReason: text("rejection_reason"),

@@ -5,6 +5,8 @@ import { createSubmissionAction, type SubmissionActionState } from "@/lib/action
 import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
 import { useRouter } from "next/navigation";
 import { FoneAmount, FoneMark } from "@/components/brand/fone";
+import { RecyclingFields, type RecyclingValue } from "@/components/missions/recycling-fields";
+import { asksForWeight } from "@/lib/impact";
 
 const initialState: SubmissionActionState = {};
 
@@ -20,6 +22,8 @@ const errorKeyMap: Record<string, string> = {
   invalid_photo: "error_invalid_photo",
   photo_too_large: "error_photo_too_large",
   banned: "error_banned",
+  material_required: "error_material_required",
+  weight_invalid: "error_weight_invalid",
 };
 
 export function SubmitProofForm({
@@ -50,6 +54,7 @@ export function SubmitProofForm({
   const [coords, setCoords] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState(false);
+  const [recycling, setRecycling] = useState<RecyclingValue>({ material: "", weight: "" });
   const formRef = useRef<HTMLFormElement>(null);
 
   const getLocalizedTitle = () => {
@@ -192,6 +197,8 @@ export function SubmitProofForm({
               </p>
             )}
           </div>
+
+          {asksForWeight(mission.category) && <RecyclingFields lang={lang} value={recycling} onChange={setRecycling} />}
 
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
