@@ -24,6 +24,8 @@ import { btnPrimary, btnSecondary, card, EmptyState, label, toast } from "../com
 import { FoneAmount } from "@/components/brand/fone";
 import { RecyclingFields, type RecyclingValue } from "@/components/missions/recycling-fields";
 import { asksForWeight } from "@/lib/impact";
+import { eventSubmissionError } from "@/lib/saas/events";
+import { EventBadge } from "@/components/missions/event-badge";
 
 type Location = Coords & { simulated: boolean };
 
@@ -42,6 +44,7 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
   const myKey = useGeminiKey();
 
   if (!mission) return <EmptyState emoji="🔎" text={t(lang, "missions_empty")} />;
+  const eventError = eventSubmissionError(mission);
 
   const onPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -166,6 +169,12 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
         </div>
         <div className="grid gap-3 p-5 text-sm text-slate-600">
           <p>{localizedDescription(mission, lang)}</p>
+          <EventBadge lang={lang} mission={mission} />
+          {eventError && (
+            <p className="rounded-xl bg-violet-50 p-3 font-medium text-violet-900" data-testid="event-closed">
+              {t(lang, eventError === "event_ended" ? "error_event_ended" : "error_event_not_started")}
+            </p>
+          )}
           {mission.context && (
             <p className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-emerald-900"><Target className="mt-0.5 h-4 w-4 shrink-0" /><span><b>{dt(lang, "what_to_do")}:</b> {mission.context}</span></p>
           )}

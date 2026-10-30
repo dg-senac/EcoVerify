@@ -48,6 +48,7 @@ import {
 import { addPeriod, isPlanId, PAID_PLANS, planPrice, type BillingCycle, type PlanId, type SubscriptionStatus } from "@/lib/plans";
 import { canActivateMission, canAddMember, initialSubscription, isOrgType, newInviteCode, normalizeInviteCode, slugify, type OrgRole, type OrgType } from "@/lib/saas/org-rules";
 import { newInvoiceReference } from "@/lib/saas/pix";
+import { EVENT_PACKAGES, eventMemberAllowance, eventPhase, eventSubmissionError, isEvent, isEventPackage, parseEventWindow, type EventPackage } from "@/lib/saas/events";
 import { checkRecyclingInput, parseWeightKg, type ImpactRow, type Material } from "@/lib/impact";
 
 /* ------------------------------------------------------------------ */
@@ -127,6 +128,11 @@ export type Mission = {
   sponsorId?: string | null;
   /** Private mission of an organization (points only, members only). */
   organizationId?: string | null;
+  /** Events (mutirões): proofs only inside this window; one-off payment (src/lib/saas/events.ts). */
+  startsAt?: string | null;
+  endsAt?: string | null;
+  eventPackage?: EventPackage | null;
+  eventPaidAt?: string | null;
 };
 
 export type MissionRequest = { userId: string; ibge: number; city: string; uf: string; createdAt: string };
@@ -281,6 +287,10 @@ export type DemoOrgMember = { id: string; orgId: string; userId: string; role: O
 export type DemoInvoice = {
   id: string;
   orgId: string;
+  /** "event" = one-off event (plan/billingCycle are placeholders). */
+  kind?: "plan" | "event";
+  missionId?: string | null;
+  eventPackage?: EventPackage | null;
   plan: PlanId;
   billingCycle: BillingCycle;
   amountCents: number;
@@ -584,6 +594,8 @@ export function checkProof(input: NewSubmission): Result {
   const mission = state.missions.find((m) => m.id === input.missionId && m.isActive);
   if (!mission) return { error: "error_generic" };
   if (mission.organizationId && !orgRole(state, mission.organizationId, user.id)) return { error: "error_generic" };
+  const eventError = eventSubmissionError(mission);
+  if (eventError) return { error: `error_${eventError}` };
   if (!input.photo) return { error: "error_photo_required" };
   const report = input.report.trim();
   if (report.length < 50 || report.length > 1000) return { error: "error_report_length" };
@@ -1595,7 +1607,7 @@ export function joinOrg(rawCode: string): OrgResult {
   if (!org) return { error: "invalid_code" };
   if (orgRole(state, org.id, user.id)) return { success: true, slug: org.slug };
   const members = (state.orgMembers ?? []).filter((m) => m.orgId === org.id).length;
-  const limit = canAddMember(org, members);
+  const limit = canAddMember(org, members, new Date(), orgEventAllowance(org.id));
   if (limit) return { error: limit };
   commit((s) => ({ ...s, orgMembers: [...(s.orgMembers ?? []), { id: uid(), orgId: org.id, userId: user.id, role: "member", joinedAt: now() }] }));
   return { success: true, slug: org.slug };
@@ -1614,7 +1626,15 @@ export function regenerateOrgInvite(orgId: string): OrgResult {
   return { success: true };
 }
 
-export function createOrgMission(orgId: string, input: { title: string; description: string; category: Category; points: number; scope: "local" | "anywhere" }): OrgResult {
+/** Extra member allowance from paid one-off events around now. */
+export function orgEventAllowance(orgId: string, s: State = state): number {
+  return eventMemberAllowance(s.missions.filter((m) => m.organizationId === orgId));
+}
+
+export function createOrgMission(
+  orgId: string,
+  input: { title: string; description: string; category: Category; points: number; scope: "local" | "anywhere"; startsAt?: string | null; endsAt?: string | null },
+): OrgResult {
   const user = me();
   const org = orgOf(state, orgId);
   const role = user && orgRole(state, orgId, user.id);
@@ -1622,7 +1642,13 @@ export function createOrgMission(orgId: string, input: { title: string; descript
   const title = input.title.trim();
   const description = input.description.trim();
   if (title.length < 4 || description.length < 10 || !Number.isInteger(input.points) || input.points < 5 || input.points > 200) return { error: "invalid" };
-  const active = state.missions.filter((m) => m.organizationId === orgId && m.isActive).length;
+  let window: { startsAt: Date; endsAt: Date } | null = null;
+  if (input.startsAt !== undefined || input.endsAt !== undefined) {
+    const parsed = parseEventWindow(input.startsAt, input.endsAt);
+    if ("error" in parsed) return { error: parsed.error };
+    window = parsed;
+  }
+  const active = state.missions.filter((m) => m.organizationId === orgId && m.isActive && eventPhase(m) !== "closed").length;
   const limit = canActivateMission(org, active);
   if (limit) return { error: limit };
   const mission: Mission = {
@@ -1639,6 +1665,8 @@ export function createOrgMission(orgId: string, input: { title: string; descript
     isActive: true,
     createdAt: now(),
     organizationId: orgId,
+    startsAt: window?.startsAt.toISOString() ?? null,
+    endsAt: window?.endsAt.toISOString() ?? null,
   };
   commit((s) => ({ ...s, missions: [mission, ...s.missions] }));
   return { success: true };
@@ -1651,7 +1679,7 @@ export function toggleOrgMission(missionId: string): OrgResult {
   const role = org && user ? orgRole(state, org.id, user.id) : null;
   if (!mission || !org || !(role === "owner" || role === "manager")) return { error: "forbidden" };
   if (!mission.isActive) {
-    const active = state.missions.filter((m) => m.organizationId === org.id && m.isActive).length;
+    const active = state.missions.filter((m) => m.organizationId === org.id && m.isActive && eventPhase(m) !== "closed").length;
     const limit = canActivateMission(org, active);
     if (limit) return { error: limit };
   }
@@ -1679,7 +1707,34 @@ export function createDemoInvoice(orgId: string, plan: PlanId, cycle: BillingCyc
   };
   commit((s) => ({
     ...s,
-    invoices: [invoice, ...(s.invoices ?? []).map((i) => (i.orgId === orgId && i.status === "pending" ? { ...i, status: "canceled" as const } : i))],
+    invoices: [invoice, ...(s.invoices ?? []).map((i) => (i.orgId === orgId && i.status === "pending" && i.kind !== "event" ? { ...i, status: "canceled" as const } : i))],
+  }));
+  return { success: true };
+}
+
+/** One-off event ("evento avulso"): Pix charge that unlocks one event (see createEventInvoiceAction). */
+export function createDemoEventInvoice(missionId: string, pkg: EventPackage): OrgResult {
+  const mission = state.missions.find((m) => m.id === missionId);
+  if (!mission?.organizationId || !isEvent(mission) || mission.eventPaidAt || !isEventPackage(pkg)) return { error: "invalid" };
+  if (!isOwner(mission.organizationId)) return { error: "forbidden" };
+  const invoice: DemoInvoice = {
+    id: uid(),
+    orgId: mission.organizationId,
+    kind: "event",
+    missionId,
+    eventPackage: pkg,
+    plan: "free",
+    billingCycle: "monthly",
+    amountCents: EVENT_PACKAGES[pkg].cents,
+    status: "pending",
+    reference: newInvoiceReference(),
+    reportedAt: null,
+    createdAt: now(),
+    paidAt: null,
+  };
+  commit((s) => ({
+    ...s,
+    invoices: [invoice, ...(s.invoices ?? []).map((i) => (i.missionId === missionId && i.status === "pending" ? { ...i, status: "canceled" as const } : i))],
   }));
   return { success: true };
 }
@@ -1714,6 +1769,23 @@ export function confirmDemoInvoice(invoiceId: string): OrgResult {
   const invoice = (state.invoices ?? []).find((i) => i.id === invoiceId && i.status === "pending");
   const org = invoice && orgOf(state, invoice.orgId);
   if (!invoice || !org) return { error: "invalid" };
+  if (invoice.kind === "event") {
+    const event = state.missions.find((m) => m.id === invoice.missionId);
+    if (!event) return { error: "invalid" };
+    commit((s) => {
+      const next: State = {
+        ...s,
+        invoices: (s.invoices ?? []).map((i) => (i.id === invoiceId ? { ...i, status: "paid" as const, paidAt: now() } : i)),
+        missions: s.missions.map((m) => (m.id === event.id ? { ...m, eventPaidAt: now(), eventPackage: invoice.eventPackage ?? null } : m)),
+      };
+      const notifications = notify(next, org.ownerId, (l) => ({
+        title: l === "en" ? "✅ Event payment confirmed" : l === "es" ? "✅ Pago del evento confirmado" : "✅ Pagamento do evento confirmado",
+        message: event.title,
+      }));
+      return { ...next, notifications };
+    });
+    return { success: true };
+  }
   const nowDate = new Date();
   const keeps = org.plan === invoice.plan && org.subscriptionStatus === "active" && org.currentPeriodEnd && new Date(org.currentPeriodEnd) > nowDate;
   const end = addPeriod(keeps ? new Date(org.currentPeriodEnd!) : nowDate, invoice.billingCycle);

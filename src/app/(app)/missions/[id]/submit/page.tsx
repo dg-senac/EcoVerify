@@ -5,6 +5,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { SubmitProofForm } from "@/components/missions/submit-proof-form";
 import { membershipRole } from "@/lib/saas/orgs";
+import { eventSubmissionError } from "@/lib/saas/events";
+import { EventBadge } from "@/components/missions/event-badge";
+import { t } from "@/lib/i18n";
 
 export default async function SubmitMissionPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -21,8 +24,21 @@ export default async function SubmitMissionPage({ params }: { params: Promise<{ 
   // Organization missions are private to its members.
   if (mission.organizationId && !(await membershipRole(mission.organizationId, user.id))) notFound();
 
+  // Events: proofs only inside the date/time window.
+  const eventError = eventSubmissionError(mission);
+  if (eventError) {
+    return (
+      <div className="mx-auto max-w-2xl rounded-2xl border border-black/5 bg-white p-6 shadow-sm" data-testid="event-closed">
+        <h1 className="text-xl font-bold text-slate-900">{mission.title}</h1>
+        <EventBadge lang={user.language} mission={mission} />
+        <p className="mt-4 rounded-xl bg-violet-50 px-4 py-3 text-sm font-medium text-violet-900">{t(user.language, eventError === "event_ended" ? "error_event_ended" : "error_event_not_started")}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto">
+      <EventBadge lang={user.language} mission={mission} />
       <SubmitProofForm
         lang={user.language}
         mission={{

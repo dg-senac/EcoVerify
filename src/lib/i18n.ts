@@ -574,6 +574,17 @@ const dict = {
     en: "GPS accuracy is too low. Move to an open area and tap use location again.",
     es: "La precisión del GPS es baja. Ve a un lugar abierto y toca usar ubicación de nuevo.",
   },
+  error_event_not_started: {
+    pt: "Este evento ainda não começou. Volte no dia e horário marcados.",
+    en: "This event hasn't started yet. Come back at the scheduled date and time.",
+    es: "Este evento aún no empezó. Vuelve el día y la hora marcados.",
+  },
+  error_event_ended: {
+    pt: "Este evento já terminou e não aceita mais comprovações.",
+    en: "This event has ended and no longer accepts proofs.",
+    es: "Este evento ya terminó y no acepta más pruebas.",
+  },
+  event_badge: { pt: "Evento", en: "Event", es: "Evento" },
   error_already_submitted: {
     pt: "Você já enviou uma comprovação para esta missão.",
     en: "You have already submitted proof for this mission.",

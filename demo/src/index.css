@@ -13,6 +13,10 @@
 @source "../../src/components/admin/user-sheet-view.tsx";
 @source "../../src/components/missions/recycling-fields.tsx";
 @source "../../src/components/admin/impact-tabs.tsx";
+@source "../../src/components/missions/event-badge.tsx";
+@source "../../src/components/org/event-fields.tsx";
+@source "../../src/components/org/events-panel.tsx";
+@source "../../src/components/org/event-report.tsx";
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Ubuntu, sans-serif;

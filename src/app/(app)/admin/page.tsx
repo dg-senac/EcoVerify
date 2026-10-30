@@ -295,18 +295,27 @@ export default async function AdminPage() {
       reference: invoices.reference,
       reportedAt: invoices.reportedAt,
       createdAt: invoices.createdAt,
+      kind: invoices.kind,
+      eventPackage: invoices.eventPackage,
+      eventTitle: missions.title,
     })
     .from(invoices)
     .innerJoin(organizations, eq(organizations.id, invoices.organizationId))
+    .leftJoin(missions, eq(missions.id, invoices.missionId))
     .where(eq(invoices.status, "pending"))
     .orderBy(sql`${invoices.reportedAt} is null`, desc(invoices.createdAt));
-  const [received] = await db
+  const paidRows = await db
     .select({
+      kind: invoices.kind,
+      count: sql<number>`count(*)::int`,
       total: sql<number>`coalesce(sum(${invoices.amountCents}), 0)::int`,
       month: sql<number>`coalesce(sum(${invoices.amountCents}) filter (where ${invoices.paidAt} >= ${monthStart(new Date()).toISOString()}), 0)::int`,
     })
     .from(invoices)
-    .where(eq(invoices.status, "paid"));
+    .where(eq(invoices.status, "paid"))
+    .groupBy(invoices.kind);
+  const received = paidRows.find((r) => r.kind === "plan") ?? { count: 0, total: 0, month: 0 };
+  const eventsPaid = paidRows.find((r) => r.kind === "event") ?? { count: 0, total: 0, month: 0 };
   const [fees] = await db
     .select({
       total: sql<number>`coalesce(sum(${sponsorTopups.feeCents}), 0)::int`,
@@ -325,6 +334,9 @@ export default async function AdminPage() {
     receivedTotalCents: received.total,
     campaignFeesMonthCents: fees.month,
     campaignFeesTotalCents: fees.total,
+    eventsMonthCents: eventsPaid.month,
+    eventsTotalCents: eventsPaid.total,
+    eventsPaidCount: eventsPaid.count,
     payingOrgs: paying.length,
     trialOrgs: orgsWithPlan.filter((o) => o.effective !== "free" && o.subscriptionStatus === "trialing").length,
     totalOrgs: orgRows.length,

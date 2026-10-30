@@ -4,21 +4,29 @@ import { Award, Building2, Copy, Check, ExternalLink, FileBarChart, Plus, Refres
 import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
 import { ORG_TEXT } from "@/lib/saas/org-text";
 import { PLAN_TEXT } from "@/lib/saas/plan-text";
-import { ORG_TYPES, canManage, canPromote, orgPlan } from "@/lib/saas/org-rules";
+import { ORG_TYPES, canManage, canPromote, memberLimit, orgPlan } from "@/lib/saas/org-rules";
 import { PLANS, TRIAL_DAYS, formatBRL, hasFeature, type BillingCycle, type PlanId } from "@/lib/plans";
 import { pixPayload } from "@/lib/saas/pix";
 import { BillingPanel } from "@/components/org/billing-panel";
+import { EventsPanel } from "@/components/org/events-panel";
+import { EventFields, type EventWindowValue } from "@/components/org/event-fields";
+import { EventBadge } from "@/components/missions/event-badge";
+import { EventCertificateView, EventReportView } from "@/components/org/event-report";
+import { EVENT_PACKAGE_NAMES, EVENT_TEXT, eventPhase, eventUnlocked, isEvent, isEventPackage } from "@/lib/saas/events";
+import { proofCode } from "@/lib/impact";
 import { ImpactView } from "@/components/org/impact-view";
 import { LogoHorizontal, LogoMark } from "@/components/logo";
 import {
   DEMO_PIX,
   cancelDemoInvoice,
+  createDemoEventInvoice,
   createDemoInvoice,
   createOrg,
   createOrgMission,
   joinOrg,
   leaveOrg,
   myOrgs,
+  orgEventAllowance,
   orgRole,
   orgStats,
   regenerateOrgInvite,
@@ -32,7 +40,7 @@ import {
 import { Link, navigate } from "../router";
 import { EmptyState, PageHeader, btnPrimary, btnSecondary, card, input, label, toast } from "../components/ui";
 
-const TABS = ["overview", "missions", "moderation", "members", "plan", "report"] as const;
+const TABS = ["overview", "missions", "events", "moderation", "members", "plan", "report"] as const;
 type Tab = (typeof TABS)[number];
 const CATEGORIES: Category[] = ["recycling", "planting", "cleanup", "donation", "other"];
 const locale = (lang: Lang) => (lang === "pt" ? "pt-BR" : lang === "es" ? "es-ES" : "en-US");
@@ -229,11 +237,15 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
   const plan = orgPlan(org);
   const tabs: Tab[] = manager ? [...TABS] : ["overview"];
   const tab: Tab = tabs.find((x) => x === rawTab) ?? "overview";
-  const active = missions.filter((m) => m.isActive);
+  const active = missions.filter((m) => m.isActive && eventPhase(m) !== "closed");
   const missionIds = new Set(missions.map((m) => m.id));
   const pending = submissions.filter((x) => x.status === "pending" && missionIds.has(x.missionId)).length;
   const mine = new Map(submissions.filter((x) => x.userId === user.id).map((x) => [x.missionId, x.status]));
   const me = stats.ranking.find((r) => r.userId === user.id);
+  const myEventCerts = submissions
+    .filter((x) => x.userId === user.id && x.status === "approved")
+    .map((sub) => ({ sub, mission: missions.find((m) => m.id === sub.missionId) }))
+    .filter((x): x is { sub: typeof x.sub; mission: NonNullable<typeof x.mission> } => !!x.mission && isEvent(x.mission) && eventUnlocked(plan, x.mission));
 
   return (
     <div>
@@ -299,6 +311,7 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-slate-900">{m.title}</p>
                           <p className="text-xs text-slate-500">+{m.pointsReward} pts · {text.scopeAnywhere}</p>
+                          <EventBadge lang={lang} mission={m} />
                         </div>
                         {mine.get(m.id) === "approved" || mine.get(m.id) === "pending" ? (
                           <span className="text-xs font-bold text-emerald-700">✓</span>
@@ -330,6 +343,26 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
                 {stats.ranking.every((r) => r.points === 0) && <p className="text-sm text-slate-500">{text.rankingEmpty}</p>}
               </section>
             </div>
+            {myEventCerts.length > 0 && (
+              <section className="rounded-2xl border border-violet-100 bg-violet-50/60 p-5" data-testid="my-event-certificates">
+                <h2 className="flex items-center gap-2 font-bold text-slate-900">
+                  <Award className="h-5 w-5 text-violet-600" /> {EVENT_TEXT[lang].certTitle}
+                </h2>
+                <ul className="mt-3 grid gap-2">
+                  {myEventCerts.map(({ sub, mission }) => (
+                    <li key={sub.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-white px-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900">🎪 {mission.title}</p>
+                        <EventBadge lang={lang} mission={mission} />
+                      </div>
+                      <Link to={`/certificado/evento/${sub.id}`} className="shrink-0 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-violet-700">
+                        {EVENT_TEXT[lang].certificate}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             {!manager && (
               <button
                 type="button"
@@ -347,6 +380,54 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
         )}
 
         {tab === "missions" && manager && <MissionsTab lang={lang} orgId={org.id} usage={text.missionUsage(active.length, PLANS[plan].maxActiveMissions)} missions={missions} />}
+
+        {tab === "events" && manager && (
+          <div className="grid gap-4">
+            <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">ℹ️ {demoNote(lang)}</p>
+            <EventsPanel
+              lang={lang}
+              plan={plan}
+              isOwner={role === "owner"}
+              pixAvailable
+              contactUrl={null}
+              onOpenReport={(id) => navigate(`/evento/${id}`)}
+              events={missions
+                .filter((m) => isEvent(m))
+                .sort((a, b) => (b.startsAt ?? "").localeCompare(a.startsAt ?? ""))
+                .map((m) => {
+                  const subs = submissions.filter((x) => x.missionId === m.id);
+                  const approved = subs.filter((x) => x.status === "approved");
+                  const inv = invoices.find((i) => i.kind === "event" && i.missionId === m.id && i.status === "pending");
+                  return {
+                    id: m.id,
+                    title: m.title,
+                    category: m.category,
+                    startsAt: m.startsAt!,
+                    endsAt: m.endsAt!,
+                    eventPackage: m.eventPackage ?? null,
+                    eventPaidAt: m.eventPaidAt ?? null,
+                    people: new Set(approved.map((x) => x.userId)).size,
+                    actions: approved.length,
+                    pending: subs.filter((x) => x.status === "pending").length,
+                    invoice: inv
+                      ? {
+                          ...inv,
+                          pixPayload: pixPayload({
+                            ...DEMO_PIX,
+                            amountCents: inv.amountCents,
+                            txid: inv.reference,
+                            description: `EcoVerify evento ${isEventPackage(inv.eventPackage) ? EVENT_PACKAGE_NAMES[inv.eventPackage].pt : ""}`.trim(),
+                          }),
+                        }
+                      : null,
+                  };
+                })}
+              onCreate={async (missionId, pkg) => createDemoEventInvoice(missionId, pkg)}
+              onReport={async (id) => reportDemoInvoice(id)}
+              onCancel={async (id) => cancelDemoInvoice(id)}
+            />
+          </div>
+        )}
 
         {tab === "moderation" && manager && (
           <div className={`${card} p-6 text-center`}>
@@ -369,7 +450,7 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
                   <Users className="h-5 w-5" /> {text.tabs.members}
                 </h2>
                 <span className="text-xs font-semibold text-slate-500" data-testid="member-usage">
-                  {text.usage(stats.ranking.length, PLANS[plan].maxMembers)}
+                  {text.usage(stats.ranking.length, memberLimit(org, orgEventAllowance(org.id)))}
                 </span>
               </div>
               {!canPromote(org) && <p className="mt-1 text-xs text-slate-500">{text.teamNeedsPlan}</p>}
@@ -407,7 +488,7 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
               periodEnd={org.currentPeriodEnd}
               pixAvailable
               contactUrl={null}
-              invoices={invoices.map((i) => ({
+              invoices={invoices.filter((i) => i.kind !== "event").map((i) => ({
                 ...i,
                 pixPayload: i.status === "pending" ? pixPayload({ ...DEMO_PIX, amountCents: i.amountCents, txid: i.reference, description: `EcoVerify ${i.plan}` }) : null,
               }))}
@@ -465,10 +546,22 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
   );
 }
 
-function MissionsTab({ lang, orgId, usage, missions }: { lang: Lang; orgId: string; usage: string; missions: { id: string; title: string; category: Category; pointsReward: number; isActive: boolean }[] }) {
+function MissionsTab({
+  lang,
+  orgId,
+  usage,
+  missions,
+}: {
+  lang: Lang;
+  orgId: string;
+  usage: string;
+  missions: { id: string; title: string; category: Category; pointsReward: number; isActive: boolean; startsAt?: string | null; endsAt?: string | null }[];
+}) {
   const text = ORG_TEXT[lang];
   const [form, setForm] = useState({ title: "", description: "", category: "recycling" as Category, points: "30" });
   const [error, setError] = useState<string | null>(null);
+  const [eventWindow, setEventWindow] = useState<EventWindowValue>({ isEvent: false, startsAt: null, endsAt: null });
+  const [formKey, setFormKey] = useState(0);
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <form
@@ -476,9 +569,16 @@ function MissionsTab({ lang, orgId, usage, missions }: { lang: Lang; orgId: stri
         data-testid="org-mission-form"
         onSubmit={(e) => {
           e.preventDefault();
-          const result = createOrgMission(orgId, { ...form, points: Number(form.points), scope: "anywhere" });
+          const result = createOrgMission(orgId, {
+            ...form,
+            points: Number(form.points),
+            scope: "anywhere",
+            ...(eventWindow.isEvent ? { startsAt: eventWindow.startsAt, endsAt: eventWindow.endsAt } : {}),
+          });
           if (result.success) {
             setForm({ title: "", description: "", category: "recycling", points: "30" });
+            setEventWindow({ isEvent: false, startsAt: null, endsAt: null });
+            setFormKey((k) => k + 1);
             setError(null);
             toast(text.missionCreated);
           } else setError(errorText(lang, result.error));
@@ -510,6 +610,7 @@ function MissionsTab({ lang, orgId, usage, missions }: { lang: Lang; orgId: stri
             <input type="number" min={5} max={200} value={form.points} onChange={(e) => setForm({ ...form, points: e.target.value })} className={input} name="points" />
           </label>
         </div>
+        <EventFields key={formKey} lang={lang} onChange={setEventWindow} />
         <p className="text-xs text-slate-500">{text.pointsOnlyNote}</p>
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <button type="submit" className={btnPrimary}>
@@ -527,6 +628,7 @@ function MissionsTab({ lang, orgId, usage, missions }: { lang: Lang; orgId: stri
                 <p className="text-xs text-slate-500">
                   +{m.pointsReward} pts · <span className={m.isActive ? "text-emerald-700" : "text-slate-400"}>{m.isActive ? text.active : text.inactive}</span>
                 </p>
+                <EventBadge lang={lang} mission={m} />
               </div>
               <button
                 type="button"
@@ -638,6 +740,101 @@ export function CertificateScreen({ memberId }: { memberId: string }) {
         <ExternalLink className="mr-1 inline h-3 w-3" />
         {text.certificateVerify}
       </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* /evento/:id and /certificado/evento/:id — one-off events            */
+/* ------------------------------------------------------------------ */
+
+export function EventReportScreen({ user, missionId }: { user: User; missionId: string }) {
+  const lang = useLang();
+  const text = ORG_TEXT[lang];
+  const mission = useStore((s) => s.missions.find((m) => m.id === missionId) ?? null);
+  const org = useStore((s) => (mission?.organizationId ? (s.orgs ?? []).find((o) => o.id === mission.organizationId) ?? null : null));
+  const role = useStore((s) => (org ? orgRole(s, org.id, user.id) : null));
+  const submissions = useStore((s) => s.submissions);
+  const users = useStore((s) => s.users);
+  if (!mission || !org || !isEvent(mission) || !(canManage(role) || user.role === "admin")) return <EmptyState emoji="🎪" text={text.certificateInvalid} />;
+  if (!eventUnlocked(orgPlan(org), mission)) {
+    return (
+      <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+        {EVENT_TEXT[lang].locked} ·{" "}
+        <Link to={`/org/${org.slug}/events`} className="font-bold underline">
+          {EVENT_TEXT[lang].payEvent}
+        </Link>
+      </div>
+    );
+  }
+  const approved = submissions.filter((x) => x.missionId === mission.id && x.status === "approved").sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+  return (
+    <div className="-mx-4 -my-6 sm:mx-0 sm:my-0">
+      <EventReportView
+        lang={lang}
+        data={{
+          orgName: org.name,
+          title: mission.title,
+          category: mission.category,
+          city: mission.city ?? null,
+          startsAt: mission.startsAt!,
+          endsAt: mission.endsAt!,
+          actions: approved.length,
+          recycledKg: approved.reduce((sum, x) => sum + (x.weightKg ?? 0), 0),
+          participants: approved.map((x) => ({ submissionId: x.id, name: users.find((u) => u.id === x.userId)?.name ?? "—", points: mission.pointsReward, at: x.submittedAt })),
+          photos: approved.map((x) => x.photo),
+        }}
+        toolbar={
+          <>
+            <Link to={`/org/${org.slug}/events`} className={btnSecondary}>
+              ← {org.name}
+            </Link>
+            <button type="button" onClick={() => window.print()} className={btnPrimary}>
+              {text.reportPrint}
+            </button>
+          </>
+        }
+        certificate={(submissionId) => (
+          <Link to={`/certificado/evento/${submissionId}`} className="text-xs font-semibold text-violet-700 hover:underline" data-testid="event-certificate-link">
+            {EVENT_TEXT[lang].certificate}
+          </Link>
+        )}
+      />
+    </div>
+  );
+}
+
+export function EventCertificateScreen({ submissionId }: { submissionId: string }) {
+  const lang = useLang();
+  const text = ORG_TEXT[lang];
+  const sub = useStore((s) => s.submissions.find((x) => x.id === submissionId) ?? null);
+  const mission = useStore((s) => (sub ? s.missions.find((m) => m.id === sub.missionId) ?? null : null));
+  const org = useStore((s) => (mission?.organizationId ? (s.orgs ?? []).find((o) => o.id === mission.organizationId) ?? null : null));
+  const person = useStore((s) => (sub ? s.users.find((u) => u.id === sub.userId) ?? null : null));
+  const [qr, setQr] = useState("");
+  const url = `${window.location.origin}${window.location.pathname}#/certificado/evento/${submissionId}`;
+  useEffect(() => {
+    let alive = true;
+    QRCode.toString(url, { type: "svg", margin: 0 }).then((svg) => alive && setQr(svg));
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+  if (!sub || !mission || !org || !person || sub.status !== "approved" || !isEvent(mission) || !eventUnlocked(orgPlan(org), mission)) {
+    return <EmptyState emoji="📜" text={text.certificateInvalid} />;
+  }
+  return (
+    <div className="-mx-4 -my-6 sm:mx-0 sm:my-0">
+      <EventCertificateView
+        lang={lang}
+        qrSvg={qr}
+        data={{ name: person.name, title: mission.title, orgName: org.name, startsAt: mission.startsAt!, endsAt: mission.endsAt!, code: proofCode(sub.id), url }}
+        toolbar={
+          <button type="button" onClick={() => window.print()} className={btnPrimary}>
+            {text.reportPrint}
+          </button>
+        }
+      />
     </div>
   );
 }

@@ -18,6 +18,8 @@ const errorKeyMap: Record<string, string> = {
   outside_mission_area: "error_outside_mission_area",
   mission_location_not_configured: "error_mission_location_not_configured",
   location_inaccurate: "error_location_inaccurate",
+  event_not_started: "error_event_not_started",
+  event_ended: "error_event_ended",
   already_submitted: "error_already_submitted",
   invalid_photo: "error_invalid_photo",
   photo_too_large: "error_photo_too_large",

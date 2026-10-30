@@ -33,18 +33,23 @@ As campanhas patrocinadas por marcas (taxa de ~20% sobre o FONE da campanha) tam
 
 | Pacote | Até | O que inclui | Preço sugerido |
 | --- | --- | --- | --- |
-| **Mutirão P** | 50 pessoas | 1 missão no local, relatório e certificados | R$ 300 |
-| **Mutirão M** | 200 pessoas | até 3 missões, ranking ao vivo, relatório com a marca | R$ 700 |
-| **Mutirão G** | 500+ pessoas | várias missões, apoio no dia, relatório e página pública | a partir de R$ 1.500 |
+| **Mutirão P** | 50 pessoas | relatório do evento com fotos, certificados, limite de participantes ampliado | R$ 300 |
+| **Mutirão M** | 200 pessoas | o mesmo do P, para turmas grandes e empresas | R$ 700 |
+| **Mutirão G** | 500 pessoas | o mesmo do P; acima de 500, negocie à parte (apoio no dia, várias missões) | R$ 1.500 |
+
+Os valores e limites estão em `src/lib/saas/events.ts` (`EVENT_PACKAGES`); mude ali se quiser outros preços.
 
 Organizações que já têm plano Escola, Empresa ou Prefeitura fazem eventos sem custo extra (está incluso). O evento avulso serve justamente para quem **não quer assinar**.
 
 ### Como funciona no app
 
-1. A organização (pode ser do plano grátis) cria a missão marcando **"É um evento"**, com data, horário de início e fim e o local no mapa.
-2. As comprovações só valem **dentro do horário do evento** e no raio do local.
-3. Na aba **Eventos**, o responsável gera o **Pix do evento avulso**. Você confere o extrato e confirma em **Admin → 💼 Negócios**, como nos planos.
-4. Com o evento pago (ou com plano pago), o relatório do evento e os certificados ficam liberados.
+1. A organização (pode ser do plano grátis) cria a missão em **Missões** marcando **"É um evento"**, com data e horário de início e fim (de 30 min a 3 dias).
+2. As comprovações só valem **dentro do horário do evento** (com 3 h de tolerância depois do fim, para quem ficou sem sinal). Antes do início a missão aparece como "Em breve"; depois de encerrada, sai da lista de missões e **não ocupa vaga** do limite de missões ativas do plano.
+3. Os participantes entram pelo link/código de convite da organização. Com o evento pago, o limite de participantes sobe para o tamanho do pacote (de 7 dias antes até 7 dias depois do evento).
+4. Na aba **Eventos**, o responsável escolhe o pacote e gera o **Pix do evento avulso** (separado do Pix do plano). Você confere o extrato e confirma em **Admin → 💼 Negócios**, onde a cobrança aparece com 🎪; o card "Recebido este mês" separa planos, eventos e campanhas.
+5. Com o evento pago (ou com plano Escola, Empresa ou Prefeitura), ficam liberados:
+   - o **relatório do evento** (`/evento/<id>`, só para gestores): participantes, ações aprovadas, kg reciclados, fotos e horário de cada um, pronto para imprimir ou salvar em PDF;
+   - o **certificado de participação** de cada pessoa (`/certificado/evento/<id>`), com código e QR de verificação. O participante também encontra o dele na visão geral da organização.
 
 ### Roteiro de venda
 
@@ -124,7 +129,7 @@ Onde oferecer: escolas (semana do meio ambiente, feira de ciências), grupos de 
 
 ### Como funciona no app
 
-- **Admin → 📊 Dados** mostra totais por cidade, mês, categoria e por **área de cerca de 1 km** (para mapas de calor), e exporta tudo em **CSV**.
+- **Admin → 🗺️ Dados** mostra totais por cidade, mês, categoria e por **área de cerca de 1 km** (para mapas de calor), e exporta tudo em **CSV**.
 - **Anonimização obrigatória:**
   - só números agregados: nunca nome, e-mail, foto, relato ou o ponto exato de uma pessoa;
   - qualquer linha com **menos de 5 pessoas diferentes é ocultada** (assim ninguém é identificado por exclusão);

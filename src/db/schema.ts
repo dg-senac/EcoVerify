@@ -179,6 +179,12 @@ export const missions = pgTable("missions", {
   pointsReward: integer("points_reward").notNull(),
   foneReward: numeric("fone_reward", { precision: 12, scale: 2 }).notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  /** Events (mutirões): proofs only count inside this window (src/lib/saas/events.ts). */
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  /** One-off event payment ("evento avulso"): package p/m/g and when it was confirmed. */
+  eventPackage: varchar("event_package", { length: 1 }),
+  eventPaidAt: timestamp("event_paid_at", { withTimezone: true }),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -491,6 +497,8 @@ export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "yearly"]);
 export const subscriptionStatusEnum = pgEnum("subscription_status", ["trialing", "active", "past_due", "canceled"]);
 export const orgRoleEnum = pgEnum("org_role", ["owner", "manager", "member"]);
 export const invoiceStatusEnum = pgEnum("invoice_status", ["pending", "paid", "canceled"]);
+/** "plan" = subscription; "event" = one-off event (plan/billingCycle are placeholders). */
+export const invoiceKindEnum = pgEnum("invoice_kind", ["plan", "event"]);
 
 export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -531,6 +539,10 @@ export const organizationMembers = pgTable("organization_members", {
 export const invoices = pgTable("invoices", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  kind: invoiceKindEnum("kind").notNull().default("plan"),
+  /** Event invoices: the event (mission) and the package paid. */
+  missionId: uuid("mission_id").references((): AnyPgColumn => missions.id, { onDelete: "set null" }),
+  eventPackage: varchar("event_package", { length: 1 }),
   plan: planEnum("plan").notNull(),
   billingCycle: billingCycleEnum("billing_cycle").notNull(),
   amountCents: integer("amount_cents").notNull(),

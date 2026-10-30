@@ -15,6 +15,7 @@ import { isUniqueViolation, startOfTodayUTC } from "@/lib/utils";
 import { prepareProofPhoto } from "@/lib/ai/photo";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
 import { checkRecyclingInput } from "@/lib/impact";
+import { eventSubmissionError } from "@/lib/saas/events";
 
 export type SubmissionActionState = { error?: string; success?: boolean };
 
@@ -76,6 +77,9 @@ export async function createSubmissionAction(
   if (mission.organizationId && !(await membershipRole(mission.organizationId, user.id))) {
     return { error: "mission_not_found" };
   }
+  // Events (mutirões): only inside the date/time window.
+  const eventError = eventSubmissionError(mission);
+  if (eventError) return { error: eventError };
 
   // Recycling missions: material and approximate weight of the delivery.
   const recycling = checkRecyclingInput(mission.category, formData.get("material"), formData.get("weightKg"));

@@ -5,7 +5,7 @@ import type { Material } from "@/lib/impact";
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 8;
+export const STATE_VERSION = 9;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -495,6 +495,105 @@ export function createSeed(): State {
     orgSub("s-org-4", "u-bot-4", schoolMissions[0], 1, "🔋", "Trouxe as baterias do controle"),
     orgSub("s-org-5", DEMO_IDS.citizen, schoolMissions[0], 1, "🔋", "Levei as pilhas lá de casa"),
   );
+  /*
+   * One-off events (mutirões, docs/MONETIZACAO.md §1): a free community collective run by Maria with a
+   * finished beach clean-up (report locked until the event is paid) and an upcoming one; the school
+   * (paid plan, report included) has a recycling drive happening right now.
+   */
+  const HOUR = 3600000;
+  const collective: DemoOrg = {
+    id: "org-praia",
+    name: "Coletivo Praia Limpa (exemplo)",
+    slug: "coletivo-praia-limpa",
+    type: "ngo",
+    city: "Recife",
+    plan: "free",
+    billingCycle: "monthly",
+    subscriptionStatus: "active",
+    currentPeriodEnd: null,
+    trialUsed: false,
+    inviteCode: "PRAIA2026",
+    ownerId: DEMO_IDS.citizen,
+    createdAt: ago(20 * DAY),
+  };
+  orgMembers.push(
+    orgMember(collective.id, DEMO_IDS.citizen, "owner", 20),
+    ...["u-bot-1", "u-bot-2", "u-bot-3", "u-bot-4", "u-bot-5"].map((id, i) => orgMember(collective.id, id, "member", 18 - i)),
+  );
+  /** Event on a local day/time: `dayOffset` days from today at `hour`:00, lasting `hours`. */
+  const at = (dayOffset: number, hour: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + dayOffset);
+    d.setHours(hour, 0, 0, 0);
+    return d.getTime();
+  };
+  const eventMission = (id: string, orgId: string, title: string, description: string, category: Mission["category"], points: number, start: number, hours: number): Mission => ({
+    ...orgMission(id, title, description, category, points, 6),
+    organizationId: orgId,
+    sponsorName: null,
+    startsAt: new Date(start).toISOString(),
+    endsAt: new Date(start + hours * HOUR).toISOString(),
+  });
+  const today = new Date().getDay();
+  const lastSaturday = -(((today + 1) % 7) || 7);
+  const nextSaturday = ((6 - today + 7) % 7) || 7;
+  const beachCleanup = eventMission(
+    "m-ev-praia",
+    collective.id,
+    "Mutirão de limpeza na praia de Boa Viagem",
+    "Encontro no Posto 7. Recolha o lixo da faixa de areia e fotografe o saco cheio junto com a equipe.",
+    "cleanup",
+    50,
+    at(lastSaturday, 7),
+    4,
+  );
+  const parkCleanup = eventMission(
+    "m-ev-jaqueira",
+    collective.id,
+    "Mutirão no Parque da Jaqueira",
+    "Limpeza dos canteiros e do lago. Traga luvas e garrafa d'água; sacos por conta do coletivo.",
+    "cleanup",
+    50,
+    at(nextSaturday, 8),
+    4,
+  );
+  const schoolDrive = eventMission(
+    "m-ev-feira",
+    school.id,
+    "Gincana de recicláveis da Feira de Ciências",
+    "Traga recicláveis separados para a gincana no pátio e fotografe a entrega na mesa da sua turma.",
+    "recycling",
+    40,
+    // Happening now: started at the top of the previous hour, ends in a few hours.
+    at(0, new Date().getHours() - 1),
+    5,
+  );
+  missions.push(beachCleanup, parkCleanup, schoolDrive);
+  const beachPeople: [string, string][] = [
+    ["u-bot-1", "Recolhi garrafas e tampinhas perto do Posto 7"],
+    ["u-bot-2", "Dois sacos de plástico e isopor"],
+    ["u-bot-3", "Bitucas de cigarro e canudos na areia"],
+    ["u-bot-4", "Redes de pesca e latas perto das pedras"],
+    ["u-bot-5", "Limpei a área do quiosque com a equipe"],
+  ];
+  submissions.push(
+    ...beachPeople.map(([userId, caption], i) =>
+      sub({
+        id: `s-ev-praia-${i + 1}`,
+        userId,
+        missionId: beachCleanup.id,
+        at: beachCleanup,
+        photo: placeholderPhoto(["🧴", "🛍️", "🚬", "🎣", "🏖️"][i], "#38bdf8", "#2456d0", caption),
+        report: `${caption}. Participei do mutirão do coletivo na praia de Boa Viagem e separei o lixo recolhido.`,
+        status: "approved",
+        reviewedBy: DEMO_IDS.citizen,
+        rejectionReason: null,
+        submittedAt: new Date(new Date(beachCleanup.startsAt!).getTime() + (i + 1) * 35 * 60000).toISOString(),
+        reviewedAt: new Date(new Date(beachCleanup.endsAt!).getTime() + 2 * HOUR).toISOString(),
+        decidedBy: "human",
+      }),
+    ),
+  );
   const invoices: DemoInvoice[] = [
     { id: "inv-recicla-1", orgId: company.id, plan: "business", billingCycle: "monthly", amountCents: 34900, status: "paid", reference: "EVDEMO2K7Q9X", reportedAt: ago(12 * DAY), createdAt: ago(12 * DAY), paidAt: ago(12 * DAY) },
     { id: "inv-recicla-0", orgId: company.id, plan: "business", billingCycle: "monthly", amountCents: 34900, status: "paid", reference: "EVDEMO8M3T4R", reportedAt: ago(42 * DAY), createdAt: ago(42 * DAY), paidAt: ago(42 * DAY) },
@@ -533,7 +632,7 @@ export function createSeed(): State {
     missionRequests: [],
     seededCities: [],
     payoutSettings: { minPayoutFone: 5, holdDays: 7, monthlyBudgetFone: 500, maxFonePerUserMonth: 100 },
-    orgs: [school, company],
+    orgs: [school, company, collective],
     orgMembers,
     invoices,
     sponsors: [{ id: "sp-recicla", name: "Cooperativa Recicla PE (exemplo)", budgetFone: "30.00", isActive: true, createdAt: ago(20 * DAY) }],

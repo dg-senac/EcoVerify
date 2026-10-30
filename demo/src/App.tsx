@@ -21,7 +21,7 @@ import { ProfileScreen } from "./screens/Profile";
 import { SettingsScreen } from "./screens/Settings";
 import { LegalScreen } from "./screens/Legal";
 import { TransparencyScreen } from "./screens/Transparency";
-import { CertificateScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
+import { CertificateScreen, EventCertificateScreen, EventReportScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
 
 import { THEME_COLORS } from "@/lib/theme";
 
@@ -83,6 +83,10 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
   if (path === "/org/nova") return <OrgNewScreen user={user} />;
   const org = matchRoute("/org/:slug", path) ?? matchRoute("/org/:slug/:tab", path);
   if (org) return <OrgScreen key={org.slug} user={user} slug={org.slug} tab={org.tab} />;
+  const eventReport = matchRoute("/evento/:id", path);
+  if (eventReport) return <EventReportScreen user={user} missionId={eventReport.id} />;
+  const eventCertificate = matchRoute("/certificado/evento/:id", path);
+  if (eventCertificate) return <EventCertificateScreen submissionId={eventCertificate.id} />;
   const certificate = matchRoute("/certificado/:id", path);
   if (certificate) return <CertificateScreen memberId={certificate.id} />;
 

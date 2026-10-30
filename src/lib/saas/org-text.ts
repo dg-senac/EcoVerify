@@ -27,7 +27,7 @@ export interface OrgText {
   trialInfo: (days: number) => string;
   trialUsedInfo: string;
   roles: Record<OrgRole, string>;
-  tabs: { overview: string; missions: string; moderation: string; members: string; plan: string; report: string };
+  tabs: { overview: string; missions: string; events: string; moderation: string; members: string; plan: string; report: string };
   statMembers: string;
   statActions: string;
   statPoints: string;
@@ -157,7 +157,7 @@ const pt: OrgText = {
   trialInfo: (days) => `Planos pagos começam com ${days} dias grátis, sem cartão. Depois, pague por Pix ou volte ao plano grátis.`,
   trialUsedInfo: "O período de teste já foi usado.",
   roles: { owner: "Responsável", manager: "Gestor", member: "Participante" },
-  tabs: { overview: "Visão geral", missions: "Missões", moderation: "Moderação", members: "Participantes", plan: "Plano", report: "Relatório" },
+  tabs: { overview: "Visão geral", missions: "Missões", events: "Eventos", moderation: "Moderação", members: "Participantes", plan: "Plano", report: "Relatório" },
   statMembers: "participantes",
   statActions: "ações aprovadas",
   statPoints: "pontos",
@@ -212,6 +212,7 @@ const pt: OrgText = {
     invalid: "Confira os campos.",
     not_found: "Organização não encontrada.",
     invalid_code: "Código inválido.",
+    event_window: "Confira a data e o horário do evento: o fim deve ser depois do início (de 30 min a 3 dias), sem ser no passado.",
     member_limit: "A organização atingiu o limite de participantes do plano. Peça ao responsável para mudar de plano.",
     mission_limit: "Limite de missões ativas do plano atingido. Desative uma missão ou mude de plano.",
     forbidden: "Você não tem permissão para isso.",
@@ -299,7 +300,7 @@ const en: OrgText = {
   trialInfo: (days) => `Paid plans start with ${days} free days, no card. Then pay via Pix or go back to the free plan.`,
   trialUsedInfo: "The free trial has already been used.",
   roles: { owner: "Owner", manager: "Manager", member: "Member" },
-  tabs: { overview: "Overview", missions: "Missions", moderation: "Moderation", members: "Members", plan: "Plan", report: "Report" },
+  tabs: { overview: "Overview", missions: "Missions", events: "Events", moderation: "Moderation", members: "Members", plan: "Plan", report: "Report" },
   statMembers: "members",
   statActions: "approved actions",
   statPoints: "points",
@@ -354,6 +355,7 @@ const en: OrgText = {
     invalid: "Check the fields.",
     not_found: "Organization not found.",
     invalid_code: "Invalid code.",
+    event_window: "Check the event date and time: the end must come after the start (30 min to 3 days) and not be in the past.",
     member_limit: "The organization reached its plan's member limit. Ask the owner to upgrade.",
     mission_limit: "Active mission limit reached. Deactivate a mission or upgrade.",
     forbidden: "You don't have permission for that.",
@@ -441,7 +443,7 @@ const es: OrgText = {
   trialInfo: (days) => `Los planes de pago empiezan con ${days} días gratis, sin tarjeta. Después, paga por Pix o vuelve al plan gratis.`,
   trialUsedInfo: "El período de prueba ya fue usado.",
   roles: { owner: "Responsable", manager: "Gestor", member: "Participante" },
-  tabs: { overview: "Resumen", missions: "Misiones", moderation: "Moderación", members: "Participantes", plan: "Plan", report: "Informe" },
+  tabs: { overview: "Resumen", missions: "Misiones", events: "Eventos", moderation: "Moderación", members: "Participantes", plan: "Plan", report: "Informe" },
   statMembers: "participantes",
   statActions: "acciones aprobadas",
   statPoints: "puntos",
@@ -496,6 +498,7 @@ const es: OrgText = {
     invalid: "Revisa los campos.",
     not_found: "Organización no encontrada.",
     invalid_code: "Código inválido.",
+    event_window: "Revisa la fecha y la hora del evento: el fin debe ser después del inicio (de 30 min a 3 días) y no estar en el pasado.",
     member_limit: "La organización alcanzó el límite de participantes del plan. Pide al responsable que cambie de plan.",
     mission_limit: "Límite de misiones activas alcanzado. Desactiva una misión o cambia de plan.",
     forbidden: "No tienes permiso para eso.",

@@ -90,7 +90,9 @@ function DemoBusinessTab() {
   const data = useStore<BusinessData>((s) => {
     const orgs = (s.orgs ?? []).map((o) => ({ ...o, effective: orgPlan(o) }));
     const paying = orgs.filter((o) => o.effective !== "free" && o.subscriptionStatus === "active");
-    const paid = (s.invoices ?? []).filter((i) => i.status === "paid");
+    const paidAll = (s.invoices ?? []).filter((i) => i.status === "paid");
+    const paid = paidAll.filter((i) => i.kind !== "event");
+    const paidEvents = paidAll.filter((i) => i.kind === "event");
     const month = monthStart(new Date()).getTime();
     return {
       mrrCents: paying.reduce((sum, o) => sum + (o.billingCycle === "yearly" && PLANS[o.effective].yearlyCents ? Math.round(PLANS[o.effective].yearlyCents! / 12) : (PLANS[o.effective].monthlyCents ?? 0)), 0),
@@ -98,6 +100,9 @@ function DemoBusinessTab() {
       receivedTotalCents: paid.reduce((sum, i) => sum + i.amountCents, 0),
       campaignFeesMonthCents: 0,
       campaignFeesTotalCents: 0,
+      eventsMonthCents: paidEvents.filter((i) => i.paidAt && new Date(i.paidAt).getTime() >= month).reduce((sum, i) => sum + i.amountCents, 0),
+      eventsTotalCents: paidEvents.reduce((sum, i) => sum + i.amountCents, 0),
+      eventsPaidCount: paidEvents.length,
       payingOrgs: paying.length,
       trialOrgs: orgs.filter((o) => o.effective !== "free" && o.subscriptionStatus === "trialing").length,
       totalOrgs: orgs.length,
@@ -105,7 +110,7 @@ function DemoBusinessTab() {
         .filter((i) => i.status === "pending")
         .map((i) => {
           const org = orgs.find((o) => o.id === i.orgId);
-          return { id: i.id, orgName: org?.name ?? "—", orgSlug: org?.slug ?? "", plan: i.plan, cycle: i.billingCycle, amountCents: i.amountCents, reference: i.reference, reportedAt: i.reportedAt, createdAt: i.createdAt };
+          return { id: i.id, orgName: org?.name ?? "—", orgSlug: org?.slug ?? "", plan: i.plan, cycle: i.billingCycle, amountCents: i.amountCents, reference: i.reference, reportedAt: i.reportedAt, createdAt: i.createdAt, kind: i.kind ?? "plan", eventPackage: i.eventPackage ?? null, eventTitle: i.missionId ? (s.missions.find((m) => m.id === i.missionId)?.title ?? null) : null };
         }),
       orgs: orgs.map((o) => ({
         id: o.id,
