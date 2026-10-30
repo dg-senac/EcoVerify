@@ -30,6 +30,9 @@ import {
   topUpSponsor,
   treasuryMonthCents,
   impactRows,
+  createOffer,
+  regenerateOfferToken,
+  toggleOffer,
   updatePayoutSettings,
   userPayout,
   useLang,
@@ -53,15 +56,47 @@ import { orgPlan } from "@/lib/saas/org-rules";
 import { monthStart } from "@/lib/payout-rules";
 import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
 import { dataTables, recyclingSummary } from "@/lib/impact";
+import { BenefitsTab, type AdminOffer } from "@/components/admin/benefits-tab";
 
-type Tab = "metrics" | "business" | "missions" | "users" | "rewards" | "recycling" | "data";
+type Tab = "metrics" | "business" | "benefits" | "missions" | "users" | "rewards" | "recycling" | "data";
 export const ADMIN_TAB_KEY = "ecoverify-admin-tab";
 const BUSINESS_LABEL = { pt: "Negócios", en: "Business", es: "Negocios" };
 const EXTRA_TABS: Partial<Record<Tab, { icon: string; label: Record<Lang, string> }>> = {
   business: { icon: "💼", label: BUSINESS_LABEL },
+  benefits: { icon: "🎁", label: { pt: "Benefícios", en: "Perks", es: "Beneficios" } },
   recycling: { icon: "♻️", label: { pt: "Reciclagem", en: "Recycling", es: "Reciclaje" } },
   data: { icon: "🗺️", label: { pt: "Dados", en: "Data", es: "Datos" } },
 };
+
+/** Same panel as the web app (src/components/admin/benefits-tab.tsx); the partner link opens #/parceiro/<token>. */
+function DemoBenefitsTab() {
+  const offers = useStore<AdminOffer[]>((s) => {
+    const since = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    return (s.offers ?? [])
+      .map((o) => {
+        const codes = (s.redemptions ?? []).filter((r) => r.offerId === o.id);
+        return {
+          ...o,
+          generated: codes.length,
+          used: codes.filter((r) => r.usedAt).length,
+          used30: codes.filter((r) => r.usedAt && new Date(r.usedAt).getTime() > since).length,
+        };
+      })
+      .sort((a, b) => Number(b.isActive) - Number(a.isActive) || b.createdAt.localeCompare(a.createdAt));
+  });
+  return (
+    <BenefitsTab
+      offers={offers}
+      partnerBase={`${window.location.origin}${window.location.pathname}#/parceiro/`}
+      demoNote="Demonstração: comércios de exemplo. Resgate um benefício como Maria, abra o link de validação do parceiro e digite o código — Maria recebe a notificação."
+      actions={{
+        createOffer: async (input) => createOffer(input),
+        toggleOffer: async (id) => toggleOffer(id),
+        regenerateToken: async (id) => regenerateOfferToken(id),
+      }}
+    />
+  );
+}
 
 /** Same panels as the web app (src/components/admin/impact-tabs.tsx); the CSV is built in the browser. */
 function DemoRecyclingTab() {
@@ -158,6 +193,7 @@ export function AdminScreen({ user }: { user: User }) {
   const tabs: { id: Tab; key: "admin_tab_metrics" | "admin_tab_missions" | "admin_tab_users" | "admin_tab_rewards" | null }[] = [
     { id: "metrics", key: "admin_tab_metrics" },
     { id: "business", key: null },
+    { id: "benefits", key: null },
     { id: "missions", key: "admin_tab_missions" },
     { id: "users", key: "admin_tab_users" },
     { id: "rewards", key: "admin_tab_rewards" },
@@ -183,6 +219,7 @@ export function AdminScreen({ user }: { user: User }) {
       </div>
       {tab === "metrics" && <MetricsTab />}
       {tab === "business" && <DemoBusinessTab />}
+      {tab === "benefits" && <DemoBenefitsTab />}
       {tab === "missions" && <MissionsTab />}
       {tab === "users" && <UsersTab me={user} />}
       {tab === "rewards" && <RewardsTab />}

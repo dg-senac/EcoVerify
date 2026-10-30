@@ -1,6 +1,6 @@
 import type { DictKey } from "@/lib/i18n";
 import type { LucideIcon } from "lucide-react";
-import { Sprout, FileText, Trophy, MessageSquare, Shield, BarChart3, Bell, User, Settings, Building2 } from "@/components/ui/icons";
+import { Sprout, FileText, Trophy, MessageSquare, Shield, BarChart3, Bell, User, Settings, Building2, Gift } from "@/components/ui/icons";
 
 export type Role = "citizen" | "moderator" | "admin";
 
@@ -16,6 +16,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/submissions", labelKey: "nav_submissions", icon: FileText, roles: ["citizen", "moderator", "admin"] },
   { href: "/ranking", labelKey: "nav_ranking", icon: Trophy, roles: ["citizen", "moderator", "admin"] },
   { href: "/community", labelKey: "nav_community", icon: MessageSquare, roles: ["citizen"] },
+  { href: "/beneficios", labelKey: "nav_benefits", icon: Gift, roles: ["citizen", "moderator", "admin"] },
   { href: "/org", labelKey: "nav_orgs", icon: Building2, roles: ["citizen", "moderator", "admin"] },
   { href: "/moderation", labelKey: "nav_moderation", icon: Shield, roles: ["moderator", "admin"] },
   { href: "/admin", labelKey: "nav_admin", icon: BarChart3, roles: ["admin"] },

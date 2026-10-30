@@ -49,6 +49,20 @@ import { addPeriod, isPlanId, PAID_PLANS, planPrice, type BillingCycle, type Pla
 import { canActivateMission, canAddMember, initialSubscription, isOrgType, newInviteCode, normalizeInviteCode, slugify, type OrgRole, type OrgType } from "@/lib/saas/org-rules";
 import { newInvoiceReference } from "@/lib/saas/pix";
 import { EVENT_PACKAGES, eventMemberAllowance, eventPhase, eventSubmissionError, isEvent, isEventPackage, parseEventWindow, type EventPackage } from "@/lib/saas/events";
+import {
+  firstName,
+  formatRedemptionCode,
+  newPartnerToken,
+  newRedemptionCode,
+  normalizeRedemptionCode,
+  parseOfferInput,
+  redeemError,
+  validateError,
+  type OfferInput,
+  type OfferKind,
+  type RedeemError,
+  type ValidateError,
+} from "@/lib/benefits";
 import { checkRecyclingInput, parseWeightKg, type ImpactRow, type Material } from "@/lib/impact";
 
 /* ------------------------------------------------------------------ */
@@ -248,7 +262,30 @@ export type State = {
    * starts ON so Carlos can be tried, and Ana can turn it off in Admin → Users.
    */
   moderatorsEnabled?: boolean;
+  /** Local business benefits (src/lib/benefits.ts) and the codes people redeemed. */
+  offers?: DemoOffer[];
+  redemptions?: DemoRedemption[];
 };
+
+export type DemoOffer = {
+  id: string;
+  partnerName: string;
+  title: string;
+  description: string;
+  kind: OfferKind;
+  city: string | null;
+  address: string | null;
+  minPoints: number;
+  adultsOnly: boolean;
+  maxRedemptions: number | null;
+  expiresAt: string | null;
+  featured: boolean;
+  monthlyFeeCents: number;
+  partnerToken: string;
+  isActive: boolean;
+  createdAt: string;
+};
+export type DemoRedemption = { id: string; offerId: string; userId: string; code: string; createdAt: string; usedAt: string | null };
 
 export type DemoCard = {
   id: string;
@@ -346,6 +383,15 @@ function commit(updater: (draft: State) => State): boolean {
   state = next;
   listeners.forEach((listener) => listener());
   return true;
+}
+
+// Another tab changed the demo (e.g. the partner page validated a code): pick it up here too.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key !== STORAGE_KEY || !event.newValue) return;
+    state = load();
+    listeners.forEach((listener) => listener());
+  });
 }
 
 function subscribe(listener: () => void) {
@@ -1441,6 +1487,12 @@ export function exportMyData(): string | null {
     notifications: state.notifications.filter((n) => n.userId === user.id),
     communityMessages: state.chat.filter((c) => c.userId === user.id && !c.deleted),
     missionRequests: (state.missionRequests ?? []).filter((r) => r.userId === user.id).map(({ city, uf, createdAt }) => ({ city, uf, createdAt })),
+    benefitCodes: (state.redemptions ?? [])
+      .filter((r) => r.userId === user.id)
+      .map((r) => {
+        const offer = (state.offers ?? []).find((o) => o.id === r.offerId);
+        return { partner: offer?.partnerName ?? null, benefit: offer?.title ?? null, code: r.code, createdAt: r.createdAt, usedAt: r.usedAt };
+      }),
   };
   return JSON.stringify(payload, null, 2);
 }
@@ -1841,4 +1893,79 @@ export function impactRows(s: State = state): ImpactRow[] {
     });
   }
   return rows;
+}
+
+/* ------------------------------------------------------------------ */
+/* Benefits (local businesses) — same rules as src/lib/actions/benefits.ts */
+/* ------------------------------------------------------------------ */
+
+export function redeemOffer(offerId: string): { error?: RedeemError | "invalid"; code?: string } {
+  const user = me();
+  if (!user || user.isBanned) return { error: "invalid" };
+  const offer = (state.offers ?? []).find((o) => o.id === offerId);
+  if (!offer) return { error: "offer_unavailable" };
+  const redemptions = state.redemptions ?? [];
+  const existing = redemptions.find((r) => r.offerId === offerId && r.userId === user.id);
+  const count = redemptions.filter((r) => r.offerId === offerId).length;
+  const error = redeemError({ offer, user, alreadyRedeemed: !!existing, redeemedCount: count });
+  if (error) return error === "already_redeemed" && existing ? { code: existing.code } : { error };
+  let code = newRedemptionCode();
+  while (redemptions.some((r) => r.code === code)) code = newRedemptionCode();
+  const redemption: DemoRedemption = { id: uid(), offerId, userId: user.id, code, createdAt: now(), usedAt: null };
+  if (!commit((s) => ({ ...s, redemptions: [redemption, ...(s.redemptions ?? [])] }))) return { error: "invalid" };
+  return { code };
+}
+
+export function declareAdult(): Result {
+  const user = me();
+  if (!user) return { error: "error_generic" };
+  if (!user.adultDeclaredAt) commit((s) => ({ ...s, users: s.users.map((u) => (u.id === user.id ? { ...u, adultDeclaredAt: now() } : u)) }));
+  return {};
+}
+
+/** The shop's page (#/parceiro/<token>): no login, the link is the credential. */
+export function validateOfferCode(token: string, rawCode: string): { error?: ValidateError | "invalid"; firstName?: string } {
+  const offer = (state.offers ?? []).find((o) => o.partnerToken === token);
+  if (!offer || !offer.isActive) return { error: "invalid" };
+  const code = normalizeRedemptionCode(rawCode);
+  const row = (state.redemptions ?? []).find((r) => r.code === code && r.offerId === offer.id) ?? null;
+  const error = validateError(row, offer);
+  if (error) return { error };
+  const owner = userById(row!.userId);
+  commit((s) => ({
+    ...s,
+    redemptions: (s.redemptions ?? []).map((r) => (r.id === row!.id ? { ...r, usedAt: now() } : r)),
+    notifications: notify(s, row!.userId, (lang) => ({
+      title: lang === "en" ? "🎁 Perk used" : lang === "es" ? "🎁 Beneficio usado" : "🎁 Benefício usado",
+      message:
+        lang === "en"
+          ? `Your code ${formatRedemptionCode(code)} was used at ${offer.partnerName} (${offer.title}). Thanks for caring for the city!`
+          : lang === "es"
+            ? `Tu código ${formatRedemptionCode(code)} se usó en ${offer.partnerName} (${offer.title}). ¡Gracias por cuidar la ciudad!`
+            : `Seu código ${formatRedemptionCode(code)} foi usado em ${offer.partnerName} (${offer.title}). Obrigado por cuidar da cidade!`,
+    })),
+  }));
+  return { firstName: firstName(owner?.name ?? "") };
+}
+
+export function createOffer(input: OfferInput): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  const parsed = parseOfferInput(input);
+  if ("error" in parsed) return { error: parsed.error };
+  const { expiresAt, ...rest } = parsed.value;
+  const offer: DemoOffer = { ...rest, id: uid(), expiresAt: expiresAt?.toISOString() ?? null, partnerToken: newPartnerToken(), isActive: true, createdAt: now() };
+  commit((s) => ({ ...s, offers: [offer, ...(s.offers ?? [])] }));
+  return {};
+}
+
+export function toggleOffer(offerId: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  commit((s) => ({ ...s, offers: (s.offers ?? []).map((o) => (o.id === offerId ? { ...o, isActive: !o.isActive } : o)) }));
+  return {};
+}
+
+export function regenerateOfferToken(offerId: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  commit((s) => ({ ...s, offers: (s.offers ?? []).map((o) => (o.id === offerId ? { ...o, partnerToken: newPartnerToken() } : o)) }));
+  return {};
 }

@@ -12,7 +12,7 @@ Há dois caminhos que se somam:
 | # | Fonte | Quem paga | Preço sugerido | Onde fica no app |
 | --- | --- | --- | --- | --- |
 | 1 | [Eventos e mutirões](#1-eventos-e-mutirões) | escolas, empresas, ONGs, condomínios | R$ 300 a 1.500 por evento | Organização → Eventos |
-| 3 | [Comércio local](#3-comércio-local-benefícios) | lojas, cafés, bicicletarias, academias | R$ 49 a 149/mês por vitrine | Benefícios (cidadão) · Admin → Negócios → Benefícios |
+| 3 | [Comércio local](#3-comércio-local-benefícios) | lojas, cafés, bicicletarias, academias | R$ 49 a 149/mês por vitrine | Benefícios (cidadão) · Admin → 🎁 Benefícios |
 | 6 | [Reciclagem e logística reversa](#6-reciclagem-e-logística-reversa) | empresas com meta de logística reversa, cooperativas parceiras | R$ 500 a 3.000 por campanha de coleta | Missões de reciclagem com kg e material · Admin → Reciclagem |
 | 7 | [Dados agregados](#7-dados-agregados-e-anônimos) | prefeituras, universidades, consultorias | R$ 300 a 2.000 por relatório | Admin → Dados (CSV) |
 | 4 | [Editais, prêmios e bolsas](#4-editais-prêmios-e-bolsas) | governo, fundações, programas de inovação | R$ 5 mil a 100 mil (não reembolsável) | Kit pronto em [`EDITAIS.md`](EDITAIS.md) |
@@ -65,11 +65,13 @@ Onde oferecer: escolas (semana do meio ambiente, feira de ciências), grupos de 
 
 ### Como funciona no app
 
-- O admin cadastra o parceiro e o benefício em **Admin → 💼 Negócios → Benefícios**: título, cidade, pontos mínimos, limite de resgates e validade.
+- O admin cadastra o parceiro e o benefício em **Admin → 🎁 Benefícios**: título, cidade, pontos mínimos, limite de resgates e validade.
 - O cidadão vê os benefícios da sua cidade em **Benefícios**. Quando tem os pontos mínimos, toca em **Resgatar** e recebe um **código único**.
 - **Resgatar não gasta pontos** (o ranking continua igual). Cada pessoa resgata cada benefício **uma vez**.
 - No balcão, o comércio confere o código na **página de validação** dele (um link secreto, sem precisar de conta) e marca como usado.
 - O admin vê quantos códigos foram gerados e usados por parceiro: esse número é o argumento para renovar a mensalidade.
+- Se o link vazar, o admin gera um **novo link** (o antigo para de valer) ou **pausa** o benefício.
+- **Experimente no demo:** entre como Maria → **Benefícios** → resgate o benefício da livraria (aberto a todas as idades) → declare 18+ para ver os outros. Depois, como Ana, **Admin → 🎁 Benefícios** → **Abrir** o link da livraria e digite o código: Maria recebe a notificação.
 
 ### Preços sugeridos
 

@@ -3,6 +3,7 @@ import { LucideIcon } from "lucide-react";
 // Re-export all icons from lucide-react
 export {
   Home,
+  Gift,
   Building2,
   FileText,
   Trophy,

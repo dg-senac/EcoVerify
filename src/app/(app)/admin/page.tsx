@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { invoices, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, userCards, users } from "@/db/schema";
+import { invoices, offerRedemptions, partnerOffers, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, userCards, users } from "@/db/schema";
 import type { UserDetails } from "@/components/admin/user-sheet";
 import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
 import { confirmInvoiceAction, grantPlanAction } from "@/lib/actions/billing";
@@ -19,6 +19,9 @@ import { RewardsTab, type PaidBatch } from "@/components/admin/rewards-tab";
 import { WalletsTab } from "@/components/admin/wallets-tab";
 import { AiTab } from "@/components/admin/ai-tab";
 import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
+import { BenefitsTab, type AdminOffer } from "@/components/admin/benefits-tab";
+import { createOfferAction, regenerateOfferTokenAction, toggleOfferAction } from "@/lib/actions/benefits";
+import { publicBaseUrl } from "@/lib/saas/base-url";
 import { dataTables, recyclingSummary } from "@/lib/impact";
 import { loadImpactRows } from "@/lib/impact-server";
 import { getAiSettings } from "@/lib/ai/pipeline";
@@ -371,6 +374,34 @@ export default async function AdminPage() {
 
   // Recycling report and anonymous aggregated data (docs/MONETIZACAO.md).
   const impactRows = await loadImpactRows();
+  const offerRows = await db
+    .select({
+      offer: partnerOffers,
+      generated: sql<number>`(select count(*)::int from ${offerRedemptions} r where r.offer_id = ${partnerOffers.id})`,
+      used: sql<number>`(select count(r.used_at)::int from ${offerRedemptions} r where r.offer_id = ${partnerOffers.id})`,
+      used30: sql<number>`(select count(*)::int from ${offerRedemptions} r where r.offer_id = ${partnerOffers.id} and r.used_at > now() - interval '30 days')`,
+    })
+    .from(partnerOffers)
+    .orderBy(desc(partnerOffers.isActive), desc(partnerOffers.createdAt));
+  const adminOffers: AdminOffer[] = offerRows.map(({ offer, generated, used, used30 }) => ({
+    id: offer.id,
+    partnerName: offer.partnerName,
+    title: offer.title,
+    kind: offer.kind,
+    city: offer.city,
+    minPoints: offer.minPoints,
+    adultsOnly: offer.adultsOnly,
+    featured: offer.featured,
+    isActive: offer.isActive,
+    monthlyFeeCents: offer.monthlyFeeCents,
+    maxRedemptions: offer.maxRedemptions,
+    expiresAt: offer.expiresAt?.toISOString() ?? null,
+    partnerToken: offer.partnerToken,
+    generated,
+    used,
+    used30,
+  }));
+  const partnerBase = `${await publicBaseUrl()}/parceiro/`;
 
   const vision = { configured: !!visionApiKey(), used: visionApiKey() ? await visionUsedThisMonth() : 0, limit: visionMonthlyLimit() };
 
@@ -413,6 +444,18 @@ export default async function AdminPage() {
               label: businessBadge ? `Negócios (${businessBadge})` : "Negócios",
               icon: "💼",
               content: <BusinessTab data={business} actions={{ confirmInvoice: confirmInvoiceAction, grantPlan: grantPlanAction }} />,
+            },
+            {
+              key: "benefits",
+              label: "Benefícios",
+              icon: "🎁",
+              content: (
+                <BenefitsTab
+                  offers={adminOffers}
+                  partnerBase={partnerBase}
+                  actions={{ createOffer: createOfferAction, toggleOffer: toggleOfferAction, regenerateToken: regenerateOfferTokenAction }}
+                />
+              ),
             },
             { key: "missions", label: missionsToReview ? `Missões (${missionsToReview})` : "Missões", icon: "🌱", content: (
                 <MissionsTab

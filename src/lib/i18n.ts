@@ -22,6 +22,7 @@ const dict = {
   nav_notifications: { pt: "Notificações", en: "Notifications", es: "Notificaciones" },
   nav_profile: { pt: "Perfil", en: "Profile", es: "Perfil" },
   nav_settings: { pt: "Configurações", en: "Settings", es: "Configuración" },
+  nav_benefits: { pt: "Benefícios", en: "Perks", es: "Beneficios" },
   nav_orgs: { pt: "Organizações", en: "Organizations", es: "Organizaciones" },
   nav_logout: { pt: "Sair", en: "Log out", es: "Salir" },
   login_title: { pt: "Entrar", en: "Sign in", es: "Iniciar sesión" },

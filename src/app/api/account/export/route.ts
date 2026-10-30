@@ -9,6 +9,8 @@ import {
   missions,
   missionSuggestions,
   notifications,
+  offerRedemptions,
+  partnerOffers,
   pointsLedger,
   rewardQueue,
   submissions,
@@ -27,7 +29,7 @@ export async function GET() {
     return NextResponse.json({ error: "too_many_attempts" }, { status: 429 });
   }
 
-  const [userSubmissions, ledger, rewards, userNotifications, messages, favorites, reports, requests, suggestions] = await Promise.all([
+  const [userSubmissions, ledger, rewards, userNotifications, messages, favorites, reports, requests, suggestions, redemptions] = await Promise.all([
     db
       .select({
         id: submissions.id,
@@ -135,6 +137,17 @@ export async function GET() {
       })
       .from(missionSuggestions)
       .where(eq(missionSuggestions.userId, user.id)),
+    db
+      .select({
+        partner: partnerOffers.partnerName,
+        benefit: partnerOffers.title,
+        code: offerRedemptions.code,
+        createdAt: offerRedemptions.createdAt,
+        usedAt: offerRedemptions.usedAt,
+      })
+      .from(offerRedemptions)
+      .innerJoin(partnerOffers, eq(partnerOffers.id, offerRedemptions.offerId))
+      .where(eq(offerRedemptions.userId, user.id)),
   ]);
 
   const payload = {
@@ -180,6 +193,7 @@ export async function GET() {
     reportsMade: reports,
     missionRequests: requests,
     missionSuggestions: suggestions,
+    benefitCodes: redemptions,
     regionNote:
       "A região escolhida na tela de missões fica só num cookie do seu aparelho (cidade e coordenadas arredondadas), não no banco de dados.",
   };

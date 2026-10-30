@@ -1,11 +1,11 @@
-import type { ChatMessage, DemoInvoice, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
+import type { ChatMessage, DemoInvoice, DemoOffer, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
 import type { Material } from "@/lib/impact";
 
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 9;
+export const STATE_VERSION = 10;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -599,6 +599,71 @@ export function createSeed(): State {
     { id: "inv-recicla-0", orgId: company.id, plan: "business", billingCycle: "monthly", amountCents: 34900, status: "paid", reference: "EVDEMO8M3T4R", reportedAt: ago(42 * DAY), createdAt: ago(42 * DAY), paidAt: ago(42 * DAY) },
   ];
 
+  // Local business benefits (Benefícios): one featured 18+, one open to all ages, one locked by points.
+  const offers: DemoOffer[] = [
+    {
+      id: "of-cafe",
+      partnerName: "Café Verde do Recife (exemplo)",
+      title: "Café coado grátis na compra de um bolo",
+      description: "Válido de segunda a sexta, das 8h às 18h. Um por pessoa, não cumulativo com outras promoções.",
+      kind: "food",
+      city: "Recife",
+      address: "Rua da Aurora, 300 — Boa Vista",
+      minPoints: 50,
+      adultsOnly: true,
+      maxRedemptions: 100,
+      expiresAt: null,
+      featured: true,
+      monthlyFeeCents: 14900,
+      partnerToken: "cafeverderecifedemoparce",
+      isActive: true,
+      createdAt: ago(25 * DAY),
+    },
+    {
+      id: "of-livraria",
+      partnerName: "Livraria da Jaqueira (exemplo)",
+      title: "15% em livros de ciência e natureza",
+      description: "Mostre o código no caixa. Vale para livros das seções de ciência, natureza e infantojuvenil.",
+      kind: "culture",
+      city: "Recife",
+      address: "Parque da Jaqueira — Rua do Futuro",
+      minPoints: 30,
+      adultsOnly: false,
+      maxRedemptions: null,
+      expiresAt: new Date(Date.now() + 60 * DAY).toISOString(),
+      featured: false,
+      monthlyFeeCents: 4900,
+      partnerToken: "livrariajaqueirademopar2",
+      isActive: true,
+      createdAt: ago(18 * DAY),
+    },
+    {
+      id: "of-bike",
+      partnerName: "Bike Point Boa Viagem (exemplo)",
+      title: "Revisão de bicicleta com 20% de desconto",
+      description: "Revisão completa (freios, câmbio e calibragem). Agende pelo WhatsApp da loja e mostre o código.",
+      kind: "bike",
+      city: "Recife",
+      address: "Av. Conselheiro Aguiar, 1200 — Boa Viagem",
+      minPoints: 150,
+      adultsOnly: true,
+      maxRedemptions: 40,
+      expiresAt: null,
+      featured: false,
+      monthlyFeeCents: 4900,
+      partnerToken: "bikepointboaviagemdemo22",
+      isActive: true,
+      createdAt: ago(10 * DAY),
+    },
+  ];
+  const redemptions: DemoRedemption[] = [
+    { id: "rd-1", offerId: "of-cafe", userId: "u-bot-1", code: "JQ7KM4XP", createdAt: ago(9 * DAY), usedAt: ago(8 * DAY) },
+    { id: "rd-2", offerId: "of-cafe", userId: "u-bot-2", code: "R8TW2ZNA", createdAt: ago(6 * DAY), usedAt: ago(5 * DAY) },
+    { id: "rd-3", offerId: "of-cafe", userId: "u-bot-3", code: "HV5CE9DS", createdAt: ago(2 * DAY), usedAt: null },
+    { id: "rd-4", offerId: "of-bike", userId: "u-bot-1", code: "PX3GU6WB", createdAt: ago(4 * DAY), usedAt: ago(3 * DAY) },
+    { id: "rd-5", offerId: "of-livraria", userId: "u-bot-4", code: "MK8YT2QF", createdAt: ago(3 * DAY), usedAt: null },
+  ];
+
   const notifications: Notification[] = [
     {
       id: "n-maria-lindu",
@@ -657,6 +722,8 @@ export function createSeed(): State {
       },
     ],
     moderatorsEnabled: true,
+    offers,
+    redemptions,
   };
 }
 
