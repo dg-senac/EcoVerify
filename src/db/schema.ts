@@ -22,6 +22,8 @@ export const categoryEnum = pgEnum("mission_category", [
   "cleanup",
   "other",
 ]);
+/** Recyclable material of a delivery (src/lib/impact.ts). */
+export const recyclingMaterialEnum = pgEnum("recycling_material", ["plastic", "paper", "metal", "glass", "electronics", "oil", "other"]);
 export const submissionStatusEnum = pgEnum("submission_status", [
   "pending",
   "approved",
@@ -177,6 +179,12 @@ export const missions = pgTable("missions", {
   pointsReward: integer("points_reward").notNull(),
   foneReward: numeric("fone_reward", { precision: 12, scale: 2 }).notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  /** Events (mutirões): proofs only count inside this window (src/lib/saas/events.ts). */
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  /** One-off event payment ("evento avulso"): package p/m/g and when it was confirmed. */
+  eventPackage: varchar("event_package", { length: 1 }),
+  eventPaidAt: timestamp("event_paid_at", { withTimezone: true }),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -280,6 +288,12 @@ export const submissions = pgTable("submissions", {
   report: text("report").notNull(),
   latitude: numeric("latitude", { precision: 10, scale: 6 }),
   longitude: numeric("longitude", { precision: 10, scale: 6 }),
+  // ---- Recycling missions: what was delivered and how much (src/lib/impact.ts) ----
+  material: recyclingMaterialEnum("material"),
+  /** Weight in kg after the review (the moderator may correct the declared value). */
+  weightKg: numeric("weight_kg", { precision: 7, scale: 1 }),
+  /** Weight typed by the person, kept for the record when a moderator corrects it. */
+  declaredWeightKg: numeric("declared_weight_kg", { precision: 7, scale: 1 }),
   status: submissionStatusEnum("status").notNull().default("pending"),
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   rejectionReason: text("rejection_reason"),
@@ -483,6 +497,8 @@ export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "yearly"]);
 export const subscriptionStatusEnum = pgEnum("subscription_status", ["trialing", "active", "past_due", "canceled"]);
 export const orgRoleEnum = pgEnum("org_role", ["owner", "manager", "member"]);
 export const invoiceStatusEnum = pgEnum("invoice_status", ["pending", "paid", "canceled"]);
+/** "plan" = subscription; "event" = one-off event (plan/billingCycle are placeholders). */
+export const invoiceKindEnum = pgEnum("invoice_kind", ["plan", "event"]);
 
 export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -523,6 +539,10 @@ export const organizationMembers = pgTable("organization_members", {
 export const invoices = pgTable("invoices", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  kind: invoiceKindEnum("kind").notNull().default("plan"),
+  /** Event invoices: the event (mission) and the package paid. */
+  missionId: uuid("mission_id").references((): AnyPgColumn => missions.id, { onDelete: "set null" }),
+  eventPackage: varchar("event_package", { length: 1 }),
   plan: planEnum("plan").notNull(),
   billingCycle: billingCycleEnum("billing_cycle").notNull(),
   amountCents: integer("amount_cents").notNull(),
@@ -538,6 +558,50 @@ export const invoices = pgTable("invoices", {
 }, (table) => [
   uniqueIndex("invoices_reference_unique").on(table.reference),
   index("invoices_org_idx").on(table.organizationId),
+]);
+
+/* ------------------------------------------------------------------ */
+/* Local business benefits (docs/MONETIZACAO.md §3, src/lib/benefits.ts) */
+/* ------------------------------------------------------------------ */
+
+/** A shop's offer (discount, gift) shown in Benefícios. The shop pays a monthly showcase fee. */
+export const partnerOffers = pgTable("partner_offers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  partnerName: varchar("partner_name", { length: 80 }).notNull(),
+  title: varchar("title", { length: 120 }).notNull(),
+  description: text("description").notNull(),
+  kind: varchar("kind", { length: 16 }).notNull().default("other"),
+  city: varchar("city", { length: 80 }),
+  address: varchar("address", { length: 160 }),
+  /** Points needed to unlock it (redeeming doesn't spend them). */
+  minPoints: integer("min_points").notNull().default(0),
+  /** Hidden from people who didn't declare 18+ (ECA / Conanda 163/2014). */
+  adultsOnly: boolean("adults_only").notNull().default(true),
+  maxRedemptions: integer("max_redemptions"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  /** "Vitrine destaque": shown first. */
+  featured: boolean("featured").notNull().default(false),
+  /** What the shop pays per month (BRL cents), for Admin → Benefícios. */
+  monthlyFeeCents: integer("monthly_fee_cents").notNull().default(0),
+  /** Secret of the partner's validation page /parceiro/<token> (no account needed). */
+  partnerToken: varchar("partner_token", { length: 40 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("partner_offers_token_unique").on(table.partnerToken)]);
+
+/** One code per person per offer; usedAt is set by the partner at the counter. */
+export const offerRedemptions = pgTable("offer_redemptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  offerId: uuid("offer_id").notNull().references(() => partnerOffers.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  code: varchar("code", { length: 12 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+}, (table) => [
+  uniqueIndex("offer_redemptions_code_unique").on(table.code),
+  uniqueIndex("offer_redemptions_once").on(table.offerId, table.userId),
+  index("offer_redemptions_user_idx").on(table.userId),
 ]);
 
 /** Each sponsor top-up and the service fee EcoVerify charged on it (brand campaigns). */

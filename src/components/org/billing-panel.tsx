@@ -20,6 +20,8 @@ export interface BillingInvoice {
   paidAt: string | null;
   /** Pix copy-and-paste code (pending invoices only). */
   pixPayload?: string | null;
+  /** One-off event charges: package p/m/g. */
+  eventPackage?: string | null;
 }
 
 type Result = { error?: string; success?: boolean };
@@ -217,18 +219,22 @@ export function BillingPanel({
   );
 }
 
-function PixBox({
+/** Pix QR code + copy-and-paste of a pending charge (plans and one-off events). */
+export function PixBox({
   lang,
   invoice,
   pending,
   onReport,
   onCancel,
+  label,
 }: {
   lang: Lang;
   invoice: BillingInvoice;
   pending: boolean;
   onReport: () => void;
   onCancel: () => void;
+  /** What is being paid (default: plan · cycle). */
+  label?: string;
 }) {
   const text = ORG_TEXT[lang];
   const mk = PLAN_TEXT[lang];
@@ -255,7 +261,7 @@ function PixBox({
         </span>
       </div>
       <p className="text-sm text-slate-500">
-        {mk.planNames[invoice.plan]} · {invoice.billingCycle === "monthly" ? mk.monthly : mk.yearly} · ref. <span className="font-mono">{invoice.reference}</span>
+        {label ?? `${mk.planNames[invoice.plan]} · ${invoice.billingCycle === "monthly" ? mk.monthly : mk.yearly}`} · ref. <span className="font-mono">{invoice.reference}</span>
       </p>
       <div className="mt-4 grid items-start gap-5 sm:grid-cols-[200px_1fr]">
         <div className="mx-auto aspect-square w-[200px] rounded-xl bg-white p-2 ring-1 ring-slate-200 [&_svg]:h-full [&_svg]:w-full" data-testid="pix-qr" dangerouslySetInnerHTML={{ __html: svg }} />
@@ -300,7 +306,7 @@ function PixBox({
   );
 }
 
-function PixIcon() {
+export function PixIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
       <path

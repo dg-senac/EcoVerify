@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Star, Sprout } from "@/components/ui/icons";
 import { FoneAmount } from "@/components/brand/fone";
 import { formatKm } from "@/lib/region";
+import { EventBadge } from "@/components/missions/event-badge";
 
 const categoryStyles: Record<string, string> = {
   planting: "from-emerald-400 to-emerald-600",
@@ -32,6 +33,9 @@ export type MissionCardData = {
   city?: string | null;
   stateCode?: string | null;
   distanceKm?: number;
+  /** Events (mutirões): date/time window. */
+  startsAt?: string | Date | null;
+  endsAt?: string | Date | null;
 };
 
 export function MissionCard({ lang, mission }: { lang: Lang; mission: MissionCardData }) {
@@ -82,6 +86,7 @@ export function MissionCard({ lang, mission }: { lang: Lang; mission: MissionCar
         )}
       </div>
       <h3 className="text-lg font-bold text-slate-900">{getLocalizedTitle()}</h3>
+      <EventBadge lang={lang} mission={mission} />
       {mission.city && mission.scope !== "anywhere" && (
         <p className="text-xs font-medium text-slate-400">
           {mission.city}

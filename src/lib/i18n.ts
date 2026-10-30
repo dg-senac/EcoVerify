@@ -22,6 +22,7 @@ const dict = {
   nav_notifications: { pt: "Notificações", en: "Notifications", es: "Notificaciones" },
   nav_profile: { pt: "Perfil", en: "Profile", es: "Perfil" },
   nav_settings: { pt: "Configurações", en: "Settings", es: "Configuración" },
+  nav_benefits: { pt: "Benefícios", en: "Perks", es: "Beneficios" },
   nav_orgs: { pt: "Organizações", en: "Organizations", es: "Organizaciones" },
   nav_logout: { pt: "Sair", en: "Log out", es: "Salir" },
   login_title: { pt: "Entrar", en: "Sign in", es: "Iniciar sesión" },
@@ -574,6 +575,17 @@ const dict = {
     en: "GPS accuracy is too low. Move to an open area and tap use location again.",
     es: "La precisión del GPS es baja. Ve a un lugar abierto y toca usar ubicación de nuevo.",
   },
+  error_event_not_started: {
+    pt: "Este evento ainda não começou. Volte no dia e horário marcados.",
+    en: "This event hasn't started yet. Come back at the scheduled date and time.",
+    es: "Este evento aún no empezó. Vuelve el día y la hora marcados.",
+  },
+  error_event_ended: {
+    pt: "Este evento já terminou e não aceita mais comprovações.",
+    en: "This event has ended and no longer accepts proofs.",
+    es: "Este evento ya terminó y no acepta más pruebas.",
+  },
+  event_badge: { pt: "Evento", en: "Event", es: "Evento" },
   error_already_submitted: {
     pt: "Você já enviou uma comprovação para esta missão.",
     en: "You have already submitted proof for this mission.",
@@ -1067,6 +1079,27 @@ const dict = {
   },
   splash_start: { pt: "Começar", en: "Get started", es: "Empezar" },
   splash_skip: { pt: "Pular", en: "Skip", es: "Saltar" },
+  // ---- Recycling deliveries (material + weight) ----
+  recycling_material_label: { pt: "O que você entregou?", en: "What did you deliver?", es: "¿Qué entregaste?" },
+  recycling_weight_label: { pt: "Peso aproximado (kg)", en: "Approximate weight (kg)", es: "Peso aproximado (kg)" },
+  recycling_weight_hint: {
+    pt: "Uma sacola de mercado cheia de garrafas PET pesa cerca de 1 kg. A moderação confere pela foto e pode corrigir.",
+    en: "A grocery bag full of PET bottles weighs about 1 kg. Moderators check it against the photo and may correct it.",
+    es: "Una bolsa de supermercado llena de botellas PET pesa cerca de 1 kg. La moderación lo revisa con la foto y puede corregirlo.",
+  },
+  recycling_delivery: { pt: "Entrega", en: "Delivery", es: "Entrega" },
+  recycling_weight_corrected: { pt: "peso corrigido pela moderação", en: "weight corrected by moderators", es: "peso corregido por la moderación" },
+  recycling_weight_review: { pt: "Peso conferido (kg)", en: "Checked weight (kg)", es: "Peso revisado (kg)" },
+  error_material_required: {
+    pt: "Escolha o material que você entregou.",
+    en: "Choose the material you delivered.",
+    es: "Elige el material que entregaste.",
+  },
+  error_weight_invalid: {
+    pt: "Informe o peso aproximado entre 0,1 e 200 kg.",
+    en: "Enter the approximate weight between 0.1 and 200 kg.",
+    es: "Indica el peso aproximado entre 0,1 y 200 kg.",
+  },
 } as const;
 
 export type DictKey = keyof typeof dict;

@@ -48,6 +48,22 @@ import {
 import { addPeriod, isPlanId, PAID_PLANS, planPrice, type BillingCycle, type PlanId, type SubscriptionStatus } from "@/lib/plans";
 import { canActivateMission, canAddMember, initialSubscription, isOrgType, newInviteCode, normalizeInviteCode, slugify, type OrgRole, type OrgType } from "@/lib/saas/org-rules";
 import { newInvoiceReference } from "@/lib/saas/pix";
+import { EVENT_PACKAGES, eventMemberAllowance, eventPhase, eventSubmissionError, isEvent, isEventPackage, parseEventWindow, type EventPackage } from "@/lib/saas/events";
+import {
+  firstName,
+  formatRedemptionCode,
+  newPartnerToken,
+  newRedemptionCode,
+  normalizeRedemptionCode,
+  parseOfferInput,
+  redeemError,
+  validateError,
+  type OfferInput,
+  type OfferKind,
+  type RedeemError,
+  type ValidateError,
+} from "@/lib/benefits";
+import { checkRecyclingInput, parseWeightKg, type ImpactRow, type Material } from "@/lib/impact";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -126,6 +142,11 @@ export type Mission = {
   sponsorId?: string | null;
   /** Private mission of an organization (points only, members only). */
   organizationId?: string | null;
+  /** Events (mutirões): proofs only inside this window; one-off payment (src/lib/saas/events.ts). */
+  startsAt?: string | null;
+  endsAt?: string | null;
+  eventPackage?: EventPackage | null;
+  eventPaidAt?: string | null;
 };
 
 export type MissionRequest = { userId: string; ibge: number; city: string; uf: string; createdAt: string };
@@ -143,6 +164,10 @@ export type Submission = {
   longitude: number;
   accuracy: number;
   simulatedLocation: boolean;
+  /** Recycling missions: material and weight in kg (src/lib/impact.ts). */
+  material?: Material | null;
+  weightKg?: number | null;
+  declaredWeightKg?: number | null;
   status: SubmissionStatus;
   reviewedBy: string | null;
   rejectionReason: string | null;
@@ -237,7 +262,30 @@ export type State = {
    * starts ON so Carlos can be tried, and Ana can turn it off in Admin → Users.
    */
   moderatorsEnabled?: boolean;
+  /** Local business benefits (src/lib/benefits.ts) and the codes people redeemed. */
+  offers?: DemoOffer[];
+  redemptions?: DemoRedemption[];
 };
+
+export type DemoOffer = {
+  id: string;
+  partnerName: string;
+  title: string;
+  description: string;
+  kind: OfferKind;
+  city: string | null;
+  address: string | null;
+  minPoints: number;
+  adultsOnly: boolean;
+  maxRedemptions: number | null;
+  expiresAt: string | null;
+  featured: boolean;
+  monthlyFeeCents: number;
+  partnerToken: string;
+  isActive: boolean;
+  createdAt: string;
+};
+export type DemoRedemption = { id: string; offerId: string; userId: string; code: string; createdAt: string; usedAt: string | null };
 
 export type DemoCard = {
   id: string;
@@ -276,6 +324,10 @@ export type DemoOrgMember = { id: string; orgId: string; userId: string; role: O
 export type DemoInvoice = {
   id: string;
   orgId: string;
+  /** "event" = one-off event (plan/billingCycle are placeholders). */
+  kind?: "plan" | "event";
+  missionId?: string | null;
+  eventPackage?: EventPackage | null;
   plan: PlanId;
   billingCycle: BillingCycle;
   amountCents: number;
@@ -331,6 +383,15 @@ function commit(updater: (draft: State) => State): boolean {
   state = next;
   listeners.forEach((listener) => listener());
   return true;
+}
+
+// Another tab changed the demo (e.g. the partner page validated a code): pick it up here too.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key !== STORAGE_KEY || !event.newValue) return;
+    state = load();
+    listeners.forEach((listener) => listener());
+  });
 }
 
 function subscribe(listener: () => void) {
@@ -559,6 +620,9 @@ export type NewSubmission = {
   longitude: number;
   accuracy: number;
   simulatedLocation: boolean;
+  /** Recycling missions: raw values typed on the form. */
+  material?: string | null;
+  weight?: string | null;
   /** Sample photo picked in the demo (drives the simulated AI). null = camera/gallery photo. */
   sample?: SampleKind | null;
   /** Real analysis of a camera/gallery photo with the tester's own Gemini key (see byok.ts). */
@@ -576,9 +640,13 @@ export function checkProof(input: NewSubmission): Result {
   const mission = state.missions.find((m) => m.id === input.missionId && m.isActive);
   if (!mission) return { error: "error_generic" };
   if (mission.organizationId && !orgRole(state, mission.organizationId, user.id)) return { error: "error_generic" };
+  const eventError = eventSubmissionError(mission);
+  if (eventError) return { error: `error_${eventError}` };
   if (!input.photo) return { error: "error_photo_required" };
   const report = input.report.trim();
   if (report.length < 50 || report.length > 1000) return { error: "error_report_length" };
+  const recycling = checkRecyclingInput(mission.category, input.material, input.weight);
+  if (recycling.error) return { error: `error_${recycling.error}` };
 
   if (!(input.accuracy <= MAX_GPS_ACCURACY_METERS)) return { error: "error_location_inaccurate" };
   if (
@@ -614,7 +682,15 @@ export function submitProof(input: NewSubmission): Result {
   const analysis = input.sample ? simulateAnalysis(input.sample, mission.category, lang) : (realAnalysis?.analysis ?? null);
   const aiFailed = !!real && "failed" in real;
   const web = simulateWebSearch(input.sample ?? null);
-  const decision = decideProof({ settings: DEFAULT_AI_SETTINGS, analysis, similar: null, foneReward: Number(mission.foneReward), web: webVerdict(web) });
+  const recycling = checkRecyclingInput(mission.category, input.material, input.weight);
+  const decision = decideProof({
+    settings: DEFAULT_AI_SETTINGS,
+    analysis,
+    similar: null,
+    foneReward: Number(mission.foneReward),
+    web: webVerdict(web),
+    weightKg: recycling.weightKg,
+  });
   const webChecks = web ? { webChecked: true, webFullMatches: web.fullMatches, webPages: web.pages, webPartialCount: web.partialCount, webBestGuess: web.bestGuess } : {};
   const submission: Submission = {
     id: uid(),
@@ -627,6 +703,9 @@ export function submitProof(input: NewSubmission): Result {
     longitude: input.longitude,
     accuracy: input.accuracy,
     simulatedLocation: input.simulatedLocation,
+    material: recycling.material,
+    weightKg: recycling.weightKg,
+    declaredWeightKg: recycling.weightKg,
     status: "pending",
     reviewedBy: null,
     rejectionReason: null,
@@ -769,14 +848,20 @@ function canModerate(user: User | null): user is User {
   return !!user && canReview(user.role, moderatorsOn()) && !user.isBanned;
 }
 
-export function approveSubmission(submissionId: string): Result {
+/** `weight`: the reviewer may correct the declared weight of a recycling delivery (same rule as the server). */
+export function approveSubmission(submissionId: string, weight?: string): Result {
   const reviewer = me();
   if (!canModerate(reviewer)) return { error: "error_generic" };
   const sub = state.submissions.find((s) => s.id === submissionId);
   if (!sub || sub.status !== "pending") return { error: "error_generic" };
   if (sub.userId === reviewer.id) return { error: "own_submission_warning" };
   if (!state.missions.some((m) => m.id === sub.missionId)) return { error: "error_generic" };
-  commit((s) => applyApproval(s, sub.id, reviewer.id));
+  let weightKg = sub.weightKg ?? null;
+  if (sub.material && weight && weight.trim()) {
+    weightKg = parseWeightKg(weight);
+    if (weightKg === null) return { error: "error_weight_invalid" };
+  }
+  commit((s) => applyApproval({ ...s, submissions: s.submissions.map((x) => (x.id === sub.id ? { ...x, weightKg } : x)) }, sub.id, reviewer.id));
   return {};
 }
 
@@ -1402,6 +1487,12 @@ export function exportMyData(): string | null {
     notifications: state.notifications.filter((n) => n.userId === user.id),
     communityMessages: state.chat.filter((c) => c.userId === user.id && !c.deleted),
     missionRequests: (state.missionRequests ?? []).filter((r) => r.userId === user.id).map(({ city, uf, createdAt }) => ({ city, uf, createdAt })),
+    benefitCodes: (state.redemptions ?? [])
+      .filter((r) => r.userId === user.id)
+      .map((r) => {
+        const offer = (state.offers ?? []).find((o) => o.id === r.offerId);
+        return { partner: offer?.partnerName ?? null, benefit: offer?.title ?? null, code: r.code, createdAt: r.createdAt, usedAt: r.usedAt };
+      }),
   };
   return JSON.stringify(payload, null, 2);
 }
@@ -1568,7 +1659,7 @@ export function joinOrg(rawCode: string): OrgResult {
   if (!org) return { error: "invalid_code" };
   if (orgRole(state, org.id, user.id)) return { success: true, slug: org.slug };
   const members = (state.orgMembers ?? []).filter((m) => m.orgId === org.id).length;
-  const limit = canAddMember(org, members);
+  const limit = canAddMember(org, members, new Date(), orgEventAllowance(org.id));
   if (limit) return { error: limit };
   commit((s) => ({ ...s, orgMembers: [...(s.orgMembers ?? []), { id: uid(), orgId: org.id, userId: user.id, role: "member", joinedAt: now() }] }));
   return { success: true, slug: org.slug };
@@ -1587,7 +1678,15 @@ export function regenerateOrgInvite(orgId: string): OrgResult {
   return { success: true };
 }
 
-export function createOrgMission(orgId: string, input: { title: string; description: string; category: Category; points: number; scope: "local" | "anywhere" }): OrgResult {
+/** Extra member allowance from paid one-off events around now. */
+export function orgEventAllowance(orgId: string, s: State = state): number {
+  return eventMemberAllowance(s.missions.filter((m) => m.organizationId === orgId));
+}
+
+export function createOrgMission(
+  orgId: string,
+  input: { title: string; description: string; category: Category; points: number; scope: "local" | "anywhere"; startsAt?: string | null; endsAt?: string | null },
+): OrgResult {
   const user = me();
   const org = orgOf(state, orgId);
   const role = user && orgRole(state, orgId, user.id);
@@ -1595,7 +1694,13 @@ export function createOrgMission(orgId: string, input: { title: string; descript
   const title = input.title.trim();
   const description = input.description.trim();
   if (title.length < 4 || description.length < 10 || !Number.isInteger(input.points) || input.points < 5 || input.points > 200) return { error: "invalid" };
-  const active = state.missions.filter((m) => m.organizationId === orgId && m.isActive).length;
+  let window: { startsAt: Date; endsAt: Date } | null = null;
+  if (input.startsAt !== undefined || input.endsAt !== undefined) {
+    const parsed = parseEventWindow(input.startsAt, input.endsAt);
+    if ("error" in parsed) return { error: parsed.error };
+    window = parsed;
+  }
+  const active = state.missions.filter((m) => m.organizationId === orgId && m.isActive && eventPhase(m) !== "closed").length;
   const limit = canActivateMission(org, active);
   if (limit) return { error: limit };
   const mission: Mission = {
@@ -1612,6 +1717,8 @@ export function createOrgMission(orgId: string, input: { title: string; descript
     isActive: true,
     createdAt: now(),
     organizationId: orgId,
+    startsAt: window?.startsAt.toISOString() ?? null,
+    endsAt: window?.endsAt.toISOString() ?? null,
   };
   commit((s) => ({ ...s, missions: [mission, ...s.missions] }));
   return { success: true };
@@ -1624,7 +1731,7 @@ export function toggleOrgMission(missionId: string): OrgResult {
   const role = org && user ? orgRole(state, org.id, user.id) : null;
   if (!mission || !org || !(role === "owner" || role === "manager")) return { error: "forbidden" };
   if (!mission.isActive) {
-    const active = state.missions.filter((m) => m.organizationId === org.id && m.isActive).length;
+    const active = state.missions.filter((m) => m.organizationId === org.id && m.isActive && eventPhase(m) !== "closed").length;
     const limit = canActivateMission(org, active);
     if (limit) return { error: limit };
   }
@@ -1652,7 +1759,34 @@ export function createDemoInvoice(orgId: string, plan: PlanId, cycle: BillingCyc
   };
   commit((s) => ({
     ...s,
-    invoices: [invoice, ...(s.invoices ?? []).map((i) => (i.orgId === orgId && i.status === "pending" ? { ...i, status: "canceled" as const } : i))],
+    invoices: [invoice, ...(s.invoices ?? []).map((i) => (i.orgId === orgId && i.status === "pending" && i.kind !== "event" ? { ...i, status: "canceled" as const } : i))],
+  }));
+  return { success: true };
+}
+
+/** One-off event ("evento avulso"): Pix charge that unlocks one event (see createEventInvoiceAction). */
+export function createDemoEventInvoice(missionId: string, pkg: EventPackage): OrgResult {
+  const mission = state.missions.find((m) => m.id === missionId);
+  if (!mission?.organizationId || !isEvent(mission) || mission.eventPaidAt || !isEventPackage(pkg)) return { error: "invalid" };
+  if (!isOwner(mission.organizationId)) return { error: "forbidden" };
+  const invoice: DemoInvoice = {
+    id: uid(),
+    orgId: mission.organizationId,
+    kind: "event",
+    missionId,
+    eventPackage: pkg,
+    plan: "free",
+    billingCycle: "monthly",
+    amountCents: EVENT_PACKAGES[pkg].cents,
+    status: "pending",
+    reference: newInvoiceReference(),
+    reportedAt: null,
+    createdAt: now(),
+    paidAt: null,
+  };
+  commit((s) => ({
+    ...s,
+    invoices: [invoice, ...(s.invoices ?? []).map((i) => (i.missionId === missionId && i.status === "pending" ? { ...i, status: "canceled" as const } : i))],
   }));
   return { success: true };
 }
@@ -1687,6 +1821,23 @@ export function confirmDemoInvoice(invoiceId: string): OrgResult {
   const invoice = (state.invoices ?? []).find((i) => i.id === invoiceId && i.status === "pending");
   const org = invoice && orgOf(state, invoice.orgId);
   if (!invoice || !org) return { error: "invalid" };
+  if (invoice.kind === "event") {
+    const event = state.missions.find((m) => m.id === invoice.missionId);
+    if (!event) return { error: "invalid" };
+    commit((s) => {
+      const next: State = {
+        ...s,
+        invoices: (s.invoices ?? []).map((i) => (i.id === invoiceId ? { ...i, status: "paid" as const, paidAt: now() } : i)),
+        missions: s.missions.map((m) => (m.id === event.id ? { ...m, eventPaidAt: now(), eventPackage: invoice.eventPackage ?? null } : m)),
+      };
+      const notifications = notify(next, org.ownerId, (l) => ({
+        title: l === "en" ? "✅ Event payment confirmed" : l === "es" ? "✅ Pago del evento confirmado" : "✅ Pagamento do evento confirmado",
+        message: event.title,
+      }));
+      return { ...next, notifications };
+    });
+    return { success: true };
+  }
   const nowDate = new Date();
   const keeps = org.plan === invoice.plan && org.subscriptionStatus === "active" && org.currentPeriodEnd && new Date(org.currentPeriodEnd) > nowDate;
   const end = addPeriod(keeps ? new Date(org.currentPeriodEnd!) : nowDate, invoice.billingCycle);
@@ -1712,4 +1863,109 @@ export function grantDemoPlan(orgId: string, plan: string, months: number): OrgR
   const end = plan === "free" ? null : new Date(Date.now() + months * 30 * 86_400_000).toISOString();
   commit((s) => ({ ...s, orgs: (s.orgs ?? []).map((o) => (o.id === orgId ? { ...o, plan, subscriptionStatus: "active" as const, currentPeriodEnd: end } : o)) }));
   return { success: true };
+}
+
+/* ------------------------------------------------------------------ */
+/* Recycling report and anonymous data (Admin → Reciclagem / Dados)    */
+/* ------------------------------------------------------------------ */
+
+/** Same rows as src/lib/impact-server.ts: approved proofs with the mission point (never the person's GPS). */
+export function impactRows(s: State = state): ImpactRow[] {
+  const byId = new Map(s.missions.map((m) => [m.id, m]));
+  const rows: ImpactRow[] = [];
+  for (const sub of s.submissions) {
+    if (sub.status !== "approved") continue;
+    const mission = byId.get(sub.missionId);
+    if (!mission) continue;
+    rows.push({
+      submissionId: sub.id,
+      userId: sub.userId,
+      approvedAt: sub.reviewedAt ?? sub.submittedAt,
+      category: mission.category,
+      missionTitle: mission.title,
+      scope: mission.scope ?? "local",
+      city: mission.city ?? null,
+      stateCode: mission.stateCode ?? null,
+      latitude: mission.scope === "anywhere" ? null : mission.latitude,
+      longitude: mission.scope === "anywhere" ? null : mission.longitude,
+      material: sub.material ?? null,
+      weightKg: sub.weightKg ?? null,
+    });
+  }
+  return rows;
+}
+
+/* ------------------------------------------------------------------ */
+/* Benefits (local businesses) — same rules as src/lib/actions/benefits.ts */
+/* ------------------------------------------------------------------ */
+
+export function redeemOffer(offerId: string): { error?: RedeemError | "invalid"; code?: string } {
+  const user = me();
+  if (!user || user.isBanned) return { error: "invalid" };
+  const offer = (state.offers ?? []).find((o) => o.id === offerId);
+  if (!offer) return { error: "offer_unavailable" };
+  const redemptions = state.redemptions ?? [];
+  const existing = redemptions.find((r) => r.offerId === offerId && r.userId === user.id);
+  const count = redemptions.filter((r) => r.offerId === offerId).length;
+  const error = redeemError({ offer, user, alreadyRedeemed: !!existing, redeemedCount: count });
+  if (error) return error === "already_redeemed" && existing ? { code: existing.code } : { error };
+  let code = newRedemptionCode();
+  while (redemptions.some((r) => r.code === code)) code = newRedemptionCode();
+  const redemption: DemoRedemption = { id: uid(), offerId, userId: user.id, code, createdAt: now(), usedAt: null };
+  if (!commit((s) => ({ ...s, redemptions: [redemption, ...(s.redemptions ?? [])] }))) return { error: "invalid" };
+  return { code };
+}
+
+export function declareAdult(): Result {
+  const user = me();
+  if (!user) return { error: "error_generic" };
+  if (!user.adultDeclaredAt) commit((s) => ({ ...s, users: s.users.map((u) => (u.id === user.id ? { ...u, adultDeclaredAt: now() } : u)) }));
+  return {};
+}
+
+/** The shop's page (#/parceiro/<token>): no login, the link is the credential. */
+export function validateOfferCode(token: string, rawCode: string): { error?: ValidateError | "invalid"; firstName?: string } {
+  const offer = (state.offers ?? []).find((o) => o.partnerToken === token);
+  if (!offer || !offer.isActive) return { error: "invalid" };
+  const code = normalizeRedemptionCode(rawCode);
+  const row = (state.redemptions ?? []).find((r) => r.code === code && r.offerId === offer.id) ?? null;
+  const error = validateError(row, offer);
+  if (error) return { error };
+  const owner = userById(row!.userId);
+  commit((s) => ({
+    ...s,
+    redemptions: (s.redemptions ?? []).map((r) => (r.id === row!.id ? { ...r, usedAt: now() } : r)),
+    notifications: notify(s, row!.userId, (lang) => ({
+      title: lang === "en" ? "🎁 Perk used" : lang === "es" ? "🎁 Beneficio usado" : "🎁 Benefício usado",
+      message:
+        lang === "en"
+          ? `Your code ${formatRedemptionCode(code)} was used at ${offer.partnerName} (${offer.title}). Thanks for caring for the city!`
+          : lang === "es"
+            ? `Tu código ${formatRedemptionCode(code)} se usó en ${offer.partnerName} (${offer.title}). ¡Gracias por cuidar la ciudad!`
+            : `Seu código ${formatRedemptionCode(code)} foi usado em ${offer.partnerName} (${offer.title}). Obrigado por cuidar da cidade!`,
+    })),
+  }));
+  return { firstName: firstName(owner?.name ?? "") };
+}
+
+export function createOffer(input: OfferInput): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  const parsed = parseOfferInput(input);
+  if ("error" in parsed) return { error: parsed.error };
+  const { expiresAt, ...rest } = parsed.value;
+  const offer: DemoOffer = { ...rest, id: uid(), expiresAt: expiresAt?.toISOString() ?? null, partnerToken: newPartnerToken(), isActive: true, createdAt: now() };
+  commit((s) => ({ ...s, offers: [offer, ...(s.offers ?? [])] }));
+  return {};
+}
+
+export function toggleOffer(offerId: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  commit((s) => ({ ...s, offers: (s.offers ?? []).map((o) => (o.id === offerId ? { ...o, isActive: !o.isActive } : o)) }));
+  return {};
+}
+
+export function regenerateOfferToken(offerId: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  commit((s) => ({ ...s, offers: (s.offers ?? []).map((o) => (o.id === offerId ? { ...o, partnerToken: newPartnerToken() } : o)) }));
+  return {};
 }

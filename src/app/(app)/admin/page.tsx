@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { invoices, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, userCards, users } from "@/db/schema";
+import { invoices, offerRedemptions, partnerOffers, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, userCards, users } from "@/db/schema";
 import type { UserDetails } from "@/components/admin/user-sheet";
 import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
 import { confirmInvoiceAction, grantPlanAction } from "@/lib/actions/billing";
@@ -18,6 +18,12 @@ import { UsersTab } from "@/components/admin/users-tab";
 import { RewardsTab, type PaidBatch } from "@/components/admin/rewards-tab";
 import { WalletsTab } from "@/components/admin/wallets-tab";
 import { AiTab } from "@/components/admin/ai-tab";
+import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
+import { BenefitsTab, type AdminOffer } from "@/components/admin/benefits-tab";
+import { createOfferAction, regenerateOfferTokenAction, toggleOfferAction } from "@/lib/actions/benefits";
+import { publicBaseUrl } from "@/lib/saas/base-url";
+import { dataTables, recyclingSummary } from "@/lib/impact";
+import { loadImpactRows } from "@/lib/impact-server";
 import { getAiSettings } from "@/lib/ai/pipeline";
 import { geminiApiKey, geminiModel } from "@/lib/ai/gemini";
 import { visionApiKey, visionMonthlyLimit, visionUsedThisMonth } from "@/lib/ai/vision";
@@ -292,18 +298,27 @@ export default async function AdminPage() {
       reference: invoices.reference,
       reportedAt: invoices.reportedAt,
       createdAt: invoices.createdAt,
+      kind: invoices.kind,
+      eventPackage: invoices.eventPackage,
+      eventTitle: missions.title,
     })
     .from(invoices)
     .innerJoin(organizations, eq(organizations.id, invoices.organizationId))
+    .leftJoin(missions, eq(missions.id, invoices.missionId))
     .where(eq(invoices.status, "pending"))
     .orderBy(sql`${invoices.reportedAt} is null`, desc(invoices.createdAt));
-  const [received] = await db
+  const paidRows = await db
     .select({
+      kind: invoices.kind,
+      count: sql<number>`count(*)::int`,
       total: sql<number>`coalesce(sum(${invoices.amountCents}), 0)::int`,
       month: sql<number>`coalesce(sum(${invoices.amountCents}) filter (where ${invoices.paidAt} >= ${monthStart(new Date()).toISOString()}), 0)::int`,
     })
     .from(invoices)
-    .where(eq(invoices.status, "paid"));
+    .where(eq(invoices.status, "paid"))
+    .groupBy(invoices.kind);
+  const received = paidRows.find((r) => r.kind === "plan") ?? { count: 0, total: 0, month: 0 };
+  const eventsPaid = paidRows.find((r) => r.kind === "event") ?? { count: 0, total: 0, month: 0 };
   const [fees] = await db
     .select({
       total: sql<number>`coalesce(sum(${sponsorTopups.feeCents}), 0)::int`,
@@ -322,6 +337,9 @@ export default async function AdminPage() {
     receivedTotalCents: received.total,
     campaignFeesMonthCents: fees.month,
     campaignFeesTotalCents: fees.total,
+    eventsMonthCents: eventsPaid.month,
+    eventsTotalCents: eventsPaid.total,
+    eventsPaidCount: eventsPaid.count,
     payingOrgs: paying.length,
     trialOrgs: orgsWithPlan.filter((o) => o.effective !== "free" && o.subscriptionStatus === "trialing").length,
     totalOrgs: orgRows.length,
@@ -353,6 +371,37 @@ export default async function AdminPage() {
     seedAccountsPresent: allUsers.some((u) => isSeedEmail(u.email)),
     production: process.env.NODE_ENV === "production",
   };
+
+  // Recycling report and anonymous aggregated data (docs/MONETIZACAO.md).
+  const impactRows = await loadImpactRows();
+  const offerRows = await db
+    .select({
+      offer: partnerOffers,
+      generated: sql<number>`(select count(*)::int from ${offerRedemptions} r where r.offer_id = ${partnerOffers.id})`,
+      used: sql<number>`(select count(r.used_at)::int from ${offerRedemptions} r where r.offer_id = ${partnerOffers.id})`,
+      used30: sql<number>`(select count(*)::int from ${offerRedemptions} r where r.offer_id = ${partnerOffers.id} and r.used_at > now() - interval '30 days')`,
+    })
+    .from(partnerOffers)
+    .orderBy(desc(partnerOffers.isActive), desc(partnerOffers.createdAt));
+  const adminOffers: AdminOffer[] = offerRows.map(({ offer, generated, used, used30 }) => ({
+    id: offer.id,
+    partnerName: offer.partnerName,
+    title: offer.title,
+    kind: offer.kind,
+    city: offer.city,
+    minPoints: offer.minPoints,
+    adultsOnly: offer.adultsOnly,
+    featured: offer.featured,
+    isActive: offer.isActive,
+    monthlyFeeCents: offer.monthlyFeeCents,
+    maxRedemptions: offer.maxRedemptions,
+    expiresAt: offer.expiresAt?.toISOString() ?? null,
+    partnerToken: offer.partnerToken,
+    generated,
+    used,
+    used30,
+  }));
+  const partnerBase = `${await publicBaseUrl()}/parceiro/`;
 
   const vision = { configured: !!visionApiKey(), used: visionApiKey() ? await visionUsedThisMonth() : 0, limit: visionMonthlyLimit() };
 
@@ -395,6 +444,18 @@ export default async function AdminPage() {
               label: businessBadge ? `Negócios (${businessBadge})` : "Negócios",
               icon: "💼",
               content: <BusinessTab data={business} actions={{ confirmInvoice: confirmInvoiceAction, grantPlan: grantPlanAction }} />,
+            },
+            {
+              key: "benefits",
+              label: "Benefícios",
+              icon: "🎁",
+              content: (
+                <BenefitsTab
+                  offers={adminOffers}
+                  partnerBase={partnerBase}
+                  actions={{ createOffer: createOfferAction, toggleOffer: toggleOfferAction, regenerateToken: regenerateOfferTokenAction }}
+                />
+              ),
             },
             { key: "missions", label: missionsToReview ? `Missões (${missionsToReview})` : "Missões", icon: "🌱", content: (
                 <MissionsTab
@@ -454,6 +515,18 @@ export default async function AdminPage() {
                   held={Object.entries(heldByReason).map(([reason, value]) => ({ reason: reason as HoldReason, fone: centsToFone(value.cents), count: value.count }))}
                 />
               ),
+            },
+            {
+              key: "recycling",
+              label: "Reciclagem",
+              icon: "♻️",
+              content: <RecyclingTab summary={recyclingSummary(impactRows)} exportBase="/api/admin/export" />,
+            },
+            {
+              key: "data",
+              label: "Dados",
+              icon: "🗺️",
+              content: <DataTab tables={dataTables(impactRows)} exportBase="/api/admin/export" />,
             },
             {
               key: "ai",

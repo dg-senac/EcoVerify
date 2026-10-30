@@ -19,6 +19,7 @@ import {
   type RejectionCode,
 } from "@/lib/ai/decision";
 import { CARDABLE_REJECTIONS } from "@/lib/cards";
+import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS } from "@/lib/impact";
 
 export function ModerationScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -31,6 +32,8 @@ export function ModerationScreen({ user }: { user: User }) {
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [reasonCode, setReasonCode] = useState<RejectionCode | null>(null);
   const [giveCard, setGiveCard] = useState(false);
+  /** Weight typed by the reviewer for recycling deliveries (submission id → text). */
+  const [weights, setWeights] = useState<Record<string, string>>({});
 
   // Appeals first (a person must answer them), then possible internet copies, then oldest first.
   const pending = submissions
@@ -73,7 +76,7 @@ export function ModerationScreen({ user }: { user: User }) {
   };
 
   const approve = (id: string) => {
-    const result = approveSubmission(id);
+    const result = approveSubmission(id, weights[id]);
     if (result.error) toast(errorText(lang, result.error), "error");
     else toast(`${t(lang, "status_approved")} ✓`);
   };
@@ -126,6 +129,25 @@ export function ModerationScreen({ user }: { user: User }) {
                     </p>
                   )}
                   <p className="text-sm text-slate-600">{sub.report}</p>
+                  {sub.material && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800" data-testid="delivery">
+                      <span className="font-semibold">
+                        {MATERIAL_EMOJI[sub.material]} {t(lang, "recycling_delivery")}: {MATERIAL_LABELS[sub.material][lang]} · {formatKg(sub.weightKg ?? 0, lang)}
+                      </span>
+                      {!own && (
+                        <label className="flex items-center gap-1.5 text-xs font-semibold">
+                          ⚖️ {t(lang, "recycling_weight_review")}
+                          <input
+                            inputMode="decimal"
+                            value={weights[sub.id] ?? String(sub.weightKg ?? "").replace(".", ",")}
+                            onChange={(e) => setWeights({ ...weights, [sub.id]: e.target.value })}
+                            className="w-16 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-right text-sm text-slate-900 outline-none focus:border-emerald-500"
+                            data-testid="review-weight"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  )}
                   {sub.appealedAt && (
                     <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
                       <p className="font-bold">⚖️ {t(lang, "appeal_badge")}</p>

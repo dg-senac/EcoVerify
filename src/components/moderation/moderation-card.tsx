@@ -8,6 +8,7 @@ import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { RejectModal } from "@/components/moderation/reject-modal";
 import { HistoryPanel } from "@/components/moderation/history-panel";
+import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS, type Material } from "@/lib/impact";
 
 const initialState: ModerationActionState = {};
 
@@ -32,6 +33,9 @@ export function ModerationCard({
     id: string;
     photoUrl: string;
     report: string;
+    material?: Material | null;
+    weightKg?: string | null;
+    declaredWeightKg?: string | null;
     latitude: string | null;
     longitude: string | null;
     submittedAt: Date;
@@ -45,6 +49,7 @@ export function ModerationCard({
   const [retryState, retryAction, retrying] = useActionState(retryAiVerificationAction, initialState);
   const isOwn = submission.authorId === moderatorId;
 
+  const weightError = state.error === "weight_invalid";
   if (state.success) {
     return (
       <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-700 animate-fade-in">
@@ -85,6 +90,12 @@ export function ModerationCard({
           </div>
         )}
         <p className="mt-3 text-sm leading-relaxed text-slate-700">{submission.report}</p>
+        {submission.material && (
+          <p className="mt-3 inline-flex flex-wrap items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800" data-testid="delivery">
+            <span aria-hidden="true">{MATERIAL_EMOJI[submission.material]}</span>
+            {t(lang, "recycling_delivery")}: {MATERIAL_LABELS[submission.material][lang]} · {formatKg(Number(submission.weightKg ?? 0), lang)}
+          </p>
+        )}
         {submission.latitude && submission.longitude && (
           <p className="mt-2 flex items-center gap-1 text-xs text-slate-400">
             📍 {Number(submission.latitude).toFixed(4)}, {Number(submission.longitude).toFixed(4)}
@@ -120,9 +131,21 @@ export function ModerationCard({
               {t(lang, "own_submission_warning")}
             </p>
           ) : (
-            <div className="flex gap-3">
-              <form action={formAction} className="flex-1">
+            <div className="flex items-end gap-3">
+              <form action={formAction} className="flex-1 space-y-2">
                 <input type="hidden" name="submissionId" value={submission.id} />
+                {submission.material && (
+                  <label className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
+                    ⚖️ {t(lang, "recycling_weight_review")}
+                    <input
+                      name="weightKg"
+                      inputMode="decimal"
+                      defaultValue={String(submission.weightKg ?? "").replace(".", ",")}
+                      className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm outline-none focus:border-emerald-500"
+                      data-testid="review-weight"
+                    />
+                  </label>
+                )}
                 <button
                   type="submit"
                   disabled={pending}
@@ -131,6 +154,7 @@ export function ModerationCard({
                   {pending && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
                   ✓ {t(lang, "approve")}
                 </button>
+                {weightError && <p className="text-xs font-medium text-red-600">{t(lang, "error_weight_invalid")}</p>}
               </form>
               <RejectModal
                 lang={lang}

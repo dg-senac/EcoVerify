@@ -4,6 +4,7 @@ import { t, tf } from "@/lib/i18n";
 import { groupMissionsByRegion, MIN_LOCAL_MISSIONS } from "@/lib/region";
 import { myOrgs, requestMissionsHere, seedExampleMissions, useLang, useStore, type Mission, type User, type SubmissionStatus } from "../store";
 import { ORG_TEXT } from "@/lib/saas/org-text";
+import { eventPhase } from "@/lib/saas/events";
 import { Link } from "../router";
 import { MissionCard } from "../components/MissionCard";
 import { RegionBar } from "../components/RegionBar";
@@ -31,7 +32,8 @@ export function MissionsScreen({ user }: { user: User }) {
   const orgs = useStore((s) => myOrgs(s, user.id));
   const active = missions.filter((m) => m.isActive && !m.organizationId);
   const orgIds = new Set(orgs.map((o) => o.org.id));
-  const orgMissions = missions.filter((m) => m.isActive && m.organizationId && orgIds.has(m.organizationId));
+  // Finished events leave the list (the organization still sees them in its Events tab).
+  const orgMissions = missions.filter((m) => m.isActive && m.organizationId && orgIds.has(m.organizationId) && eventPhase(m) !== "closed");
   const [seeding, setSeeding] = useState(false);
 
   // Latest status of my submission for each mission (a rejected one can be resent).

@@ -1,4 +1,5 @@
-import { eq, and, not, inArray, count, isNull } from "drizzle-orm";
+import { eq, and, not, inArray, count, isNull, sql } from "drizzle-orm";
+import { EVENT_GRACE_HOURS } from "@/lib/saas/events";
 import { after } from "next/server";
 import Link from "next/link";
 import { db } from "@/db";
@@ -43,6 +44,8 @@ function toCard(mission: MissionRow & { distanceKm?: number }, sponsorLeft?: Spo
     city: mission.city,
     stateCode: mission.stateCode,
     distanceKm: mission.distanceKm,
+    startsAt: mission.startsAt,
+    endsAt: mission.endsAt,
   };
 }
 
@@ -82,7 +85,15 @@ export default async function MissionsPage() {
         .select({ mission: missions, orgName: organizations.name, orgSlug: organizations.slug })
         .from(missions)
         .innerJoin(organizations, eq(organizations.id, missions.organizationId))
-        .where(and(eq(missions.isActive, true), inArray(missions.organizationId, orgIds), notDone))
+        .where(
+          and(
+            eq(missions.isActive, true),
+            inArray(missions.organizationId, orgIds),
+            notDone,
+            // Finished events leave the list (the organization still sees them in its Events tab).
+            sql`(${missions.endsAt} is null or ${missions.endsAt} > now() - make_interval(hours => ${EVENT_GRACE_HOURS}))`,
+          ),
+        )
     : [];
   const orgText = ORG_TEXT[lang];
   const orgSection =

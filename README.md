@@ -121,6 +121,16 @@ O `npm run db:push` cria a coluna `missions.organization_id` e as tabelas `organ
 
 Guia completo (como cobrar, notas fiscais, o que dizer ao cliente): [`docs/SAAS.md`](docs/SAAS.md).
 
+### Receitas sem plano
+
+Quem não quer assinar também pode pagar. Preços sugeridos, roteiros de venda e cuidados legais estão em [`docs/MONETIZACAO.md`](docs/MONETIZACAO.md):
+
+- **Eventos e mutirões avulsos**: missão com data e horário, Pix do evento, relatório e certificados.
+- **Comércio local**: vitrine de benefícios (desconto, brinde) para quem tem ações verificadas, com código único conferido no balcão.
+- **Reciclagem e logística reversa**: material e peso em cada entrega, relatório de kg e lista de coletas em CSV para campanhas e cooperativas.
+- **Dados agregados e anônimos**: totais por cidade, mês e área de ~1 km, sem ninguém identificável, para prefeituras e pesquisas.
+- **Editais e prêmios**: kit com textos prontos em [`docs/EDITAIS.md`](docs/EDITAIS.md).
+
 ## Carteira e pagamentos FONE
 
 O EcoVerify **não guarda chaves nem cria carteiras**: o usuário usa o app oficial **Fone Wallet** ([Android](https://play.google.com/store/apps/details?id=com.cloud.earning) · [iPhone](https://apps.apple.com/us/app/fone-network/id1665915235)) e só informa o endereço.

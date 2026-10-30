@@ -22,6 +22,10 @@ import { categoryStyles } from "../components/MissionCard";
 import { drawSamplePhoto, SAMPLE_KINDS, sampleEmoji, sampleLabel, type SampleKind } from "../demoAi";
 import { btnPrimary, btnSecondary, card, EmptyState, label, toast } from "../components/ui";
 import { FoneAmount } from "@/components/brand/fone";
+import { RecyclingFields, type RecyclingValue } from "@/components/missions/recycling-fields";
+import { asksForWeight } from "@/lib/impact";
+import { eventSubmissionError } from "@/lib/saas/events";
+import { EventBadge } from "@/components/missions/event-badge";
 
 type Location = Coords & { simulated: boolean };
 
@@ -36,9 +40,11 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [recycling, setRecycling] = useState<RecyclingValue>({ material: "", weight: "" });
   const myKey = useGeminiKey();
 
   if (!mission) return <EmptyState emoji="🔎" text={t(lang, "missions_empty")} />;
+  const eventError = eventSubmissionError(mission);
 
   const onPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -111,6 +117,8 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
       longitude: location.longitude,
       accuracy: location.accuracy,
       simulatedLocation: location.simulated,
+      material: recycling.material || null,
+      weight: recycling.weight,
       sample: photo.sample,
     };
     // Check every rule first, so no Gemini request is spent on a proof that would be refused.
@@ -161,6 +169,12 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
         </div>
         <div className="grid gap-3 p-5 text-sm text-slate-600">
           <p>{localizedDescription(mission, lang)}</p>
+          <EventBadge lang={lang} mission={mission} />
+          {eventError && (
+            <p className="rounded-xl bg-violet-50 p-3 font-medium text-violet-900" data-testid="event-closed">
+              {t(lang, eventError === "event_ended" ? "error_event_ended" : "error_event_not_started")}
+            </p>
+          )}
           {mission.context && (
             <p className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-emerald-900"><Target className="mt-0.5 h-4 w-4 shrink-0" /><span><b>{dt(lang, "what_to_do")}:</b> {mission.context}</span></p>
           )}
@@ -247,6 +261,8 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
             <span className="text-slate-400">{report.length}/1000</span>
           </div>
         </div>
+
+        {asksForWeight(mission.category) && <RecyclingFields lang={lang} value={recycling} onChange={setRecycling} />}
 
         {/* Location */}
         <div className="grid gap-2">

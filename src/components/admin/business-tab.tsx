@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { formatBRL, PLAN_ORDER, type PlanId } from "@/lib/plans";
 import { PLAN_TEXT } from "@/lib/saas/plan-text";
+import { EVENT_PACKAGE_NAMES, isEventPackage } from "@/lib/saas/events";
 
 const PLAN_NAMES = PLAN_TEXT.pt.planNames;
 const STATUS_LABEL: Record<string, string> = { trialing: "Teste", active: "Ativo", past_due: "Vencido", canceled: "Cancelado" };
@@ -14,6 +15,10 @@ export interface BusinessData {
   /** Service fees of sponsored campaigns (BRL cents). */
   campaignFeesMonthCents: number;
   campaignFeesTotalCents: number;
+  /** One-off events paid by Pix (BRL cents); receivedMonth/Total are plans only. */
+  eventsMonthCents?: number;
+  eventsTotalCents?: number;
+  eventsPaidCount?: number;
   payingOrgs: number;
   trialOrgs: number;
   totalOrgs: number;
@@ -27,6 +32,9 @@ export interface BusinessData {
     reference: string;
     reportedAt: string | null;
     createdAt: string;
+    kind?: "plan" | "event";
+    eventPackage?: string | null;
+    eventTitle?: string | null;
   }[];
   orgs: {
     id: string;
@@ -60,8 +68,8 @@ export function BusinessTab({ data, actions, demoNote }: { data: BusinessData; a
           { label: "Receita recorrente (MRR)", value: formatBRL(data.mrrCents), hint: "planos ativos, anual ÷ 12" },
           {
             label: "Recebido este mês",
-            value: formatBRL(data.receivedMonthCents + data.campaignFeesMonthCents),
-            hint: `planos ${formatBRL(data.receivedMonthCents)} · campanhas ${formatBRL(data.campaignFeesMonthCents)} · total ${formatBRL(data.receivedTotalCents + data.campaignFeesTotalCents)}`,
+            value: formatBRL(data.receivedMonthCents + (data.eventsMonthCents ?? 0) + data.campaignFeesMonthCents),
+            hint: `planos ${formatBRL(data.receivedMonthCents)} · eventos ${formatBRL(data.eventsMonthCents ?? 0)} · campanhas ${formatBRL(data.campaignFeesMonthCents)} · total ${formatBRL(data.receivedTotalCents + (data.eventsTotalCents ?? 0) + data.campaignFeesTotalCents)}`,
           },
           { label: "Organizações pagantes", value: String(data.payingOrgs), hint: `${data.totalOrgs} no total` },
           { label: "Em teste grátis", value: String(data.trialOrgs), hint: "potenciais clientes" },
@@ -77,7 +85,7 @@ export function BusinessTab({ data, actions, demoNote }: { data: BusinessData; a
       <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
         <h2 className="font-bold text-slate-900">💰 Pix aguardando confirmação</h2>
         <p className="mt-1 text-xs text-slate-500">
-          Confira no extrato do banco se entrou um Pix com o valor e a referência abaixo, depois confirme. O plano é ativado na hora.
+          Confira no extrato do banco se entrou um Pix com o valor e a referência abaixo, depois confirme. O plano (ou o evento avulso) é liberado na hora.
         </p>
         {data.pendingInvoices.length === 0 ? (
           <p className="mt-3 text-sm text-slate-500">Nenhuma cobrança em aberto.</p>
@@ -146,7 +154,17 @@ function InvoiceRow({ invoice, onConfirm }: { invoice: BusinessData["pendingInvo
     <li className="flex flex-wrap items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-slate-800">
-          {invoice.orgName} · {PLAN_NAMES[invoice.plan]} {invoice.cycle === "yearly" ? "anual" : "mensal"}
+          {invoice.orgName} ·{" "}
+          {invoice.kind === "event" ? (
+            <span data-testid="invoice-event">
+              🎪 {isEventPackage(invoice.eventPackage) ? EVENT_PACKAGE_NAMES[invoice.eventPackage].pt : "Evento"}
+              {invoice.eventTitle ? ` · ${invoice.eventTitle}` : ""}
+            </span>
+          ) : (
+            <>
+              {PLAN_NAMES[invoice.plan]} {invoice.cycle === "yearly" ? "anual" : "mensal"}
+            </>
+          )}
         </p>
         <p className="text-xs text-slate-500">
           ref. <span className="font-mono font-bold text-slate-700">{invoice.reference}</span> · gerado em {fmtDate(invoice.createdAt)}

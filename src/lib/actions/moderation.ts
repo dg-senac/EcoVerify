@@ -15,6 +15,7 @@ import { issueCard } from "@/lib/cards-server";
 import { canReview } from "@/lib/nav";
 import { moderatorsEnabled } from "@/lib/staff-config";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
+import { parseWeightKg } from "@/lib/impact";
 
 export type ModerationActionState = { error?: string; success?: boolean };
 
@@ -65,6 +66,21 @@ export async function approveSubmissionAction(
   if (!submission) return { error: "not_found" };
   if (submission.status !== "pending") return { error: "already_reviewed" };
   if (submission.userId === moderator.id) return { error: "own_submission" };
+
+  // Recycling delivery: the reviewer may correct the declared weight after looking at the photo.
+  if (submission.material) {
+    const typed = String(formData.get("weightKg") ?? "").trim();
+    if (typed) {
+      const checked = parseWeightKg(typed);
+      if (checked === null) return { error: "weight_invalid" };
+      if (checked !== Number(submission.weightKg)) {
+        await db
+          .update(submissions)
+          .set({ weightKg: String(checked) })
+          .where(and(eq(submissions.id, submissionId), eq(submissions.status, "pending")));
+      }
+    }
+  }
 
   // Same transactional rules as the automatic verification (lib/review.ts).
   const approved = await approveSubmission(submissionId, { kind: "human", userId: moderator.id });

@@ -6,6 +6,7 @@ import { localizedDescription, localizedTitle, sponsorBalance, useStore, type Mi
 import { StatusBadge, card } from "./ui";
 import { FoneAmount } from "@/components/brand/fone";
 import { formatKm } from "@/lib/region";
+import { EventBadge } from "@/components/missions/event-badge";
 
 export const categoryStyles: Record<string, string> = {
   planting: "from-emerald-400 to-emerald-600",
@@ -46,6 +47,7 @@ export function MissionCard({ lang, mission, myStatus, distanceKm }: { lang: Lan
         )}
       </div>
       <h3 className="text-lg font-bold text-slate-900">{localizedTitle(mission, lang)}</h3>
+      <EventBadge lang={lang} mission={mission} />
       {mission.city && !anywhere && (
         <p className="flex items-center gap-1 text-xs font-medium text-slate-400">
           <MapPin className="h-3.5 w-3.5" /> {mission.city}

@@ -1,8 +1,9 @@
 import "server-only";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { missions, organizationMembers, organizations, pointsLedger, submissions, users } from "@/db/schema";
 import type { OrgRole } from "@/lib/saas/org-rules";
+import { EVENT_GRACE_HOURS, eventMemberAllowance } from "@/lib/saas/events";
 
 export type Organization = typeof organizations.$inferSelect;
 
@@ -63,8 +64,45 @@ export async function activeMissionCount(orgId: string): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(missions)
-    .where(and(eq(missions.organizationId, orgId), eq(missions.isActive, true)));
+    .where(
+      and(
+        eq(missions.organizationId, orgId),
+        eq(missions.isActive, true),
+        // Finished events don't take a slot of the plan's active missions.
+        sql`(${missions.endsAt} is null or ${missions.endsAt} > now() - make_interval(hours => ${EVENT_GRACE_HOURS}))`,
+      ),
+    );
   return row.n;
+}
+
+/** Extra member allowance from paid one-off events around now (src/lib/saas/events.ts). */
+export async function orgEventAllowance(orgId: string, now: Date = new Date()): Promise<number> {
+  const paid = await db
+    .select({ eventPaidAt: missions.eventPaidAt, eventPackage: missions.eventPackage, startsAt: missions.startsAt, endsAt: missions.endsAt })
+    .from(missions)
+    .where(and(eq(missions.organizationId, orgId), isNotNull(missions.eventPaidAt)));
+  return eventMemberAllowance(paid, now);
+}
+
+/** Events (missions with a time window) of an organization, with participation numbers. */
+export async function orgEvents(orgId: string) {
+  return db
+    .select({
+      id: missions.id,
+      title: missions.title,
+      category: missions.category,
+      startsAt: missions.startsAt,
+      endsAt: missions.endsAt,
+      eventPackage: missions.eventPackage,
+      eventPaidAt: missions.eventPaidAt,
+      isActive: missions.isActive,
+      people: sql<number>`(select count(distinct s.user_id)::int from submissions s where s.mission_id = ${missions.id} and s.status = 'approved')`,
+      actions: sql<number>`(select count(*)::int from submissions s where s.mission_id = ${missions.id} and s.status = 'approved')`,
+      pending: sql<number>`(select count(*)::int from submissions s where s.mission_id = ${missions.id} and s.status = 'pending')`,
+    })
+    .from(missions)
+    .where(and(eq(missions.organizationId, orgId), isNotNull(missions.startsAt)))
+    .orderBy(desc(missions.startsAt));
 }
 
 /** Points / approved actions earned on the organization's missions, per member. */
@@ -128,5 +166,10 @@ export async function orgImpact(orgId: string) {
     .from(submissions)
     .innerJoin(missions, eq(missions.id, submissions.missionId))
     .where(and(eq(missions.organizationId, orgId), eq(submissions.status, "approved")));
-  return { ...totals, byCategory, byMonth, since: first?.first ?? null };
+  const [recycled] = await db
+    .select({ kg: sql<string>`coalesce(sum(${submissions.weightKg}), 0)::text` })
+    .from(submissions)
+    .innerJoin(missions, eq(missions.id, submissions.missionId))
+    .where(and(eq(missions.organizationId, orgId), eq(submissions.status, "approved")));
+  return { ...totals, recycledKg: Number(recycled?.kg ?? 0), byCategory, byMonth, since: first?.first ?? null };
 }

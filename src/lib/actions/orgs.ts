@@ -23,7 +23,8 @@ import {
   orgHas,
   slugify,
 } from "@/lib/saas/org-rules";
-import { activeMissionCount, memberCount, membershipRole, orgById } from "@/lib/saas/orgs";
+import { activeMissionCount, memberCount, membershipRole, orgById, orgEventAllowance } from "@/lib/saas/orgs";
+import { parseEventWindow } from "@/lib/saas/events";
 
 export type OrgActionState = { error?: string; success?: boolean };
 
@@ -100,7 +101,7 @@ export async function joinOrganizationAction(_prev: OrgActionState, formData: Fo
   const [org] = await db.select().from(organizations).where(eq(organizations.inviteCode, code)).limit(1);
   if (!org) return { error: "invalid_code" };
   if (!(await membershipRole(org.id, user.id))) {
-    const limit = canAddMember(org, await memberCount(org.id));
+    const limit = canAddMember(org, await memberCount(org.id), new Date(), await orgEventAllowance(org.id));
     if (limit) return { error: limit };
     await db.insert(organizationMembers).values({ organizationId: org.id, userId: user.id, role: "member" }).onConflictDoNothing();
   }
@@ -195,10 +196,19 @@ export async function createOrgMissionAction(_prev: OrgActionState, formData: Fo
   if (scope === "local" && (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180)) {
     return { error: "invalid" };
   }
+  // Event (mutirão): proofs only count inside the window (src/lib/saas/events.ts).
+  let window: { startsAt: Date; endsAt: Date } | null = null;
+  if (formData.get("isEvent") === "on") {
+    const parsed = parseEventWindow(formData.get("startsAt"), formData.get("endsAt"));
+    if ("error" in parsed) return { error: parsed.error };
+    window = parsed;
+  }
   const limit = canActivateMission(managed.org, await activeMissionCount(orgId));
   if (limit) return { error: limit };
 
   await db.insert(missions).values({
+    startsAt: window?.startsAt ?? null,
+    endsAt: window?.endsAt ?? null,
     title,
     description,
     category,

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { Award, ExternalLink, FileBarChart, Users } from "lucide-react";
 import { db } from "@/db";
 import { invoices, missions, submissions, users } from "@/db/schema";
@@ -11,17 +11,20 @@ import type { AiChecks } from "@/lib/ai/decision";
 import { ORG_TEXT } from "@/lib/saas/org-text";
 import { PLAN_TEXT } from "@/lib/saas/plan-text";
 import { PLANS, hasFeature } from "@/lib/plans";
-import { canManage, canPromote, orgPlan } from "@/lib/saas/org-rules";
-import { activeMissionCount, membershipRole, orgBySlug, orgImpact, orgRanking } from "@/lib/saas/orgs";
+import { canManage, canPromote, memberLimit, orgPlan } from "@/lib/saas/org-rules";
+import { activeMissionCount, membershipRole, orgBySlug, orgEventAllowance, orgEvents, orgImpact, orgRanking } from "@/lib/saas/orgs";
 import { contactUrl, pixConfig } from "@/lib/saas/sales-config";
 import { pixPayload } from "@/lib/saas/pix";
 import { publicBaseUrl } from "@/lib/saas/base-url";
-import { cancelInvoiceAction, createInvoiceAction, reportInvoicePaidAction } from "@/lib/actions/billing";
+import { cancelInvoiceAction, createEventInvoiceAction, createInvoiceAction, reportInvoicePaidAction } from "@/lib/actions/billing";
 import { ModerationCard } from "@/components/moderation/moderation-card";
 import { BillingPanel } from "@/components/org/billing-panel";
+import { EventsPanel } from "@/components/org/events-panel";
+import { EventBadge } from "@/components/missions/event-badge";
+import { EVENT_PACKAGE_NAMES, EVENT_TEXT, eventPhase, eventUnlocked, isEventPackage } from "@/lib/saas/events";
 import { InviteBox, LeaveOrgButton, MemberControls, OrgMissionForm, OrgSettingsForm, ToggleMissionButton } from "@/components/org/org-controls";
 
-const TABS = ["overview", "missions", "moderation", "members", "plan", "report"] as const;
+const TABS = ["overview", "missions", "events", "moderation", "members", "plan", "report"] as const;
 type Tab = (typeof TABS)[number];
 
 export default async function OrganizationPage({
@@ -49,10 +52,11 @@ export default async function OrganizationPage({
   const tab: Tab = visibleTabs.find((t) => t === query.tab) ?? "overview";
   const accent = org.brandColor && hasFeature(plan, "branding") ? org.brandColor : null;
 
-  const [impact, ranking, activeCount, orgMissions] = await Promise.all([
+  const [impact, ranking, activeCount, eventAllowance, orgMissions] = await Promise.all([
     orgImpact(org.id),
     orgRanking(org.id, 200),
     activeMissionCount(org.id),
+    orgEventAllowance(org.id),
     db.select().from(missions).where(eq(missions.organizationId, org.id)).orderBy(desc(missions.isActive), desc(missions.createdAt)),
   ]);
   const [{ pendingCount }] = await db
@@ -65,6 +69,15 @@ export default async function OrganizationPage({
     .from(submissions)
     .where(and(eq(submissions.userId, user.id), inArray(submissions.status, ["pending", "approved"])));
   const done = new Set(mine.map((m) => m.missionId));
+  // My approved participations in events whose report/certificates are unlocked.
+  const myEventCerts = (
+    await db
+      .select({ submissionId: submissions.id, title: missions.title, startsAt: missions.startsAt, endsAt: missions.endsAt, eventPaidAt: missions.eventPaidAt })
+      .from(submissions)
+      .innerJoin(missions, eq(missions.id, submissions.missionId))
+      .where(and(eq(submissions.userId, user.id), eq(submissions.status, "approved"), eq(missions.organizationId, org.id), isNotNull(missions.startsAt)))
+      .orderBy(desc(missions.startsAt))
+  ).filter((row) => eventUnlocked(plan, row));
 
   const base = await publicBaseUrl();
   const inviteUrl = `${base}/org/entrar/${org.inviteCode}`;
@@ -144,12 +157,12 @@ export default async function OrganizationPage({
             <div className="grid gap-6 lg:grid-cols-2">
               <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
                 <h2 className="font-bold text-slate-900">{text.orgMissions}</h2>
-                {orgMissions.filter((m) => m.isActive).length === 0 ? (
+                {orgMissions.filter((m) => m.isActive && eventPhase(m) !== "closed").length === 0 ? (
                   <p className="mt-2 text-sm text-slate-500">{text.orgMissionsEmpty}</p>
                 ) : (
                   <ul className="mt-3 grid gap-2" data-testid="org-mission-list">
                     {orgMissions
-                      .filter((m) => m.isActive)
+                      .filter((m) => m.isActive && eventPhase(m) !== "closed")
                       .map((m) => (
                         <li key={m.id} className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
                           <span className="text-xl">{categoryEmoji[m.category] ?? "🌱"}</span>
@@ -158,6 +171,7 @@ export default async function OrganizationPage({
                             <p className="text-xs text-slate-500">
                               +{m.pointsReward} pts · {m.scope === "anywhere" ? text.scopeAnywhere : text.scopeLocal}
                             </p>
+                            <EventBadge lang={lang} mission={m} />
                           </div>
                           {done.has(m.id) ? (
                             <span className="text-xs font-bold text-emerald-700">✓</span>
@@ -193,6 +207,27 @@ export default async function OrganizationPage({
                 )}
               </section>
             </div>
+
+            {myEventCerts.length > 0 && (
+              <section className="rounded-2xl border border-violet-100 bg-violet-50/60 p-5" data-testid="my-event-certificates">
+                <h2 className="flex items-center gap-2 font-bold text-slate-900">
+                  <Award className="h-5 w-5 text-violet-600" /> {EVENT_TEXT[lang].certTitle}
+                </h2>
+                <ul className="mt-3 grid gap-2">
+                  {myEventCerts.map((c) => (
+                    <li key={c.submissionId} className="flex flex-wrap items-center gap-3 rounded-xl bg-white px-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900">🎪 {c.title}</p>
+                        <EventBadge lang={lang} mission={c} />
+                      </div>
+                      <Link href={`/certificado/evento/${c.submissionId}`} className="shrink-0 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-violet-700">
+                        {EVENT_TEXT[lang].certificate}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             {!manager && (
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -234,6 +269,7 @@ export default async function OrganizationPage({
                           {categoryLabels[m.category]?.[lang]} · +{m.pointsReward} pts ·{" "}
                           <span className={m.isActive ? "text-emerald-700" : "text-slate-400"}>{m.isActive ? text.active : text.inactive}</span>
                         </p>
+                        <EventBadge lang={lang} mission={m} />
                       </div>
                       <ToggleMissionButton lang={lang} missionId={m.id} active={m.isActive} />
                     </li>
@@ -243,6 +279,8 @@ export default async function OrganizationPage({
             </section>
           </div>
         )}
+
+        {tab === "events" && manager && <EventsTab org={org} lang={lang} isOwner={role === "owner"} />}
 
         {tab === "moderation" && manager && <ModerationTab orgId={org.id} lang={lang} userId={user.id} />}
 
@@ -255,7 +293,7 @@ export default async function OrganizationPage({
                   <Users className="h-5 w-5" /> {text.tabs.members}
                 </h2>
                 <span className="text-xs font-semibold text-slate-500" data-testid="member-usage">
-                  {text.usage(ranking.length, PLANS[plan].maxMembers)}
+                  {text.usage(ranking.length, memberLimit(org, eventAllowance))}
                 </span>
               </div>
               {!canPromote(org) && role === "owner" && <p className="mt-1 text-xs text-slate-500">{text.teamNeedsPlan}</p>}
@@ -328,6 +366,9 @@ async function ModerationTab({ orgId, lang, userId }: { orgId: string; lang: "pt
       id: submissions.id,
       photoUrl: submissions.photoUrl,
       report: submissions.report,
+      material: submissions.material,
+      weightKg: submissions.weightKg,
+      declaredWeightKg: submissions.declaredWeightKg,
       latitude: submissions.latitude,
       longitude: submissions.longitude,
       submittedAt: submissions.submittedAt,
@@ -380,7 +421,12 @@ async function ModerationTab({ orgId, lang, userId }: { orgId: string; lang: "pt
 
 async function PlanTab({ org, lang, isOwner }: { org: NonNullable<Awaited<ReturnType<typeof orgBySlug>>>; lang: "pt" | "en" | "es"; isOwner: boolean }) {
   const pix = pixConfig();
-  const rows = await db.select().from(invoices).where(eq(invoices.organizationId, org.id)).orderBy(desc(invoices.createdAt)).limit(24);
+  const rows = await db
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.organizationId, org.id), eq(invoices.kind, "plan")))
+    .orderBy(desc(invoices.createdAt))
+    .limit(24);
   return (
     <BillingPanel
       lang={lang}
@@ -408,6 +454,69 @@ async function PlanTab({ org, lang, isOwner }: { org: NonNullable<Awaited<Return
             : null,
       }))}
       onCreate={createInvoiceAction}
+      onReport={reportInvoicePaidAction}
+      onCancel={cancelInvoiceAction}
+    />
+  );
+}
+
+async function EventsTab({ org, lang, isOwner }: { org: NonNullable<Awaited<ReturnType<typeof orgBySlug>>>; lang: "pt" | "en" | "es"; isOwner: boolean }) {
+  const pix = pixConfig();
+  const [events, pendingInvoices] = await Promise.all([
+    orgEvents(org.id),
+    db
+      .select()
+      .from(invoices)
+      .where(and(eq(invoices.organizationId, org.id), eq(invoices.kind, "event"), eq(invoices.status, "pending"))),
+  ]);
+  return (
+    <EventsPanel
+      lang={lang}
+      plan={orgPlan(org)}
+      isOwner={isOwner}
+      pixAvailable={!!pix}
+      contactUrl={contactUrl()}
+      reportBase="/evento"
+      events={events.map((e) => {
+        const invoice = pendingInvoices.find((i) => i.missionId === e.id) ?? null;
+        return {
+          id: e.id,
+          title: e.title,
+          category: e.category,
+          startsAt: e.startsAt!.toISOString(),
+          endsAt: e.endsAt!.toISOString(),
+          eventPackage: e.eventPackage,
+          eventPaidAt: e.eventPaidAt?.toISOString() ?? null,
+          people: e.people,
+          actions: e.actions,
+          pending: e.pending,
+          invoice: invoice
+            ? {
+                id: invoice.id,
+                plan: invoice.plan,
+                billingCycle: invoice.billingCycle,
+                amountCents: invoice.amountCents,
+                status: invoice.status,
+                reference: invoice.reference,
+                reportedAt: invoice.reportedAt?.toISOString() ?? null,
+                createdAt: invoice.createdAt.toISOString(),
+                paidAt: null,
+                eventPackage: invoice.eventPackage,
+                pixPayload: pix
+                  ? pixPayload({
+                      key: pix.key,
+                      name: pix.name,
+                      city: pix.city,
+                      amountCents: invoice.amountCents,
+                      txid: invoice.reference,
+                      description: `EcoVerify evento ${isEventPackage(invoice.eventPackage) ? EVENT_PACKAGE_NAMES[invoice.eventPackage].pt : ""}`.trim(),
+                    })
+                  : null,
+              }
+            : null,
+        };
+      })}
+      onCreate={createEventInvoiceAction}
       onReport={reportInvoicePaidAction}
       onCancel={cancelInvoiceAction}
     />

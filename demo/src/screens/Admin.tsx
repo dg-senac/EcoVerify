@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { BarChart3, Crosshair, Loader2, Plus, Users, Clock, CheckCircle2, Coins, Hourglass, Target } from "lucide-react";
-import { categoryEmoji, categoryLabels, t } from "@/lib/i18n";
+import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
 import { formatDate, formatFone } from "@/lib/utils";
 import type { Role } from "@/lib/nav";
 import { dt, errorText, type DemoKey } from "../i18n";
@@ -29,6 +29,10 @@ import {
   toggleMission,
   topUpSponsor,
   treasuryMonthCents,
+  impactRows,
+  createOffer,
+  regenerateOfferToken,
+  toggleOffer,
   updatePayoutSettings,
   userPayout,
   useLang,
@@ -50,17 +54,80 @@ import { BusinessTab, type BusinessData } from "@/components/admin/business-tab"
 import { PLANS } from "@/lib/plans";
 import { orgPlan } from "@/lib/saas/org-rules";
 import { monthStart } from "@/lib/payout-rules";
+import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
+import { dataTables, recyclingSummary } from "@/lib/impact";
+import { BenefitsTab, type AdminOffer } from "@/components/admin/benefits-tab";
 
-type Tab = "metrics" | "business" | "missions" | "users" | "rewards";
+type Tab = "metrics" | "business" | "benefits" | "missions" | "users" | "rewards" | "recycling" | "data";
 export const ADMIN_TAB_KEY = "ecoverify-admin-tab";
 const BUSINESS_LABEL = { pt: "Negócios", en: "Business", es: "Negocios" };
+const EXTRA_TABS: Partial<Record<Tab, { icon: string; label: Record<Lang, string> }>> = {
+  business: { icon: "💼", label: BUSINESS_LABEL },
+  benefits: { icon: "🎁", label: { pt: "Benefícios", en: "Perks", es: "Beneficios" } },
+  recycling: { icon: "♻️", label: { pt: "Reciclagem", en: "Recycling", es: "Reciclaje" } },
+  data: { icon: "🗺️", label: { pt: "Dados", en: "Data", es: "Datos" } },
+};
+
+/** Same panel as the web app (src/components/admin/benefits-tab.tsx); the partner link opens #/parceiro/<token>. */
+function DemoBenefitsTab() {
+  const offers = useStore<AdminOffer[]>((s) => {
+    const since = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    return (s.offers ?? [])
+      .map((o) => {
+        const codes = (s.redemptions ?? []).filter((r) => r.offerId === o.id);
+        return {
+          ...o,
+          generated: codes.length,
+          used: codes.filter((r) => r.usedAt).length,
+          used30: codes.filter((r) => r.usedAt && new Date(r.usedAt).getTime() > since).length,
+        };
+      })
+      .sort((a, b) => Number(b.isActive) - Number(a.isActive) || b.createdAt.localeCompare(a.createdAt));
+  });
+  return (
+    <BenefitsTab
+      offers={offers}
+      partnerBase={`${window.location.origin}${window.location.pathname}#/parceiro/`}
+      demoNote="Demonstração: comércios de exemplo. Resgate um benefício como Maria, abra o link de validação do parceiro e digite o código — Maria recebe a notificação."
+      actions={{
+        createOffer: async (input) => createOffer(input),
+        toggleOffer: async (id) => toggleOffer(id),
+        regenerateToken: async (id) => regenerateOfferToken(id),
+      }}
+    />
+  );
+}
+
+/** Same panels as the web app (src/components/admin/impact-tabs.tsx); the CSV is built in the browser. */
+function DemoRecyclingTab() {
+  const all = useStore((s) => impactRows(s));
+  return (
+    <RecyclingTab
+      summary={recyclingSummary(all)}
+      rows={all}
+      demoNote="Demonstração: entregas de exemplo. Aprove a entrega da Beatriz na Moderação (dá para corrigir o peso) e veja os números mudarem aqui."
+    />
+  );
+}
+
+function DemoDataTab() {
+  const tables = useStore((s) => dataTables(impactRows(s)));
+  return (
+    <DataTab
+      tables={tables}
+      demoNote="Demonstração: poucos participantes de exemplo, por isso vários grupos aparecem ocultos (menos de 5 pessoas). É exatamente o que protege a identidade de cada um."
+    />
+  );
+}
 
 /** Same panel as the web app (src/components/admin/business-tab.tsx), fed by the local store. */
 function DemoBusinessTab() {
   const data = useStore<BusinessData>((s) => {
     const orgs = (s.orgs ?? []).map((o) => ({ ...o, effective: orgPlan(o) }));
     const paying = orgs.filter((o) => o.effective !== "free" && o.subscriptionStatus === "active");
-    const paid = (s.invoices ?? []).filter((i) => i.status === "paid");
+    const paidAll = (s.invoices ?? []).filter((i) => i.status === "paid");
+    const paid = paidAll.filter((i) => i.kind !== "event");
+    const paidEvents = paidAll.filter((i) => i.kind === "event");
     const month = monthStart(new Date()).getTime();
     return {
       mrrCents: paying.reduce((sum, o) => sum + (o.billingCycle === "yearly" && PLANS[o.effective].yearlyCents ? Math.round(PLANS[o.effective].yearlyCents! / 12) : (PLANS[o.effective].monthlyCents ?? 0)), 0),
@@ -68,6 +135,9 @@ function DemoBusinessTab() {
       receivedTotalCents: paid.reduce((sum, i) => sum + i.amountCents, 0),
       campaignFeesMonthCents: 0,
       campaignFeesTotalCents: 0,
+      eventsMonthCents: paidEvents.filter((i) => i.paidAt && new Date(i.paidAt).getTime() >= month).reduce((sum, i) => sum + i.amountCents, 0),
+      eventsTotalCents: paidEvents.reduce((sum, i) => sum + i.amountCents, 0),
+      eventsPaidCount: paidEvents.length,
       payingOrgs: paying.length,
       trialOrgs: orgs.filter((o) => o.effective !== "free" && o.subscriptionStatus === "trialing").length,
       totalOrgs: orgs.length,
@@ -75,7 +145,7 @@ function DemoBusinessTab() {
         .filter((i) => i.status === "pending")
         .map((i) => {
           const org = orgs.find((o) => o.id === i.orgId);
-          return { id: i.id, orgName: org?.name ?? "—", orgSlug: org?.slug ?? "", plan: i.plan, cycle: i.billingCycle, amountCents: i.amountCents, reference: i.reference, reportedAt: i.reportedAt, createdAt: i.createdAt };
+          return { id: i.id, orgName: org?.name ?? "—", orgSlug: org?.slug ?? "", plan: i.plan, cycle: i.billingCycle, amountCents: i.amountCents, reference: i.reference, reportedAt: i.reportedAt, createdAt: i.createdAt, kind: i.kind ?? "plan", eventPackage: i.eventPackage ?? null, eventTitle: i.missionId ? (s.missions.find((m) => m.id === i.missionId)?.title ?? null) : null };
         }),
       orgs: orgs.map((o) => ({
         id: o.id,
@@ -109,7 +179,9 @@ export function AdminScreen({ user }: { user: User }) {
     // The presentation tour opens the Rewards tab directly.
     const wanted = sessionStorage.getItem(ADMIN_TAB_KEY);
     sessionStorage.removeItem(ADMIN_TAB_KEY);
-    return wanted === "rewards" || wanted === "missions" || wanted === "users" || wanted === "business" ? wanted : "metrics";
+    return wanted === "rewards" || wanted === "missions" || wanted === "users" || wanted === "business" || wanted === "recycling" || wanted === "data"
+      ? wanted
+      : "metrics";
   });
   const businessBadge = useStore((st) => (st.invoices ?? []).filter((i) => i.status === "pending" && i.reportedAt).length);
   // Appeals waiting for an answer: card appeals plus blocked/suspended accounts.
@@ -121,9 +193,12 @@ export function AdminScreen({ user }: { user: User }) {
   const tabs: { id: Tab; key: "admin_tab_metrics" | "admin_tab_missions" | "admin_tab_users" | "admin_tab_rewards" | null }[] = [
     { id: "metrics", key: "admin_tab_metrics" },
     { id: "business", key: null },
+    { id: "benefits", key: null },
     { id: "missions", key: "admin_tab_missions" },
     { id: "users", key: "admin_tab_users" },
     { id: "rewards", key: "admin_tab_rewards" },
+    { id: "recycling", key: null },
+    { id: "data", key: null },
   ];
   return (
     <>
@@ -136,15 +211,20 @@ export function AdminScreen({ user }: { user: User }) {
             onClick={() => setTab(tb.id)}
             className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition ${tab === tb.id ? "bg-emerald-500 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}
           >
-            {tb.key ? `${t(lang, tb.key)}${tb.id === "users" && usersBadge ? ` (${usersBadge})` : ""}` : `💼 ${BUSINESS_LABEL[lang]}${businessBadge ? ` (${businessBadge})` : ""}`}
+            {tb.key
+              ? `${t(lang, tb.key)}${tb.id === "users" && usersBadge ? ` (${usersBadge})` : ""}`
+              : `${EXTRA_TABS[tb.id]?.icon} ${EXTRA_TABS[tb.id]?.label[lang]}${tb.id === "business" && businessBadge ? ` (${businessBadge})` : ""}`}
           </button>
         ))}
       </div>
       {tab === "metrics" && <MetricsTab />}
       {tab === "business" && <DemoBusinessTab />}
+      {tab === "benefits" && <DemoBenefitsTab />}
       {tab === "missions" && <MissionsTab />}
       {tab === "users" && <UsersTab me={user} />}
       {tab === "rewards" && <RewardsTab />}
+      {tab === "recycling" && <DemoRecyclingTab />}
+      {tab === "data" && <DemoDataTab />}
     </>
   );
 }

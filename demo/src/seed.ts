@@ -1,10 +1,11 @@
-import type { ChatMessage, DemoInvoice, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
+import type { ChatMessage, DemoInvoice, DemoOffer, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
+import type { Material } from "@/lib/impact";
 
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 7;
+export const STATE_VERSION = 10;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -237,6 +238,37 @@ export function createSeed(): State {
     };
   };
   const [boaViagem, jaqueira, marcoZero, donaLindu, capibaribe] = missions;
+  const olindaOleo = missions.find((m) => m.id === "m-olinda-oleo") ?? marcoZero;
+  /** Approved deliveries of the example people in the last months (no FONE: already paid out before the demo). */
+  const impactHistory = (): Submission[] => {
+    const entries: [string, Mission, Material, number, number][] = [
+      ["u-bot-1", marcoZero, "plastic", 6.0, 20],
+      ["u-bot-2", marcoZero, "paper", 8.5, 34],
+      ["u-bot-3", marcoZero, "glass", 5.0, 47],
+      ["u-bot-5", marcoZero, "plastic", 3.0, 15],
+      ["u-bot-1", olindaOleo, "oil", 2.0, 52],
+      ["u-bot-2", olindaOleo, "oil", 1.5, 70],
+      ["u-bot-4", olindaOleo, "oil", 3.0, 25],
+    ];
+    return entries.map(([userId, mission, material, kg, days]) =>
+      sub({
+        id: `s-hist-${userId}-${mission.id}`,
+        userId,
+        missionId: mission.id,
+        at: mission,
+        photo: placeholderPhoto(material === "oil" ? "🛢️" : "♻️", "#2dd4bf", "#0f766e", "Entrega de recicláveis"),
+        report: "Separei o material em casa ao longo das semanas e entreguei no ponto de coleta indicado na missão, com foto no local.",
+        material,
+        weightKg: kg,
+        declaredWeightKg: kg,
+        status: "approved",
+        reviewedBy: DEMO_IDS.moderator,
+        rejectionReason: null,
+        submittedAt: ago(days * DAY + 3 * 60 * 60 * 1000),
+        reviewedAt: ago(days * DAY),
+      }),
+    );
+  };
 
   const submissions: Submission[] = [
     // Waiting for moderation (log in as moderator to review them)
@@ -273,6 +305,9 @@ export function createSeed(): State {
       at: marcoZero,
       photo: placeholderPhoto("♻️", "#2dd4bf", "#0d9488", "Recicláveis separados"),
       report: "Separei garrafas PET, latinhas e papelão durante a semana e entreguei tudo no ponto de coleta seletiva do Marco Zero.",
+      material: "plastic",
+      weightKg: 4.5,
+      declaredWeightKg: 4.5,
       status: "pending",
       reviewedBy: null,
       rejectionReason: null,
@@ -287,6 +322,9 @@ export function createSeed(): State {
       at: marcoZero,
       photo: placeholderPhoto("♻️", "#2dd4bf", "#0f766e", "Garrafas e latinhas"),
       report: "Juntei as garrafas e latinhas lá de casa durante duas semanas e levei ao ponto de coleta do Marco Zero no domingo.",
+      material: "metal",
+      weightKg: 2.5,
+      declaredWeightKg: 2.5,
       status: "approved",
       reviewedBy: DEMO_IDS.moderator,
       rejectionReason: null,
@@ -346,6 +384,8 @@ export function createSeed(): State {
       submittedAt: ago(2 * DAY),
       reviewedAt: ago(1 * DAY),
     }),
+    // Older history: feeds Admin → Reciclagem and Admin → Dados (anonymous aggregates need 5+ people).
+    ...impactHistory(),
   ];
 
   const rewards: Reward[] = [
@@ -455,9 +495,173 @@ export function createSeed(): State {
     orgSub("s-org-4", "u-bot-4", schoolMissions[0], 1, "🔋", "Trouxe as baterias do controle"),
     orgSub("s-org-5", DEMO_IDS.citizen, schoolMissions[0], 1, "🔋", "Levei as pilhas lá de casa"),
   );
+  /*
+   * One-off events (mutirões, docs/MONETIZACAO.md §1): a free community collective run by Maria with a
+   * finished beach clean-up (report locked until the event is paid) and an upcoming one; the school
+   * (paid plan, report included) has a recycling drive happening right now.
+   */
+  const HOUR = 3600000;
+  const collective: DemoOrg = {
+    id: "org-praia",
+    name: "Coletivo Praia Limpa (exemplo)",
+    slug: "coletivo-praia-limpa",
+    type: "ngo",
+    city: "Recife",
+    plan: "free",
+    billingCycle: "monthly",
+    subscriptionStatus: "active",
+    currentPeriodEnd: null,
+    trialUsed: false,
+    inviteCode: "PRAIA2026",
+    ownerId: DEMO_IDS.citizen,
+    createdAt: ago(20 * DAY),
+  };
+  orgMembers.push(
+    orgMember(collective.id, DEMO_IDS.citizen, "owner", 20),
+    ...["u-bot-1", "u-bot-2", "u-bot-3", "u-bot-4", "u-bot-5"].map((id, i) => orgMember(collective.id, id, "member", 18 - i)),
+  );
+  /** Event on a local day/time: `dayOffset` days from today at `hour`:00, lasting `hours`. */
+  const at = (dayOffset: number, hour: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + dayOffset);
+    d.setHours(hour, 0, 0, 0);
+    return d.getTime();
+  };
+  const eventMission = (id: string, orgId: string, title: string, description: string, category: Mission["category"], points: number, start: number, hours: number): Mission => ({
+    ...orgMission(id, title, description, category, points, 6),
+    organizationId: orgId,
+    sponsorName: null,
+    startsAt: new Date(start).toISOString(),
+    endsAt: new Date(start + hours * HOUR).toISOString(),
+  });
+  const today = new Date().getDay();
+  const lastSaturday = -(((today + 1) % 7) || 7);
+  const nextSaturday = ((6 - today + 7) % 7) || 7;
+  const beachCleanup = eventMission(
+    "m-ev-praia",
+    collective.id,
+    "Mutirão de limpeza na praia de Boa Viagem",
+    "Encontro no Posto 7. Recolha o lixo da faixa de areia e fotografe o saco cheio junto com a equipe.",
+    "cleanup",
+    50,
+    at(lastSaturday, 7),
+    4,
+  );
+  const parkCleanup = eventMission(
+    "m-ev-jaqueira",
+    collective.id,
+    "Mutirão no Parque da Jaqueira",
+    "Limpeza dos canteiros e do lago. Traga luvas e garrafa d'água; sacos por conta do coletivo.",
+    "cleanup",
+    50,
+    at(nextSaturday, 8),
+    4,
+  );
+  const schoolDrive = eventMission(
+    "m-ev-feira",
+    school.id,
+    "Gincana de recicláveis da Feira de Ciências",
+    "Traga recicláveis separados para a gincana no pátio e fotografe a entrega na mesa da sua turma.",
+    "recycling",
+    40,
+    // Happening now: started at the top of the previous hour, ends in a few hours.
+    at(0, new Date().getHours() - 1),
+    5,
+  );
+  missions.push(beachCleanup, parkCleanup, schoolDrive);
+  const beachPeople: [string, string][] = [
+    ["u-bot-1", "Recolhi garrafas e tampinhas perto do Posto 7"],
+    ["u-bot-2", "Dois sacos de plástico e isopor"],
+    ["u-bot-3", "Bitucas de cigarro e canudos na areia"],
+    ["u-bot-4", "Redes de pesca e latas perto das pedras"],
+    ["u-bot-5", "Limpei a área do quiosque com a equipe"],
+  ];
+  submissions.push(
+    ...beachPeople.map(([userId, caption], i) =>
+      sub({
+        id: `s-ev-praia-${i + 1}`,
+        userId,
+        missionId: beachCleanup.id,
+        at: beachCleanup,
+        photo: placeholderPhoto(["🧴", "🛍️", "🚬", "🎣", "🏖️"][i], "#38bdf8", "#2456d0", caption),
+        report: `${caption}. Participei do mutirão do coletivo na praia de Boa Viagem e separei o lixo recolhido.`,
+        status: "approved",
+        reviewedBy: DEMO_IDS.citizen,
+        rejectionReason: null,
+        submittedAt: new Date(new Date(beachCleanup.startsAt!).getTime() + (i + 1) * 35 * 60000).toISOString(),
+        reviewedAt: new Date(new Date(beachCleanup.endsAt!).getTime() + 2 * HOUR).toISOString(),
+        decidedBy: "human",
+      }),
+    ),
+  );
   const invoices: DemoInvoice[] = [
     { id: "inv-recicla-1", orgId: company.id, plan: "business", billingCycle: "monthly", amountCents: 34900, status: "paid", reference: "EVDEMO2K7Q9X", reportedAt: ago(12 * DAY), createdAt: ago(12 * DAY), paidAt: ago(12 * DAY) },
     { id: "inv-recicla-0", orgId: company.id, plan: "business", billingCycle: "monthly", amountCents: 34900, status: "paid", reference: "EVDEMO8M3T4R", reportedAt: ago(42 * DAY), createdAt: ago(42 * DAY), paidAt: ago(42 * DAY) },
+  ];
+
+  // Local business benefits (Benefícios): one featured 18+, one open to all ages, one locked by points.
+  const offers: DemoOffer[] = [
+    {
+      id: "of-cafe",
+      partnerName: "Café Verde do Recife (exemplo)",
+      title: "Café coado grátis na compra de um bolo",
+      description: "Válido de segunda a sexta, das 8h às 18h. Um por pessoa, não cumulativo com outras promoções.",
+      kind: "food",
+      city: "Recife",
+      address: "Rua da Aurora, 300 — Boa Vista",
+      minPoints: 50,
+      adultsOnly: true,
+      maxRedemptions: 100,
+      expiresAt: null,
+      featured: true,
+      monthlyFeeCents: 14900,
+      partnerToken: "cafeverderecifedemoparce",
+      isActive: true,
+      createdAt: ago(25 * DAY),
+    },
+    {
+      id: "of-livraria",
+      partnerName: "Livraria da Jaqueira (exemplo)",
+      title: "15% em livros de ciência e natureza",
+      description: "Mostre o código no caixa. Vale para livros das seções de ciência, natureza e infantojuvenil.",
+      kind: "culture",
+      city: "Recife",
+      address: "Parque da Jaqueira — Rua do Futuro",
+      minPoints: 30,
+      adultsOnly: false,
+      maxRedemptions: null,
+      expiresAt: new Date(Date.now() + 60 * DAY).toISOString(),
+      featured: false,
+      monthlyFeeCents: 4900,
+      partnerToken: "livrariajaqueirademopar2",
+      isActive: true,
+      createdAt: ago(18 * DAY),
+    },
+    {
+      id: "of-bike",
+      partnerName: "Bike Point Boa Viagem (exemplo)",
+      title: "Revisão de bicicleta com 20% de desconto",
+      description: "Revisão completa (freios, câmbio e calibragem). Agende pelo WhatsApp da loja e mostre o código.",
+      kind: "bike",
+      city: "Recife",
+      address: "Av. Conselheiro Aguiar, 1200 — Boa Viagem",
+      minPoints: 150,
+      adultsOnly: true,
+      maxRedemptions: 40,
+      expiresAt: null,
+      featured: false,
+      monthlyFeeCents: 4900,
+      partnerToken: "bikepointboaviagemdemo22",
+      isActive: true,
+      createdAt: ago(10 * DAY),
+    },
+  ];
+  const redemptions: DemoRedemption[] = [
+    { id: "rd-1", offerId: "of-cafe", userId: "u-bot-1", code: "JQ7KM4XP", createdAt: ago(9 * DAY), usedAt: ago(8 * DAY) },
+    { id: "rd-2", offerId: "of-cafe", userId: "u-bot-2", code: "R8TW2ZNA", createdAt: ago(6 * DAY), usedAt: ago(5 * DAY) },
+    { id: "rd-3", offerId: "of-cafe", userId: "u-bot-3", code: "HV5CE9DS", createdAt: ago(2 * DAY), usedAt: null },
+    { id: "rd-4", offerId: "of-bike", userId: "u-bot-1", code: "PX3GU6WB", createdAt: ago(4 * DAY), usedAt: ago(3 * DAY) },
+    { id: "rd-5", offerId: "of-livraria", userId: "u-bot-4", code: "MK8YT2QF", createdAt: ago(3 * DAY), usedAt: null },
   ];
 
   const notifications: Notification[] = [
@@ -493,7 +697,7 @@ export function createSeed(): State {
     missionRequests: [],
     seededCities: [],
     payoutSettings: { minPayoutFone: 5, holdDays: 7, monthlyBudgetFone: 500, maxFonePerUserMonth: 100 },
-    orgs: [school, company],
+    orgs: [school, company, collective],
     orgMembers,
     invoices,
     sponsors: [{ id: "sp-recicla", name: "Cooperativa Recicla PE (exemplo)", budgetFone: "30.00", isActive: true, createdAt: ago(20 * DAY) }],
@@ -518,6 +722,8 @@ export function createSeed(): State {
       },
     ],
     moderatorsEnabled: true,
+    offers,
+    redemptions,
   };
 }
 

@@ -2,6 +2,7 @@ import { categoryEmoji, t, type Lang } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { composeRejectionMessage } from "@/lib/ai/decision";
 import { AppealForm } from "@/components/submissions/appeal-form";
+import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS, type Material } from "@/lib/impact";
 
 const statusStyles: Record<string, { bg: string; text: string; dot: string }> = {
   pending: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500" },
@@ -18,6 +19,9 @@ export function SubmissionCard({
     id: string;
     photoUrl: string;
     report: string;
+    material?: Material | null;
+    weightKg?: string | null;
+    declaredWeightKg?: string | null;
     status: string;
     rejectionReason: string | null;
     rejectionCode: string | null;
@@ -69,6 +73,14 @@ export function SubmissionCard({
         </div>
         <p className="mt-1 text-xs text-slate-400">{formatDate(submission.submittedAt, lang)}</p>
         <p className="mt-2 text-sm text-slate-600 line-clamp-2">{submission.report}</p>
+        {submission.material && (
+          <p className="mt-2 text-xs font-semibold text-emerald-700" data-testid="delivery">
+            {MATERIAL_EMOJI[submission.material]} {MATERIAL_LABELS[submission.material][lang]} · {formatKg(Number(submission.weightKg ?? 0), lang)}
+            {submission.declaredWeightKg && submission.weightKg && Number(submission.declaredWeightKg) !== Number(submission.weightKg) && (
+              <span className="font-normal text-slate-400"> ({t(lang, "recycling_weight_corrected")})</span>
+            )}
+          </p>
+        )}
         {submission.status === "rejected" && reasonText && (
           <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
             {reasonText}

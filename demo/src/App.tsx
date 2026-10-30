@@ -21,7 +21,8 @@ import { ProfileScreen } from "./screens/Profile";
 import { SettingsScreen } from "./screens/Settings";
 import { LegalScreen } from "./screens/Legal";
 import { TransparencyScreen } from "./screens/Transparency";
-import { CertificateScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
+import { BenefitsScreen, PartnerScreen } from "./screens/Benefits";
+import { CertificateScreen, EventCertificateScreen, EventReportScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
 
 import { THEME_COLORS } from "@/lib/theme";
 
@@ -83,6 +84,10 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
   if (path === "/org/nova") return <OrgNewScreen user={user} />;
   const org = matchRoute("/org/:slug", path) ?? matchRoute("/org/:slug/:tab", path);
   if (org) return <OrgScreen key={org.slug} user={user} slug={org.slug} tab={org.tab} />;
+  const eventReport = matchRoute("/evento/:id", path);
+  if (eventReport) return <EventReportScreen user={user} missionId={eventReport.id} />;
+  const eventCertificate = matchRoute("/certificado/evento/:id", path);
+  if (eventCertificate) return <EventCertificateScreen submissionId={eventCertificate.id} />;
   const certificate = matchRoute("/certificado/:id", path);
   if (certificate) return <CertificateScreen memberId={certificate.id} />;
 
@@ -95,6 +100,8 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
       return <SubmissionsScreen user={user} />;
     case "/ranking":
       return <RankingScreen user={user} />;
+    case "/beneficios":
+      return <BenefitsScreen user={user} />;
     case "/community":
       return <CommunityScreen user={user} />;
     case "/notifications":
@@ -122,10 +129,14 @@ export function App() {
   useEffect(() => {
     onStorageError(() => toast(dt(lang, "demo_storage_full"), "error"));
   }, [lang]);
+  // Partner page: public (no login), like /parceiro/<token> on the web.
+  const partner = matchRoute("/parceiro/:token", path);
 
   return (
     <>
-      {path === "/termos" || path === "/privacidade" ? (
+      {partner ? (
+        <PartnerScreen key={partner.token} token={partner.token} />
+      ) : path === "/termos" || path === "/privacidade" ? (
         <LegalScreen doc={path === "/termos" ? "terms" : "privacy"} />
       ) : path === "/transparencia" ? (
         <TransparencyScreen />
@@ -138,7 +149,7 @@ export function App() {
       )}
       <TourPanel />
       <Toaster />
-      <AppSplash lang={lang} onboarding={!OPENED_WITH_TOUR} />
+      {!partner && <AppSplash lang={lang} onboarding={!OPENED_WITH_TOUR} />}
     </>
   );
 }

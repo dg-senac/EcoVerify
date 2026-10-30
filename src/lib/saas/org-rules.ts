@@ -57,8 +57,14 @@ export function orgHas(org: OrgLike, feature: PlanFeature, now: Date = new Date(
 
 export type LimitError = "member_limit" | "mission_limit";
 
-export function canAddMember(org: OrgLike, currentMembers: number, now: Date = new Date()): LimitError | null {
+/** Member limit of the plan, raised by a paid one-off event around now (eventAllowance, see saas/events.ts). */
+export function memberLimit(org: OrgLike, eventAllowance = 0, now: Date = new Date()): number | null {
   const max = PLANS[orgPlan(org, now)].maxMembers;
+  return max === null ? null : Math.max(max, eventAllowance);
+}
+
+export function canAddMember(org: OrgLike, currentMembers: number, now: Date = new Date(), eventAllowance = 0): LimitError | null {
+  const max = memberLimit(org, eventAllowance, now);
   return max !== null && currentMembers >= max ? "member_limit" : null;
 }
 
