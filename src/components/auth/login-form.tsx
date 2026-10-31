@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState, useEffect, useRef } from "react";
+import { useActionState, useState } from "react";
 import { loginAction, type ActionState } from "@/lib/actions/auth";
-import { t, type Lang, LANGS } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
+import { GuestLangMenu } from "@/components/auth/guest-lang-menu";
 
 const initialState: ActionState = {};
 
@@ -20,52 +21,9 @@ export function LoginForm({
 }) {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
   const [currentLang, setCurrentLang] = useState<Lang>(lang);
-  const [showLangMenu, setShowLangMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowLangMenu(false);
-      }
-    }
-
-    if (showLangMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showLangMenu]);
-
   return (
     <div className="rounded-3xl bg-white p-8 shadow-[0_20px_50px_rgba(16,24,40,0.08)] card-surface border border-black/5">
-      <div className="flex justify-end relative" ref={menuRef}>
-        <button 
-          onClick={() => setShowLangMenu(!showLangMenu)}
-          className="text-xl text-slate-500 hover:text-slate-700 transition-colors"
-        >
-          ⚙️
-        </button>
-        {showLangMenu && (
-          <div className="absolute right-0 top-8 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-10 min-w-[150px]">
-            {LANGS.map((langOption) => (
-              <button
-                key={langOption.value}
-                onClick={() => {
-                  setCurrentLang(langOption.value);
-                  setShowLangMenu(false);
-                }}
-                className="w-full px-4 py-2 text-left hover:bg-slate-50 flex items-center gap-2"
-              >
-                <span>{langOption.flag}</span>
-                <span className="text-sm">{langOption.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <GuestLangMenu value={currentLang} onChange={setCurrentLang} />
       <h1 className="text-2xl font-bold text-slate-900">{t(currentLang, "login_title")}</h1>
       <p className="mt-1 text-sm text-slate-500">{t(currentLang, "tagline")}</p>
 

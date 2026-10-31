@@ -14,6 +14,7 @@ import { sendVerificationEmail } from "@/lib/account-email";
 import { createAuthToken } from "@/lib/auth-tokens";
 import { isSuspended } from "@/lib/cards";
 import { TERMS_VERSION } from "@/lib/legal";
+import { DEFAULT_LANG, isLang } from "@/lib/i18n";
 
 export type ActionState = { error?: string; success?: boolean };
 
@@ -82,8 +83,8 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
   // LGPD: explicit acceptance of the Terms/Privacy Policy and minimum age (guardian if under 18).
   if (formData.get("acceptTerms") !== "on") return { error: "terms_required" };
   if (formData.get("ageConfirm") !== "on") return { error: "age_required" };
-  const rawLanguage = String(formData.get("language") ?? "pt");
-  const language = (["pt", "en", "es"] as const).find((l) => l === rawLanguage) ?? "pt";
+  const rawLanguage = formData.get("language");
+  const language = isLang(rawLanguage) ? rawLanguage : DEFAULT_LANG;
 
   // Limits mass account creation (multiple accounts = multiple rewards).
   if (!rateLimit(`register:ip:${await clientIp()}`, 5, 60 * 60 * 1000)) {

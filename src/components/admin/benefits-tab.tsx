@@ -37,7 +37,7 @@ const field = "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text
 const EMPTY: OfferInput = { partnerName: "", title: "", description: "", kind: "food", city: "", address: "", minPoints: "100", maxRedemptions: "", expiresAt: "", monthlyFee: "49", adultsOnly: true, featured: false };
 
 /** Admin → 🎁 Benefícios: local partners, their offers and how many codes were generated and used. */
-export function BenefitsTab({ offers, actions, partnerBase, demoNote }: { offers: AdminOffer[]; actions: BenefitsActions; partnerBase: string; demoNote?: string }) {
+export function BenefitsTab({ offers, actions, partnerBase }: { offers: AdminOffer[]; actions: BenefitsActions; partnerBase: string }) {
   const [form, setForm] = useState<OfferInput>(EMPTY);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
@@ -48,7 +48,6 @@ export function BenefitsTab({ offers, actions, partnerBase, demoNote }: { offers
 
   return (
     <div className="grid gap-6" data-testid="benefits-tab">
-      {demoNote && <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">{demoNote}</p>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: "Vitrines ativas", value: String(active.length), hint: `${offers.length} cadastradas` },

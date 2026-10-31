@@ -147,13 +147,8 @@ async function main() {
   writeFileSync(out("demo/public/icon.svg"), svg);
   writeFileSync(out("src/app/icon.svg"), svg);
 
-  // Link preview (WhatsApp, redes): the new icon over the logo area of demo/public/og.jpg (1200x630).
-  const og = path.join(ROOT, "demo/public/og.jpg");
-  if (existsSync(og)) {
-    const tile = await compose(gradientSvg(128, 128, 28), symbol, 128, 128, 0.56).then((s) => s.toBuffer());
-    const patched = await sharp(readFileSync(og)).composite([{ input: tile, left: 86, top: 149 }]).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
-    writeFileSync(og, patched);
-  }
+  // Link preview (WhatsApp, social networks): rebuilt from scratch with the new icon.
+  await import("./og-image.mjs");
 
   console.log("Icons generated from", path.relative(ROOT, SOURCE));
 }

@@ -13,7 +13,7 @@ import {
   type CardType,
   type YellowOutcome,
 } from "@/lib/cards";
-import { t, tf, type Lang } from "@/lib/i18n";
+import { DEFAULT_LANG, t, tf, type Lang } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { notifyStaff } from "@/lib/staff-alerts";
 
@@ -138,7 +138,7 @@ export async function revokeCard(cardId: string, adminId: string): Promise<boole
         .set({ isBanned: false, banReason: null, bannedAt: null, banAppealMessage: null, banAppealedAt: null })
         .where(eq(users.id, card.userId));
     }
-    const lang: Lang = target?.language ?? "pt";
+    const lang: Lang = target?.language ?? DEFAULT_LANG;
     await tx.insert(notifications).values({
       userId: card.userId,
       type: "alert",
@@ -176,7 +176,7 @@ export async function keepCardAfterAppeal(cardId: string): Promise<boolean> {
       .returning({ userId: userCards.userId, reasonCode: userCards.reasonCode });
     if (!card) return false;
     const [target] = await tx.select({ language: users.language }).from(users).where(eq(users.id, card.userId));
-    const lang: Lang = target?.language ?? "pt";
+    const lang: Lang = target?.language ?? DEFAULT_LANG;
     await tx.insert(notifications).values({
       userId: card.userId,
       type: "alert",

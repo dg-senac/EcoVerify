@@ -13,6 +13,7 @@ import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
 import { TRANSPARENCY_TEXT as TEXT } from "@/lib/transparency-text";
 import { LogoHorizontal } from "@/components/logo";
 import { FoneAmount, PoweredByFone } from "@/components/brand/fone";
+import { guestLang } from "@/lib/guest-lang";
 
 export const metadata: Metadata = {
   title: "Transparência · EcoVerify",
@@ -20,13 +21,7 @@ export const metadata: Metadata = {
 };
 
 async function pickLang(param?: string): Promise<Lang> {
-  if (param === "pt" || param === "en" || param === "es") return param;
-  const user = await getCurrentUser();
-  if (user) return user.language;
-  const accept = ((await headers()).get("accept-language") ?? "").toLowerCase();
-  if (accept.startsWith("en")) return "en";
-  if (accept.startsWith("es")) return "es";
-  return "pt";
+  return guestLang(param, await getCurrentUser());
 }
 
 const fmt = (lang: Lang, value: number, digits = 0) =>

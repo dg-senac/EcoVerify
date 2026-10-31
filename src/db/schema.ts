@@ -95,7 +95,7 @@ export const users = pgTable("users", {
   termsVersion: varchar("terms_version", { length: 20 }),
   /** Account deleted by its owner: personal data was anonymised (see actions/account.ts). */
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
-  language: languageEnum("language").notNull().default("pt"),
+  language: languageEnum("language").notNull().default("en"),
   fontSize: fontSizeEnum("font_size").notNull().default("medium"),
   highContrast: boolean("high_contrast").notNull().default(false),
   /** Colour theme: "system" follows the device setting. */

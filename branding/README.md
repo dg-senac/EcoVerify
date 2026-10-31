@@ -20,7 +20,7 @@ O script gera:
 | Android (ícone da tela do celular) | `android/app/src/main/res/mipmap-*/ic_launcher*.png` (legado, redondo e adaptativo em camadas: fundo, símbolo e monocromático para o tema do Android 13+) |
 | Android (splash nativo) | `android/app/src/main/res/drawable*/splash.png`; no Android 12+ a cor e o ícone vêm de `values/styles.xml` |
 | App (Next.js) | `src/app/icon.svg`, `src/app/apple-icon.png`, `public/icons/*` |
-| Demo (Vercel + APK) | `demo/public/icon*.png`, `icon.svg`, `favicon-32.png`, `apple-touch-icon.png`, logo em `og.jpg` |
+| Demo (Vercel + APK) | `demo/public/icon*.png`, `icon.svg`, `favicon-32.png`, `apple-touch-icon.png`, `og.jpg` (gerado por `scripts/og-image.mjs`, em inglês) |
 | Dentro do app | `src/assets/brand/ecoverify/icon.png` (`LogoMark`) e `symbol.png` (splash animado) |
 
 ## Splash animado
