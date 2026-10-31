@@ -14,6 +14,7 @@
  */
 import type { Lang } from "@/lib/i18n";
 import { MAX_AUTO_APPROVE_KG } from "@/lib/impact";
+import { countCheck } from "@/lib/proof";
 
 export type AiMode = "off" | "suggest" | "auto";
 export type AiVerdict = "approve" | "reject" | "review";
@@ -27,6 +28,8 @@ export const REJECTION_CODES = [
   "too_dark_blurry",
   "report_mismatch",
   "internet_copy",
+  "count_mismatch",
+  "before_after_mismatch",
 ] as const;
 export type RejectionCode = (typeof REJECTION_CODES)[number];
 
@@ -85,6 +88,16 @@ export const REJECTION_REASONS: Record<RejectionCode, Record<Lang, string>> = {
     en: "The report does not match what the photo shows.",
     es: "El relato no corresponde a lo que aparece en la foto.",
   },
+  count_mismatch: {
+    pt: "A quantidade de itens na foto é bem menor do que a informada. Espalhe os itens para que todos apareçam e envie de novo.",
+    en: "The photo shows far fewer items than the number you entered. Spread the items so they all show and send it again.",
+    es: "La foto muestra muchos menos artículos que la cantidad informada. Extiéndelos para que se vean todos y envíala de nuevo.",
+  },
+  before_after_mismatch: {
+    pt: "As fotos de antes e depois não parecem ser do mesmo lugar. Tire as duas do mesmo ponto, com o mesmo enquadramento.",
+    en: "The before and after photos do not look like the same place. Take both from the same spot, with the same framing.",
+    es: "Las fotos de antes y después no parecen del mismo lugar. Tómalas desde el mismo punto, con el mismo encuadre.",
+  },
   internet_copy: {
     pt: "A foto parece ter sido copiada da internet (marca d'água, banco de imagens ou foto de outro site). Envie uma foto tirada por você no local.",
     en: "The photo looks copied from the internet (watermark, stock photo or a picture from another site). Send a photo you took on site.",
@@ -118,6 +131,12 @@ export type AiAnalysis = {
   internetCopy: boolean;
   /** Which signs were seen (short text, empty when none). */
   internetSigns: string;
+  /** Count missions: how many of the asked items the model counted in the photo (null = not asked/unsure). */
+  itemCount?: number | null;
+  /** Before/after missions: both photos show the same place. */
+  sameScene?: boolean | null;
+  /** Before/after missions: the "after" photo shows the improvement (cleaner, planted...). */
+  improvementVisible?: boolean | null;
   verdict: AiVerdict;
   reasonCode: RejectionCode | null;
   /** 0-100 */
@@ -182,7 +201,8 @@ export function problemFromAnalysis(a: AiAnalysis): RejectionCode | null {
   if (a.screenOrPrint) return "screen_photo";
   if (a.aiGeneratedOrEdited || !a.isRealPhoto) return "ai_generated";
   if (a.internetCopy) return "internet_copy";
-  if (!a.matchesMission) return "not_matching_mission";
+  if (a.sameScene === false) return "before_after_mismatch";
+  if (!a.matchesMission || a.improvementVisible === false) return "not_matching_mission";
   if (a.tooDarkOrBlurry) return "too_dark_blurry";
   if (!a.reportConsistent) return "report_mismatch";
   return null;
@@ -199,6 +219,8 @@ export function decideProof(input: {
   web?: "copy" | "partial" | "none" | null;
   /** Declared weight of a recycling delivery: heavy ones always go to a person. */
   weightKg?: number | null;
+  /** Count missions: number of items the person declared. */
+  declaredCount?: number | null;
 }): ProofDecision {
   const { settings, analysis, similar, web } = input;
   const auto = settings.mode === "auto";
@@ -234,6 +256,10 @@ export function decideProof(input: {
   if (analysis.verdict === "approve") {
     // An "approve" that contradicts the model's own answers is not trusted.
     if (problem) return { action: "review", verdict: "review", confidence, reasonCode: problem };
+    // Count missions: far fewer items in the photo than declared is not approved automatically.
+    if (countCheck(input.declaredCount, analysis.itemCount) === "low") {
+      return { action: "review", verdict: "reject", confidence, reasonCode: "count_mismatch" };
+    }
     // Crops/edits of the picture found online: not enough to flag, but enough to need a person.
     const canAutoApprove =
       auto &&
@@ -277,6 +303,8 @@ export function parseAiAnalysis(raw: unknown): AiAnalysis | null {
   if (Object.values(fields).some((value) => value === null)) return null;
   // Optional for compatibility with answers produced before the field existed.
   const internetCopy = bool("internet_copy") ?? false;
+  const itemCountRaw = r.item_count;
+  const itemCount = typeof itemCountRaw === "number" && Number.isFinite(itemCountRaw) && itemCountRaw >= 0 ? Math.round(itemCountRaw) : null;
 
   const verdict = r.verdict;
   if (verdict !== "approve" && verdict !== "reject" && verdict !== "review") return null;
@@ -292,6 +320,9 @@ export function parseAiAnalysis(raw: unknown): AiAnalysis | null {
     explanation: str("explanation", 400),
     internetCopy,
     internetSigns: internetCopy ? str("internet_signs", 300) : "",
+    itemCount,
+    sameScene: bool("same_scene"),
+    improvementVisible: bool("improvement_visible"),
   };
 }
 

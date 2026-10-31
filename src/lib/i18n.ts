@@ -1249,6 +1249,36 @@ const dict = {
     en: "More",
     es: "Más",
   },
+  error_count_invalid: {
+    pt: "Informe quantos itens aparecem na foto (um número de 1 a 300).",
+    en: "Enter how many items are in the photo (a number from 1 to 300).",
+    es: "Indica cuántos artículos salen en la foto (un número de 1 a 300).",
+  },
+  error_count_below_target: {
+    pt: "A quantidade é menor que o mínimo pedido pela missão.",
+    en: "The number is below the minimum the mission asks for.",
+    es: "La cantidad es menor que el mínimo que pide la misión.",
+  },
+  error_photo_before_required: {
+    pt: "Envie também a foto de ANTES.",
+    en: "Also send the BEFORE photo.",
+    es: "Envía también la foto de ANTES.",
+  },
+  error_before_after_same_photo: {
+    pt: "As fotos de antes e depois são a mesma imagem. Tire uma foto depois de fazer a ação.",
+    en: "The before and after photos are the same picture. Take a photo after doing the action.",
+    es: "Las fotos de antes y después son la misma imagen. Toma una foto después de hacer la acción.",
+  },
+  recycling_count_review: {
+    pt: "Itens conferidos",
+    en: "Checked items",
+    es: "Artículos revisados",
+  },
+  error_count_review_invalid: {
+    pt: "Informe um número de itens válido.",
+    en: "Enter a valid number of items.",
+    es: "Indica un número de artículos válido.",
+  },
 } as const;
 
 export type DictKey = keyof typeof dict;

@@ -21,7 +21,7 @@ import { notifyStaff } from "@/lib/staff-alerts";
 import { moderatorsEnabled } from "@/lib/staff-config";
 import { t, tf } from "@/lib/i18n";
 import { FILES_ROUTE_PREFIX, isValidStoragePath, readStoredFile } from "@/lib/storage";
-import { MATERIAL_LABELS } from "@/lib/impact";
+import { COUNT_ITEM_INFO, countRule, proofTypeOf } from "@/lib/proof";
 
 export async function getAiSettings(): Promise<AiSettingsValues> {
   const [row] = await db.select().from(aiSettings).where(eq(aiSettings.id, 1)).limit(1);
@@ -136,19 +136,28 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
   if (useModel) {
     try {
       if (!image) throw new AiUnavailableError("photo not found in storage", "network");
+      const proofType = proofTypeOf(mission);
+      // Before/after missions: the "before" photo goes first.
+      let beforeImage: { base64: string; mimeType: string } | null = null;
+      if (proofType === "before_after" && submission.photoBeforeUrl) {
+        const before = await loadPhoto(submission.photoBeforeUrl);
+        beforeImage = before ? await photoForAi(before).catch(() => null) : null;
+      }
       const result = await analyzeProofWithGemini({
         image,
+        beforeImage,
         mission: {
           title: mission.title,
           description: mission.description,
           category: mission.category,
           context: mission.context,
           aiChecklist: mission.aiChecklist,
+          proofType,
+          // The model counts the items itself and compares with the declared number.
+          countItem: proofType === "count" ? COUNT_ITEM_INFO[countRule(mission).item].name[0] : null,
+          declaredCount: submission.itemCount,
         },
-        // The model also checks whether the photo matches the declared delivery.
-        report: submission.material
-          ? `${submission.report}\n\n[Entrega declarada: ${MATERIAL_LABELS[submission.material].pt}, cerca de ${submission.weightKg} kg]`
-          : submission.report,
+        report: submission.report,
       });
       analysis = result.analysis;
       model = result.model;
@@ -165,6 +174,7 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
     foneReward: Number(mission.foneReward),
     web: webVerdict(web),
     weightKg: submission.weightKg === null ? null : Number(submission.weightKg),
+    declaredCount: submission.itemCount,
   });
 
   await db

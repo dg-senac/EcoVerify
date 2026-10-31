@@ -25,6 +25,7 @@ import {
 } from "@/lib/saas/org-rules";
 import { activeMissionCount, memberCount, membershipRole, orgById, orgEventAllowance } from "@/lib/saas/orgs";
 import { parseEventWindow } from "@/lib/saas/events";
+import { parseProofFields } from "@/lib/proof";
 
 export type OrgActionState = { error?: string; success?: boolean };
 
@@ -203,6 +204,8 @@ export async function createOrgMissionAction(_prev: OrgActionState, formData: Fo
     if ("error" in parsed) return { error: parsed.error };
     window = parsed;
   }
+  const proof = parseProofFields((name) => formData.get(name));
+  if (proof.error) return { error: "invalid" };
   const limit = canActivateMission(managed.org, await activeMissionCount(orgId));
   if (limit) return { error: limit };
 
@@ -212,6 +215,9 @@ export async function createOrgMissionAction(_prev: OrgActionState, formData: Fo
     title,
     description,
     category,
+    proofType: proof.proofType,
+    countItem: proof.countItem,
+    countTarget: proof.countTarget,
     pointsReward: points,
     foneReward: "0",
     scope,

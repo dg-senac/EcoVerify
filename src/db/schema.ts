@@ -22,6 +22,10 @@ export const categoryEnum = pgEnum("mission_category", [
   "cleanup",
   "other",
 ]);
+/** How a mission is proven (src/lib/proof.ts). */
+export const proofTypeEnum = pgEnum("proof_type", ["photo", "before_after", "count"]);
+/** Where the weight of a recycling proof came from (src/lib/proof.ts). */
+export const weightSourceEnum = pgEnum("weight_source", ["estimated", "partner", "declared"]);
 /** Recyclable material of a delivery (src/lib/impact.ts). */
 export const recyclingMaterialEnum = pgEnum("recycling_material", ["plastic", "paper", "metal", "glass", "electronics", "oil", "other"]);
 export const submissionStatusEnum = pgEnum("submission_status", [
@@ -180,6 +184,11 @@ export const missions = pgTable("missions", {
   category: categoryEnum("category").notNull(),
   /** Optional: what the proof photo must show, used by the automatic verification. */
   aiChecklist: text("ai_checklist"),
+  /** How the mission is proven: one photo, before + after, or a count of items (src/lib/proof.ts). */
+  proofType: proofTypeEnum("proof_type").notNull().default("photo"),
+  /** Count missions: what is counted (COUNT_ITEMS) and the minimum number of items. */
+  countItem: varchar("count_item", { length: 30 }),
+  countTarget: integer("count_target"),
   pointsReward: integer("points_reward").notNull(),
   foneReward: numeric("fone_reward", { precision: 12, scale: 2 }).notNull(),
   isActive: boolean("is_active").notNull().default(true),
@@ -298,6 +307,13 @@ export const submissions = pgTable("submissions", {
   weightKg: numeric("weight_kg", { precision: 7, scale: 1 }),
   /** Weight typed by the person, kept for the record when a moderator corrects it. */
   declaredWeightKg: numeric("declared_weight_kg", { precision: 7, scale: 1 }),
+  /** Count missions: items declared by the person (the AI count is in ai_checks.itemCount). */
+  itemCount: integer("item_count"),
+  /** "estimated" (from the count), "partner" (scale at a collection point) or "declared" (older proofs). */
+  weightSource: weightSourceEnum("weight_source"),
+  /** Before/after missions: the "before" photo (stored without EXIF, like photo_url). */
+  photoBeforeUrl: text("photo_before_url"),
+  photoBeforeHash: varchar("photo_before_hash", { length: 64 }),
   status: submissionStatusEnum("status").notNull().default("pending"),
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   rejectionReason: text("rejection_reason"),

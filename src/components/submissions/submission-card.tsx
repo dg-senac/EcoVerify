@@ -3,6 +3,7 @@ import { formatDate } from "@/lib/utils";
 import { composeRejectionMessage } from "@/lib/ai/decision";
 import { AppealForm } from "@/components/submissions/appeal-form";
 import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS, type Material } from "@/lib/impact";
+import { COUNT_ITEM_INFO, countItemName, isCountItem, weightSourceLabel, type WeightSource } from "@/lib/proof";
 
 const statusStyles: Record<string, { bg: string; text: string; dot: string }> = {
   pending: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500" },
@@ -22,6 +23,9 @@ export function SubmissionCard({
     material?: Material | null;
     weightKg?: string | null;
     declaredWeightKg?: string | null;
+    itemCount?: number | null;
+    weightSource?: WeightSource | null;
+    countItem?: string | null;
     status: string;
     rejectionReason: string | null;
     rejectionCode: string | null;
@@ -73,7 +77,18 @@ export function SubmissionCard({
         </div>
         <p className="mt-1 text-xs text-slate-400">{formatDate(submission.submittedAt, lang)}</p>
         <p className="mt-2 text-sm text-slate-600 line-clamp-2">{submission.report}</p>
-        {submission.material && (
+        {submission.itemCount != null && isCountItem(submission.countItem) && (
+          <p className="mt-2 text-xs font-semibold text-emerald-700" data-testid="delivery">
+            {COUNT_ITEM_INFO[submission.countItem].emoji} {submission.itemCount} · {countItemName(submission.countItem, lang)}
+            {Number(submission.weightKg ?? 0) > 0 && (
+              <span className="font-normal text-slate-500">
+                {" "}
+                · ≈ {formatKg(Number(submission.weightKg), lang)} ({weightSourceLabel(submission.weightSource, lang)})
+              </span>
+            )}
+          </p>
+        )}
+        {submission.material && submission.itemCount == null && (
           <p className="mt-2 text-xs font-semibold text-emerald-700" data-testid="delivery">
             {MATERIAL_EMOJI[submission.material]} {MATERIAL_LABELS[submission.material][lang]} · {formatKg(Number(submission.weightKg ?? 0), lang)}
             {submission.declaredWeightKg && submission.weightKg && Number(submission.declaredWeightKg) !== Number(submission.weightKg) && (

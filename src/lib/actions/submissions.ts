@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
-import { and, count, eq, gte, inArray } from "drizzle-orm";
+import { and, count, eq, gte, inArray, or } from "drizzle-orm";
 import crypto from "node:crypto";
 import { db } from "@/db";
 import { missions, submissions } from "@/db/schema";
@@ -14,7 +14,7 @@ import { saveFile } from "@/lib/storage";
 import { isUniqueViolation, startOfTodayUTC } from "@/lib/utils";
 import { prepareProofPhoto } from "@/lib/ai/photo";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
-import { checkRecyclingInput } from "@/lib/impact";
+import { checkCountInput, proofTypeOf } from "@/lib/proof";
 import { eventSubmissionError } from "@/lib/saas/events";
 
 export type SubmissionActionState = { error?: string; success?: boolean };
@@ -81,9 +81,15 @@ export async function createSubmissionAction(
   const eventError = eventSubmissionError(mission);
   if (eventError) return { error: eventError };
 
-  // Recycling missions: material and approximate weight of the delivery.
-  const recycling = checkRecyclingInput(mission.category, formData.get("material"), formData.get("weightKg"));
-  if (recycling.error) return { error: recycling.error };
+  // Count missions: number of items (the weight is estimated from it; nobody weighs anything).
+  const proofType = proofTypeOf(mission);
+  const counted = checkCountInput(mission, formData.get("itemCount"));
+  if (counted.error) return { error: counted.error };
+  const photoBefore = formData.get("photoBefore");
+  if (proofType === "before_after") {
+    if (!(photoBefore instanceof File) || photoBefore.size === 0) return { error: "photo_before_required" };
+    if (photoBefore.size > MAX_PHOTO_SIZE) return { error: "photo_too_large" };
+  }
 
   // ---- Location: user must be at the mission point --------------------------
   // "Anywhere" missions (e.g. at home) still record a GPS reading, but have no distance check.
@@ -134,10 +140,32 @@ export async function createSubmissionAction(
   const [duplicate] = await db
     .select({ id: submissions.id })
     .from(submissions)
-    .where(eq(submissions.photoHash, photoHash))
+    .where(or(eq(submissions.photoHash, photoHash), eq(submissions.photoBeforeHash, photoHash)))
     .limit(1);
   if (duplicate) {
     return { error: "duplicate_photo" };
+  }
+
+  // Before/after missions: the "before" photo gets the same checks and is stored the same way.
+  let before: { url: string; hash: string } | null = null;
+  if (proofType === "before_after" && photoBefore instanceof File) {
+    const beforeBuffer = Buffer.from(await photoBefore.arrayBuffer());
+    const beforeType = detectFileType(beforeBuffer, "image");
+    if (!beforeType || beforeType.contentType === "image/gif") return { error: "invalid_photo" };
+    const beforeHash = crypto.createHash("sha256").update(beforeBuffer).digest("hex");
+    if (beforeHash === photoHash) return { error: "before_after_same_photo" };
+    const [usedBefore] = await db
+      .select({ id: submissions.id })
+      .from(submissions)
+      .where(or(eq(submissions.photoHash, beforeHash), eq(submissions.photoBeforeHash, beforeHash)))
+      .limit(1);
+    if (usedBefore) return { error: "duplicate_photo" };
+    const preparedBefore = await prepareProofPhoto(beforeBuffer);
+    if (!preparedBefore) return { error: "invalid_photo" };
+    before = {
+      url: await saveFile("proofs", preparedBefore.buffer, preparedBefore.extension, preparedBefore.contentType),
+      hash: beforeHash,
+    };
   }
 
   // Stored copy without EXIF (exact GPS, phone model, date) + perceptual hash for near-duplicates.
@@ -159,9 +187,12 @@ export async function createSubmissionAction(
         report,
         latitude: String(userLatitude),
         longitude: String(userLongitude),
-        material: recycling.material,
-        weightKg: recycling.weightKg === null ? null : String(recycling.weightKg),
-        declaredWeightKg: recycling.weightKg === null ? null : String(recycling.weightKg),
+        material: counted.material,
+        weightKg: counted.weightKg === null ? null : String(counted.weightKg),
+        itemCount: counted.count,
+        weightSource: counted.weightKg === null ? null : "estimated",
+        photoBeforeUrl: before?.url ?? null,
+        photoBeforeHash: before?.hash ?? null,
         aiStatus: willAnalyzeWithModel(aiConfig) ? "queued" : null,
       })
       .returning({ id: submissions.id });

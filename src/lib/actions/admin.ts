@@ -12,6 +12,7 @@ import { placeOf } from "@/lib/municipalities";
 import { getPayoutSettings } from "@/lib/payouts";
 import { isHoldReason, splitOpenRewards } from "@/lib/payout-rules";
 import { centsToFone, foneToCents, isValidFoneAddress, isValidTxHash, normalizeHex, verifiedWallet } from "@/lib/fone";
+import { parseProofFields } from "@/lib/proof";
 
 export type AdminActionState = { error?: string; success?: boolean };
 
@@ -47,6 +48,8 @@ export async function createMissionAction(
   const context = String(formData.get("context") ?? "").trim() || null;
   const impact = String(formData.get("impact") ?? "").trim() || null;
   const aiChecklist = String(formData.get("aiChecklist") ?? "").trim().slice(0, 500) || null;
+  const proof = parseProofFields((name) => formData.get(name));
+  if (proof.error) return { error: "invalid" };
   const scope = formData.get("scope") === "anywhere" ? "anywhere" : "local";
   let sponsorName = String(formData.get("sponsorName") ?? "").trim().slice(0, 80) || null;
   // A registered sponsor pays the FONE of this mission from its own budget.
@@ -97,6 +100,9 @@ export async function createMissionAction(
     context,
     impact,
     aiChecklist,
+    proofType: proof.proofType,
+    countItem: proof.countItem,
+    countTarget: proof.countTarget,
     latitude: hasPoint ? String(latitude) : null,
     longitude: hasPoint ? String(longitude) : null,
     scope,

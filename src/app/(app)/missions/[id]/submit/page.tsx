@@ -61,6 +61,9 @@ export default async function SubmitMissionPage({ params }: { params: Promise<{ 
           category: mission.category,
           pointsReward: mission.pointsReward,
           foneReward: mission.foneReward,
+          proofType: mission.proofType,
+          countItem: mission.countItem,
+          countTarget: mission.countTarget,
         }}
       />
     </div>

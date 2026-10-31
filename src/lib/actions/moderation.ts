@@ -16,6 +16,7 @@ import { canReview } from "@/lib/nav";
 import { moderatorsEnabled } from "@/lib/staff-config";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
 import { parseWeightKg } from "@/lib/impact";
+import { countRule, estimatedKg, MAX_ITEM_COUNT } from "@/lib/proof";
 
 export type ModerationActionState = { error?: string; success?: boolean };
 
@@ -67,8 +68,23 @@ export async function approveSubmissionAction(
   if (submission.status !== "pending") return { error: "already_reviewed" };
   if (submission.userId === moderator.id) return { error: "own_submission" };
 
-  // Recycling delivery: the reviewer may correct the declared weight after looking at the photo.
-  if (submission.material) {
+  // Count proofs: the reviewer may correct the number of items; the estimated weight follows.
+  if (submission.itemCount !== null) {
+    const typed = String(formData.get("itemCount") ?? "").trim();
+    if (typed) {
+      const checked = /^\d{1,4}$/.test(typed) ? Number(typed) : NaN;
+      if (!(checked >= 1 && checked <= MAX_ITEM_COUNT)) return { error: "count_review_invalid" };
+      if (checked !== submission.itemCount) {
+        const [mission] = await db.select().from(missions).where(eq(missions.id, submission.missionId)).limit(1);
+        const kg = mission ? estimatedKg(countRule(mission).item, checked) : null;
+        await db
+          .update(submissions)
+          .set({ itemCount: checked, weightKg: kg === null ? null : String(kg) })
+          .where(and(eq(submissions.id, submissionId), eq(submissions.status, "pending")));
+      }
+    }
+  } else if (submission.material) {
+    // Older proofs with a typed weight: the reviewer may still correct it.
     const typed = String(formData.get("weightKg") ?? "").trim();
     if (typed) {
       const checked = parseWeightKg(typed);
