@@ -1,6 +1,7 @@
 import { useRef, useSyncExternalStore } from "react";
-import { DEFAULT_LANG, t, tf, type Lang } from "@/lib/i18n";
+import { DEFAULT_LANG, t, tf, tx, type Lang } from "@/lib/i18n";
 import { PAYMENTS_ENABLED } from "@/lib/features";
+import { newlyEarned, type ApprovedAction } from "@/lib/achievements";
 import type { Role } from "@/lib/nav";
 import { dt, botReplies } from "./i18n";
 import { createSeed, STATE_VERSION } from "./seed";
@@ -836,6 +837,19 @@ function applyApproval(s: State, submissionId: string, reviewerId: string | null
     notifications = notify({ ...next, notifications }, sub.userId, (l) => ({
       title: dt(l, "notif_hold_title"),
       message: dt(l, holdReason === "user_cap" ? "notif_hold_user_cap" : holdReason === "sponsor_budget" ? "notif_hold_sponsor" : "notif_hold_budget", { fone: mission.foneReward }),
+    }));
+  }
+  // New badges unlocked by this approval (src/lib/achievements.ts).
+  const asAction = (x: Submission): ApprovedAction => {
+    const m = s.missions.find((mm) => mm.id === x.missionId);
+    return { category: m?.category ?? "other", at: x.submittedAt, weightKg: x.weightKg ?? null, isEvent: !!m?.startsAt };
+  };
+  const before = s.submissions.filter((x) => x.userId === sub.userId && x.status === "approved").map(asAction);
+  const lang = userById(sub.userId, s)?.language ?? DEFAULT_LANG;
+  for (const badge of newlyEarned(before, asAction(sub), lang)) {
+    notifications = notify({ ...next, notifications }, sub.userId, (l) => ({
+      title: tx(l, "Nova conquista!", "New badge!", "¡Nuevo logro!"),
+      message: `${badge.emoji} ${tx(l, "Você conquistou", "You earned", "Lograste")}: ${newlyEarned(before, asAction(sub), l).find((b) => b.id === badge.id)?.name ?? badge.name}`,
     }));
   }
   return { ...next, notifications };

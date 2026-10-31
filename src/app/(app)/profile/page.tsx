@@ -1,7 +1,9 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { rewardQueue, submissions, userCards } from "@/db/schema";
+import { missions, rewardQueue, submissions, userCards } from "@/db/schema";
+import { badgesFor, personalImpact, weeklyStreak } from "@/lib/achievements";
+import { BadgesGrid, ImpactCard, StreakCard } from "@/components/profile/achievements";
 import { isStaffExperience } from "@/lib/nav";
 import { moderatorsEnabled } from "@/lib/staff-config";
 import { StaffWork, type StaffWorkStats } from "@/components/profile/staff-work";
@@ -54,6 +56,20 @@ export default async function ProfilePage() {
     .where(sql`${submissions.userId} = ${user.id} and ${submissions.status} = 'rejected'`);
 
   const level = levelForPoints(user.totalPoints, user.language);
+
+  // Citizen extras: weekly streak, personal impact and badges (approved actions only).
+  const actions = staff
+    ? []
+    : (
+        await db
+          .select({ category: missions.category, at: submissions.submittedAt, weightKg: submissions.weightKg, startsAt: missions.startsAt })
+          .from(submissions)
+          .innerJoin(missions, eq(submissions.missionId, missions.id))
+          .where(and(eq(submissions.userId, user.id), eq(submissions.status, "approved")))
+      ).map((row) => ({ category: row.category, at: row.at, weightKg: row.weightKg, isEvent: !!row.startsAt }));
+  const streak = weeklyStreak(actions);
+  const impact = personalImpact(actions);
+  const badges = badgesFor(actions, user.language);
 
   const { treasury, explorerUrl } = getFoneConfig();
   const verified = verifiedWallet(user);
@@ -130,6 +146,14 @@ export default async function ProfilePage() {
             <p className="text-xs font-medium text-red-600">{t(user.language, "status_rejected")}</p>
           </div>
         </div>
+        )}
+
+        {!staff && (
+          <div className="mt-6 grid gap-4">
+            <StreakCard lang={user.language} streak={streak} />
+            <ImpactCard lang={user.language} name={user.name} impact={impact} streak={streak} badgesEarned={badges.filter((b) => b.earned).length} />
+            <BadgesGrid lang={user.language} badges={badges} />
+          </div>
         )}
 
         {/* Wallet and FONE payouts: hidden while payments are off (PAYMENTS_ENABLED). */}

@@ -8,6 +8,8 @@ import { dt, errorText } from "../i18n";
 import { appealCard, cardsOf, moderatorsOn, payoutSettingsOf, useLang, useStore, userPayout, type User } from "../store";
 import { isStaffExperience } from "@/lib/nav";
 import { StaffWork } from "@/components/profile/staff-work";
+import { BadgesGrid, ImpactCard, StreakCard } from "@/components/profile/achievements";
+import { badgesFor, personalImpact, weeklyStreak, type ApprovedAction } from "@/lib/achievements";
 import { CardsPanel } from "@/components/cards/cards-panel";
 import { Avatar, PageHeader, card, toast } from "../components/ui";
 import { roleTone, ProfileSwitcher } from "../components/ProfileSwitcher";
@@ -32,6 +34,18 @@ export function ProfileScreen({ user }: { user: User }) {
   const roleKey = user.role === "admin" ? "demo_role_admin" : user.role === "moderator" ? "demo_role_moderator" : "demo_role_citizen";
   // Staff get their own profile: review work and permissions, no points, level or cards.
   const staff = useStore((s) => isStaffExperience(user.role, moderatorsOn(s)));
+  // Citizen extras: streak, personal impact and badges (approved actions only).
+  const actions = useStore((s): ApprovedAction[] =>
+    s.submissions
+      .filter((x) => x.userId === user.id && x.status === "approved")
+      .map((x) => {
+        const mission = s.missions.find((m) => m.id === x.missionId);
+        return { category: mission?.category ?? "other", at: x.submittedAt, weightKg: x.weightKg ?? null, isEvent: !!mission?.startsAt };
+      }),
+  );
+  const streak = weeklyStreak(actions);
+  const impact = personalImpact(actions);
+  const badges = badgesFor(actions, lang);
   const staffStats = useStore((s) => {
     const mine = s.submissions.filter((x) => x.reviewedBy === user.id);
     const weekAgo = Date.now() - 7 * 86_400_000;
@@ -92,6 +106,14 @@ export function ProfileScreen({ user }: { user: User }) {
           </div>
         ))}
       </div>
+      )}
+
+      {!staff && (
+        <div className="mt-4 grid gap-4 animate-slide-up">
+          <StreakCard lang={lang} streak={streak} />
+          <ImpactCard lang={lang} name={user.name} impact={impact} streak={streak} badgesEarned={badges.filter((b) => b.earned).length} />
+          <BadgesGrid lang={lang} badges={badges} />
+        </div>
       )}
 
       {PAYMENTS_ENABLED && !staff && pending > 0 && (
