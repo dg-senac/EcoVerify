@@ -11,6 +11,7 @@ import { EmptyState, PageHeader, StatusBadge, card, toast } from "../components/
 import { PhotoViewer } from "../components/PhotoViewer";
 import { FoneAmount } from "@/components/brand/fone";
 import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS } from "@/lib/impact";
+import { COUNT_ITEM_INFO, countItemName, isCountItem, weightSourceLabel } from "@/lib/proof";
 
 export function SubmissionsScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -55,7 +56,18 @@ export function SubmissionsScreen({ user }: { user: User }) {
                   </div>
                   <p className="mt-0.5 text-xs text-slate-400">{dt(lang, "submitted_at")} {formatDate(sub.submittedAt, lang)}</p>
                   <p className="mt-1.5 line-clamp-2 text-sm text-slate-600">{sub.report}</p>
-                  {sub.material && (
+                  {sub.itemCount != null && mission && isCountItem(mission.countItem) && (
+                    <p className="mt-1 text-xs font-semibold text-emerald-700" data-testid="delivery">
+                      {COUNT_ITEM_INFO[mission.countItem].emoji} {sub.itemCount} · {countItemName(mission.countItem, lang)}
+                      {(sub.weightKg ?? 0) > 0 && (
+                        <span className="font-normal text-slate-500">
+                          {" "}
+                          · ≈ {formatKg(sub.weightKg ?? 0, lang)} ({weightSourceLabel(sub.weightSource, lang)})
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {sub.material && sub.itemCount == null && (
                     <p className="mt-1 text-xs font-semibold text-emerald-700" data-testid="delivery">
                       {MATERIAL_EMOJI[sub.material]} {MATERIAL_LABELS[sub.material][lang]} · {formatKg(sub.weightKg ?? 0, lang)}
                       {sub.declaredWeightKg != null && sub.weightKg != null && sub.declaredWeightKg !== sub.weightKg && (

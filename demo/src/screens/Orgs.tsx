@@ -40,6 +40,8 @@ import {
 } from "../store";
 import { Link, navigate } from "../router";
 import { EmptyState, PageHeader, btnPrimary, btnSecondary, card, input, label, toast } from "../components/ui";
+import { ProofTypeFields } from "@/components/missions/proof-type-fields";
+import { defaultProofType, parseProofFields } from "@/lib/proof";
 
 const TABS = ["overview", "missions", "events", "moderation", "members", "plan", "report"] as const;
 type Tab = (typeof TABS)[number];
@@ -572,8 +574,10 @@ function MissionsTab({
         data-testid="org-mission-form"
         onSubmit={(e) => {
           e.preventDefault();
+          const fields = new FormData(e.currentTarget);
           const result = createOrgMission(orgId, {
             ...form,
+            proof: parseProofFields((name) => fields.get(name)),
             points: Number(form.points),
             scope: "anywhere",
             ...(eventWindow.isEvent ? { startsAt: eventWindow.startsAt, endsAt: eventWindow.endsAt } : {}),
@@ -613,6 +617,7 @@ function MissionsTab({
             <input type="number" min={5} max={200} value={form.points} onChange={(e) => setForm({ ...form, points: e.target.value })} className={input} name="points" />
           </label>
         </div>
+        <ProofTypeFields key={`${formKey}-${form.category}`} lang={lang} defaultType={defaultProofType(form.category)} />
         <EventFields key={formKey} lang={lang} onChange={setEventWindow} />
         <p className="text-xs text-slate-500">{text.pointsOnlyNote}</p>
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

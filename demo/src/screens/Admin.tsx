@@ -59,6 +59,8 @@ import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
 import { dataTables, recyclingSummary } from "@/lib/impact";
 import { BenefitsTab, type AdminOffer } from "@/components/admin/benefits-tab";
 import { localizeOffer } from "@/lib/benefits";
+import { ProofTypeFields } from "@/components/missions/proof-type-fields";
+import { defaultProofType, parseProofFields } from "@/lib/proof";
 
 type Tab = "metrics" | "business" | "benefits" | "missions" | "users" | "rewards" | "recycling" | "data";
 export const ADMIN_TAB_KEY = "ecoverify-admin-tab";
@@ -346,8 +348,10 @@ function MissionsTab() {
 
   const set = (key: keyof typeof emptyForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const fields = new FormData(event.currentTarget);
+    const proof = parseProofFields((name) => fields.get(name));
     const latitude = Number(form.latitude.replace(",", "."));
     const longitude = Number(form.longitude.replace(",", "."));
     const place = !anywhere && Number.isFinite(latitude) && Number.isFinite(longitude) ? await placeOf(latitude, longitude) : null;
@@ -365,6 +369,9 @@ function MissionsTab() {
       foneReward: form.fone.replace(",", "."),
       latitude,
       longitude,
+      proofType: proof.proofType,
+      countItem: proof.countItem,
+      countTarget: proof.countTarget,
     });
     if (result.error) return setError(errorText(lang, result.error));
     toast(dt(lang, "mission_created"));
@@ -474,6 +481,7 @@ function MissionsTab() {
                 <input className={input} inputMode="decimal" value={form.longitude} onChange={set("longitude")} required />
               </div>
             </div>
+            <ProofTypeFields lang={lang} defaultType={defaultProofType(form.category)} key={form.category} />
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={anywhere} onChange={(e) => setAnywhere(e.target.checked)} className="accent-emerald-600" />
               🌎 {dt(lang, "field_anywhere")}

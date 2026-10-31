@@ -20,6 +20,7 @@ import {
 } from "@/lib/ai/decision";
 import { CARDABLE_REJECTIONS } from "@/lib/cards";
 import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS } from "@/lib/impact";
+import { ProofEvidence } from "@/components/moderation/proof-evidence";
 
 export function ModerationScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -129,7 +130,31 @@ export function ModerationScreen({ user }: { user: User }) {
                     </p>
                   )}
                   <p className="text-sm text-slate-600">{sub.report}</p>
-                  {sub.material && (
+                  <div className="-mt-3">
+                    <ProofEvidence
+                      lang={lang}
+                      countItem={mission?.countItem ?? null}
+                      itemCount={sub.itemCount ?? null}
+                      aiItemCount={sub.aiChecks?.itemCount ?? null}
+                      weightKg={sub.weightKg ?? null}
+                      weightSource={sub.weightSource ?? null}
+                      beforeUrl={sub.photoBefore ?? null}
+                      afterUrl={sub.photo}
+                    />
+                  </div>
+                  {sub.itemCount != null && !own && (
+                    <label className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                      🔢 {t(lang, "recycling_count_review")}
+                      <input
+                        inputMode="numeric"
+                        value={weights[sub.id] ?? String(sub.itemCount)}
+                        onChange={(e) => setWeights({ ...weights, [sub.id]: e.target.value })}
+                        className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1 text-right text-sm text-slate-900 outline-none focus:border-emerald-500"
+                        data-testid="review-count"
+                      />
+                    </label>
+                  )}
+                  {sub.material && sub.itemCount == null && (
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800" data-testid="delivery">
                       <span className="font-semibold">
                         {MATERIAL_EMOJI[sub.material]} {t(lang, "recycling_delivery")}: {MATERIAL_LABELS[sub.material][lang]} · {formatKg(sub.weightKg ?? 0, lang)}

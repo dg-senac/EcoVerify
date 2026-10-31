@@ -29,6 +29,8 @@ export async function loadImpactRows(): Promise<ImpactRow[]> {
       longitude: missions.longitude,
       material: submissions.material,
       weightKg: submissions.weightKg,
+      itemCount: submissions.itemCount,
+      weightSource: submissions.weightSource,
     })
     .from(submissions)
     .innerJoin(missions, eq(missions.id, submissions.missionId))
@@ -47,5 +49,7 @@ export async function loadImpactRows(): Promise<ImpactRow[]> {
     longitude: row.longitude === null ? null : Number(row.longitude),
     material: row.material,
     weightKg: row.weightKg === null ? null : Number(row.weightKg),
+    itemCount: row.itemCount,
+    weightSource: row.weightSource,
   }));
 }

@@ -9,6 +9,7 @@
  */
 import { categoryEmoji, categoryLabels, type Lang } from "@/lib/i18n";
 import type { AiAnalysis } from "@/lib/ai/decision";
+import type { ProofType } from "@/lib/proof";
 import { dt } from "./i18n";
 import type { Category } from "./store";
 import type { WebMatches } from "@/lib/ai/web-detection-core";
@@ -102,8 +103,20 @@ export function drawSamplePhoto(kind: SampleKind): string {
 }
 
 /** Simulated model answer. null = real photo, which the demo cannot analyse. */
-export function simulateAnalysis(sample: SampleKind | null, missionCategory: Category, lang: Lang): AiAnalysis | null {
+export function simulateAnalysis(
+  sample: SampleKind | null,
+  missionCategory: Category,
+  lang: Lang,
+  proof: { proofType?: ProofType; declaredCount?: number | null } = {},
+): AiAnalysis | null {
   if (!sample) return null;
+  // The sample scene "shows" what the person declared; before/after samples show the same place, cleaner.
+  const extra: Partial<AiAnalysis> =
+    proof.proofType === "count" && proof.declaredCount
+      ? { itemCount: proof.declaredCount }
+      : proof.proofType === "before_after"
+        ? { sameScene: true, improvementVisible: true }
+        : {};
   const base: AiAnalysis = {
     whatIsVisible: dt(lang, "sim_seen", { what: sampleLabel(sample, lang) }),
     matchesMission: true,
@@ -120,6 +133,7 @@ export function simulateAnalysis(sample: SampleKind | null, missionCategory: Cat
     reasonCode: null,
     confidence: 92,
     explanation: dt(lang, "sim_match"),
+    ...extra,
   };
   if (sample === "screen") {
     return { ...base, isRealPhoto: false, screenOrPrint: true, verdict: "reject", reasonCode: "screen_photo", confidence: 95, explanation: dt(lang, "sim_screen") };

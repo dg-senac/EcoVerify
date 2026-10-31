@@ -68,7 +68,8 @@ import {
   type RedeemError,
   type ValidateError,
 } from "@/lib/benefits";
-import { checkRecyclingInput, parseWeightKg, type ImpactRow, type Material } from "@/lib/impact";
+import { parseWeightKg, type ImpactRow, type Material } from "@/lib/impact";
+import { checkCountInput, countRule, estimatedKg, MAX_ITEM_COUNT, proofTypeOf, type CountItem, type ProofType, type WeightSource } from "@/lib/proof";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -149,6 +150,10 @@ export type Mission = {
   sponsorName?: string | null;
   /** Sponsor whose FONE budget pays this mission (null = EcoVerify treasury). */
   sponsorId?: string | null;
+  /** How the mission is proven (src/lib/proof.ts): photo, before/after photos or counted items. */
+  proofType?: ProofType;
+  countItem?: CountItem | null;
+  countTarget?: number | null;
   /** Private mission of an organization (points only, members only). */
   organizationId?: string | null;
   /** Events (mutirões): proofs only inside this window; one-off payment (src/lib/saas/events.ts). */
@@ -173,10 +178,16 @@ export type Submission = {
   longitude: number;
   accuracy: number;
   simulatedLocation: boolean;
-  /** Recycling missions: material and weight in kg (src/lib/impact.ts). */
+  /** Material and weight in kg (src/lib/impact.ts). Count proofs: estimated from the items. */
   material?: Material | null;
   weightKg?: number | null;
   declaredWeightKg?: number | null;
+  /** Count missions: how many items the person declared (the AI count is in aiChecks.itemCount). */
+  itemCount?: number | null;
+  weightSource?: WeightSource | null;
+  /** Before/after missions: the "before" photo. */
+  photoBefore?: string | null;
+  photoBeforeHash?: string | null;
   status: SubmissionStatus;
   reviewedBy: string | null;
   rejectionReason: string | null;
@@ -672,9 +683,11 @@ export type NewSubmission = {
   longitude: number;
   accuracy: number;
   simulatedLocation: boolean;
-  /** Recycling missions: raw values typed on the form. */
-  material?: string | null;
-  weight?: string | null;
+  /** Count missions: the number typed on the form. */
+  itemCount?: string | null;
+  /** Before/after missions: the "before" photo. */
+  photoBefore?: string | null;
+  photoBeforeHash?: string | null;
   /** Sample photo picked in the demo (drives the simulated AI). null = camera/gallery photo. */
   sample?: SampleKind | null;
   /** Real analysis of a camera/gallery photo with the tester's own Gemini key (see byok.ts). */
@@ -697,8 +710,12 @@ export function checkProof(input: NewSubmission): Result {
   if (!input.photo) return { error: "error_photo_required" };
   const report = input.report.trim();
   if (report.length < 50 || report.length > 1000) return { error: "error_report_length" };
-  const recycling = checkRecyclingInput(mission.category, input.material, input.weight);
-  if (recycling.error) return { error: `error_${recycling.error}` };
+  const counted = checkCountInput(mission, input.itemCount);
+  if (counted.error) return { error: `error_${counted.error}` };
+  if (proofTypeOf(mission) === "before_after") {
+    if (!input.photoBefore || !input.photoBeforeHash) return { error: "error_photo_before_required" };
+    if (input.photoBeforeHash === input.photoHash) return { error: "error_before_after_same_photo" };
+  }
 
   if (!(input.accuracy <= MAX_GPS_ACCURACY_METERS)) return { error: "error_location_inaccurate" };
   if (
@@ -715,7 +732,8 @@ export function checkProof(input: NewSubmission): Result {
   if (mine.filter((s) => new Date(s.submittedAt) >= startOfToday).length >= DAILY_SUBMISSION_LIMIT) {
     return { error: "error_daily_limit" };
   }
-  if (state.submissions.some((s) => s.photoHash === input.photoHash)) return { error: "error_duplicate_photo" };
+  const used = (hash: string) => state.submissions.some((s) => s.photoHash === hash || s.photoBeforeHash === hash);
+  if (used(input.photoHash) || (input.photoBeforeHash && used(input.photoBeforeHash))) return { error: "error_duplicate_photo" };
   return {};
 }
 
@@ -731,17 +749,21 @@ export function submitProof(input: NewSubmission): Result {
   const lang = user.language;
   const real = input.sample ? null : (input.realAi ?? null);
   const realAnalysis = real && "analysis" in real ? real : null;
-  const analysis = input.sample ? simulateAnalysis(input.sample, mission.category, lang) : (realAnalysis?.analysis ?? null);
+  const proofType = proofTypeOf(mission);
+  const counted = checkCountInput(mission, input.itemCount);
+  const analysis = input.sample
+    ? simulateAnalysis(input.sample, mission.category, lang, { proofType, declaredCount: counted.count })
+    : (realAnalysis?.analysis ?? null);
   const aiFailed = !!real && "failed" in real;
   const web = simulateWebSearch(input.sample ?? null);
-  const recycling = checkRecyclingInput(mission.category, input.material, input.weight);
   const decision = decideProof({
     settings: DEFAULT_AI_SETTINGS,
     analysis,
     similar: null,
     foneReward: Number(mission.foneReward),
     web: webVerdict(web),
-    weightKg: recycling.weightKg,
+    weightKg: counted.weightKg,
+    declaredCount: counted.count,
   });
   const webChecks = web ? { webChecked: true, webFullMatches: web.fullMatches, webPages: web.pages, webPartialCount: web.partialCount, webBestGuess: web.bestGuess } : {};
   const submission: Submission = {
@@ -755,9 +777,12 @@ export function submitProof(input: NewSubmission): Result {
     longitude: input.longitude,
     accuracy: input.accuracy,
     simulatedLocation: input.simulatedLocation,
-    material: recycling.material,
-    weightKg: recycling.weightKg,
-    declaredWeightKg: recycling.weightKg,
+    material: counted.material,
+    weightKg: counted.weightKg,
+    itemCount: counted.count,
+    weightSource: counted.count !== null ? "estimated" : null,
+    photoBefore: proofType === "before_after" ? (input.photoBefore ?? null) : null,
+    photoBeforeHash: proofType === "before_after" ? (input.photoBeforeHash ?? null) : null,
     status: "pending",
     reviewedBy: null,
     rejectionReason: null,
@@ -913,20 +938,31 @@ function canModerate(user: User | null): user is User {
   return !!user && canReview(user.role, moderatorsOn()) && !user.isBanned;
 }
 
-/** `weight`: the reviewer may correct the declared weight of a recycling delivery (same rule as the server). */
-export function approveSubmission(submissionId: string, weight?: string): Result {
+/**
+ * `correction`: the reviewer may correct the number of items of a count proof (weight re-estimated)
+ * or, for older recycling proofs, the declared weight (same rules as the server).
+ */
+export function approveSubmission(submissionId: string, correction?: string): Result {
   const reviewer = me();
   if (!canModerate(reviewer)) return { error: "error_generic" };
   const sub = state.submissions.find((s) => s.id === submissionId);
   if (!sub || sub.status !== "pending") return { error: "error_generic" };
   if (sub.userId === reviewer.id) return { error: "own_submission_warning" };
-  if (!state.missions.some((m) => m.id === sub.missionId)) return { error: "error_generic" };
+  const mission = state.missions.find((m) => m.id === sub.missionId);
+  if (!mission) return { error: "error_generic" };
   let weightKg = sub.weightKg ?? null;
-  if (sub.material && weight && weight.trim()) {
-    weightKg = parseWeightKg(weight);
+  let itemCount = sub.itemCount ?? null;
+  const raw = correction?.trim() ?? "";
+  if (itemCount !== null && raw) {
+    const n = Number(raw);
+    if (!/^\d{1,4}$/.test(raw) || n < 1 || n > MAX_ITEM_COUNT) return { error: "error_count_review_invalid" };
+    itemCount = n;
+    weightKg = estimatedKg(countRule(mission).item, n);
+  } else if (sub.material && raw) {
+    weightKg = parseWeightKg(raw);
     if (weightKg === null) return { error: "error_weight_invalid" };
   }
-  commit((s) => applyApproval({ ...s, submissions: s.submissions.map((x) => (x.id === sub.id ? { ...x, weightKg } : x)) }, sub.id, reviewer.id));
+  commit((s) => applyApproval({ ...s, submissions: s.submissions.map((x) => (x.id === sub.id ? { ...x, weightKg, itemCount } : x)) }, sub.id, reviewer.id));
   return {};
 }
 
@@ -1754,7 +1790,16 @@ export function orgEventAllowance(orgId: string, s: State = state): number {
 
 export function createOrgMission(
   orgId: string,
-  input: { title: string; description: string; category: Category; points: number; scope: "local" | "anywhere"; startsAt?: string | null; endsAt?: string | null },
+  input: {
+    title: string;
+    description: string;
+    category: Category;
+    points: number;
+    scope: "local" | "anywhere";
+    startsAt?: string | null;
+    endsAt?: string | null;
+    proof?: { proofType: ProofType; countItem: CountItem | null; countTarget: number | null; error?: string };
+  },
 ): OrgResult {
   const user = me();
   const org = orgOf(state, orgId);
@@ -1769,6 +1814,7 @@ export function createOrgMission(
     if ("error" in parsed) return { error: parsed.error };
     window = parsed;
   }
+  if (input.proof?.error) return { error: "invalid" };
   const active = state.missions.filter((m) => m.organizationId === orgId && m.isActive && eventPhase(m) !== "closed").length;
   const limit = canActivateMission(org, active);
   if (limit) return { error: limit };
@@ -1777,6 +1823,9 @@ export function createOrgMission(
     title,
     description,
     category: input.category,
+    proofType: input.proof?.proofType ?? "photo",
+    countItem: input.proof?.countItem ?? null,
+    countTarget: input.proof?.countTarget ?? null,
     pointsReward: input.points,
     foneReward: "0.00",
     latitude: -8.0476,
@@ -1959,6 +2008,8 @@ export function impactRows(s: State = state): ImpactRow[] {
       longitude: mission.scope === "anywhere" ? null : mission.longitude,
       material: sub.material ?? null,
       weightKg: sub.weightKg ?? null,
+      itemCount: sub.itemCount ?? null,
+      weightSource: sub.weightSource ?? null,
     });
   }
   return rows;

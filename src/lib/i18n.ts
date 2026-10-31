@@ -1109,21 +1109,9 @@ const dict = {
   splash_start: { pt: "Começar", en: "Get started", es: "Empezar" },
   splash_skip: { pt: "Pular", en: "Skip", es: "Saltar" },
   // ---- Recycling deliveries (material + weight) ----
-  recycling_material_label: { pt: "O que você entregou?", en: "What did you deliver?", es: "¿Qué entregaste?" },
-  recycling_weight_label: { pt: "Peso aproximado (kg)", en: "Approximate weight (kg)", es: "Peso aproximado (kg)" },
-  recycling_weight_hint: {
-    pt: "Uma sacola de mercado cheia de garrafas PET pesa cerca de 1 kg. A moderação confere pela foto e pode corrigir.",
-    en: "A grocery bag full of PET bottles weighs about 1 kg. Moderators check it against the photo and may correct it.",
-    es: "Una bolsa de supermercado llena de botellas PET pesa cerca de 1 kg. La moderación lo revisa con la foto y puede corregirlo.",
-  },
   recycling_delivery: { pt: "Entrega", en: "Delivery", es: "Entrega" },
   recycling_weight_corrected: { pt: "peso corrigido pela moderação", en: "weight corrected by moderators", es: "peso corregido por la moderación" },
   recycling_weight_review: { pt: "Peso conferido (kg)", en: "Checked weight (kg)", es: "Peso revisado (kg)" },
-  error_material_required: {
-    pt: "Escolha o material que você entregou.",
-    en: "Choose the material you delivered.",
-    es: "Elige el material que entregaste.",
-  },
   error_weight_invalid: {
     pt: "Informe o peso aproximado entre 0,1 e 200 kg.",
     en: "Enter the approximate weight between 0.1 and 200 kg.",

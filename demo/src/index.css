@@ -11,7 +11,9 @@
 @source "../../src/components/brand";
 @source "../../src/components/cards/cards-panel.tsx";
 @source "../../src/components/admin/user-sheet-view.tsx";
-@source "../../src/components/missions/recycling-fields.tsx";
+@source "../../src/components/missions/count-field.tsx";
+@source "../../src/components/missions/proof-type-fields.tsx";
+@source "../../src/components/moderation/proof-evidence.tsx";
 @source "../../src/components/admin/impact-tabs.tsx";
 @source "../../src/components/missions/event-badge.tsx";
 @source "../../src/components/org/event-fields.tsx";
