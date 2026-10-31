@@ -1,5 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { citizenOnly } from "@/lib/role-guard";
 import { db } from "@/db";
 import { missions, submissions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
@@ -10,6 +11,7 @@ import { FileText } from "@/components/ui/icons";
 export default async function SubmissionsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  citizenOnly(user.role);
 
   const rows = await db
     .select({

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { t, tf } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { formatDate } from "@/lib/utils";
 import { isSuspended } from "@/lib/cards";
 import { errorText } from "../i18n";
@@ -28,7 +29,7 @@ export function BlockedAccountModal({ userId, onClose }: { userId: string; onClo
   return (
     <Modal title={suspended ? `🟨 ${t(lang, "suspended_title")}` : `🚫 ${t(lang, "banned_title")}`} onClose={onClose}>
       <div data-testid={suspended ? "suspended-screen" : "banned-screen"}>
-        <p className="text-sm text-slate-500">{t(lang, suspended ? "suspended_intro" : "banned_intro")}</p>
+        <p className="text-sm text-slate-500">{t(lang, suspended ? (PAYMENTS_ENABLED ? "suspended_intro" : "suspended_intro_free") : "banned_intro")}</p>
         <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
           <p className="text-xs font-bold uppercase tracking-wide text-red-700">{t(lang, "banned_reason")}</p>
           <p className="mt-1" data-testid="banned-reason">{(suspended ? user.suspensionReason : user.banReason) || t(lang, "banned_no_reason")}</p>

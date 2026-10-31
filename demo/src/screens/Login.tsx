@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { ArrowLeft, UserPlus } from "lucide-react";
 import { LogoHorizontal } from "@/components/logo";
 import { t, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { Link, navigate } from "../router";
 import { dt, errorText } from "../i18n";
 import { register, setGuestLanguage, useLang } from "../store";
@@ -101,7 +102,7 @@ export function RegisterScreen() {
       );
       return;
     }
-    navigate("/wallet", { replace: true });
+    navigate(PAYMENTS_ENABLED ? "/wallet" : "/missions", { replace: true });
   };
 
   return (
@@ -149,7 +150,7 @@ export function RegisterScreen() {
         </label>
         <label className="flex items-start gap-2.5 text-sm text-slate-600">
           <input type="checkbox" checked={ageConfirm} onChange={(e) => setAgeConfirm(e.target.checked)} required className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-600" />
-          <span>{t(lang, "register_age_confirm")}</span>
+          <span>{t(lang, PAYMENTS_ENABLED ? "register_age_confirm" : "register_age_confirm_free")}</span>
         </label>
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <button type="submit" className={btnPrimary}>{t(lang, "register_submit")}</button>

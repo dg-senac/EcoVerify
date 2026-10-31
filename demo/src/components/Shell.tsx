@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { LogOut, Menu, X, Users } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { PoweredByFone } from "@/components/brand/fone";
-import { navItemsFor } from "@/lib/nav";
+import { homeFor, navItemsFor, mobileNav } from "@/lib/nav";
 import { t } from "@/lib/i18n";
 import { Link, useRoute } from "../router";
 import { dt } from "../i18n";
@@ -10,7 +10,6 @@ import { logout, moderatorsOn, useLang, useStore, type User } from "../store";
 import { Avatar } from "./ui";
 import { ProfileSwitcher } from "./ProfileSwitcher";
 
-const MOBILE_PRIMARY = ["/missions", "/submissions", "/ranking", "/community", "/moderation"];
 
 /** Keeps content clear of the status bar / notch in the Android app (edge-to-edge) and on iPhone. */
 export function SafeAreaTop({ className = "" }: { className?: string }) {
@@ -31,7 +30,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
 
   const moderatorsEnabled = useStore((s) => moderatorsOn(s));
   const items = navItemsFor(user.role, moderatorsEnabled);
-  const primaryMobile = items.filter((item) => MOBILE_PRIMARY.includes(item.href)).slice(0, 4);
+  const { primary: primaryMobile, more: moreMobile } = mobileNav(items);
   const isActive = (href: string) => path === href || path.startsWith(href + "/");
 
   const badge = (href: string) => {
@@ -80,7 +79,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
         <SafeAreaTop className="bg-white/90 md:hidden" />
         {/* Mobile top bar */}
         <header className="flex items-center justify-between border-b border-black/5 bg-white/90 px-4 py-2.5 backdrop-blur md:hidden">
-          <Link to="/missions" className="flex items-center gap-2">
+          <Link to={homeFor(user.role, moderatorsEnabled)} className="flex items-center gap-2">
             <LogoMark size={32} />
             <span className="text-lg font-extrabold text-slate-900">EcoVerify</span>
           </Link>
@@ -184,7 +183,9 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
             className={`relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium ${isActive(item.href) ? "text-emerald-600" : "text-slate-500"}`}
           >
             <item.icon className="h-6 w-6" />
-            {item.href === "/moderation" && pendingReview > 0 && <span className="absolute right-[30%] top-1.5 h-2.5 w-2.5 rounded-full bg-red-500" />}
+            {((item.href === "/moderation" && pendingReview > 0) || (item.href === "/notifications" && unread > 0)) && (
+              <span className="absolute right-[30%] top-1.5 h-2.5 w-2.5 rounded-full bg-red-500" />
+            )}
             <span className="max-w-full truncate px-1">{t(lang, item.labelKey)}</span>
           </Link>
         ))}
@@ -194,7 +195,9 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
           className="relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium text-slate-500"
         >
           <Menu className="h-6 w-6" />
-          {unread > 0 && <span className="absolute right-[30%] top-1.5 h-2.5 w-2.5 rounded-full bg-red-500" />}
+          {unread > 0 && moreMobile.some((item) => item.href === "/notifications") && (
+            <span className="absolute right-[30%] top-1.5 h-2.5 w-2.5 rounded-full bg-red-500" />
+          )}
           <span>{dt(lang, "more")}</span>
         </button>
       </nav>

@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { citizenOnly } from "@/lib/role-guard";
 import { desc, eq, sql } from "drizzle-orm";
 import { Gift } from "lucide-react";
 import { db } from "@/db";
 import { offerRedemptions, partnerOffers } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { getRegion } from "@/lib/regional/cookie";
-import { BENEFIT_TEXT, offerExpired, offerInCity, offerVisible, sortOffers } from "@/lib/benefits";
+import { BENEFIT_TEXT, localizeOffer, offerExpired, offerInCity, offerVisible, sortOffers } from "@/lib/benefits";
+import { inLang } from "@/lib/i18n";
 import { declareAdultAction, redeemOfferAction } from "@/lib/actions/benefits";
 import { BenefitsView } from "@/components/benefits/benefits-view";
 
-export const metadata: Metadata = { title: "Benefícios · EcoVerify" };
+export const metadata: Metadata = { title: "Perks · EcoVerify" };
 
 /** Local business benefits: unlocked by points (not spent), one code per person per offer. */
 export default async function BenefitsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/beneficios");
+  citizenOnly(user.role);
   const lang = user.language;
   const text = BENEFIT_TEXT[lang];
   const region = await getRegion();
@@ -29,7 +32,7 @@ export default async function BenefitsPage() {
       .from(partnerOffers)
       .where(eq(partnerOffers.isActive, true)),
     db
-      .select({ redemption: offerRedemptions, title: partnerOffers.title, partnerName: partnerOffers.partnerName })
+      .select({ redemption: offerRedemptions, title: partnerOffers.title, titleEn: partnerOffers.titleEn, titleEs: partnerOffers.titleEs, partnerName: partnerOffers.partnerName })
       .from(offerRedemptions)
       .innerJoin(partnerOffers, eq(partnerOffers.id, offerRedemptions.offerId))
       .where(eq(offerRedemptions.userId, user.id))
@@ -37,7 +40,7 @@ export default async function BenefitsPage() {
   ]);
   const local = offers.filter(({ offer }) => offerInCity(offer.city, region?.city) && !offerExpired(offer));
   const visible = sortOffers(
-    local.filter(({ offer }) => offerVisible(offer, user)).map(({ offer, redeemedCount }) => ({ ...offer, redeemedCount })),
+    local.filter(({ offer }) => offerVisible(offer, user)).map(({ offer, redeemedCount }) => ({ ...localizeOffer(offer, lang), redeemedCount })),
     user.totalPoints,
   );
 
@@ -73,12 +76,12 @@ export default async function BenefitsPage() {
           featured: o.featured,
           redeemedCount: o.redeemedCount,
         }))}
-        codes={mine.map(({ redemption, title, partnerName }) => ({
+        codes={mine.map(({ redemption, title, titleEn, titleEs, partnerName }) => ({
           offerId: redemption.offerId,
           code: redemption.code,
           createdAt: redemption.createdAt.toISOString(),
           usedAt: redemption.usedAt?.toISOString() ?? null,
-          title,
+          title: inLang(lang, title, titleEn, titleEs),
           partnerName,
         }))}
         onRedeem={redeemOfferAction}

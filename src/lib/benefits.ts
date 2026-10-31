@@ -5,7 +5,7 @@
  *
  * Pure module: shared by the server and the offline demo.
  */
-import type { Lang } from "@/lib/i18n";
+import { inLang, type Lang } from "@/lib/i18n";
 
 export const OFFER_KINDS = ["food", "bike", "sport", "shop", "culture", "other"] as const;
 export type OfferKind = (typeof OFFER_KINDS)[number];
@@ -278,6 +278,11 @@ export interface OfferInput {
   partnerName: string;
   title: string;
   description: string;
+  /** Optional translations (empty = people see the original text). */
+  titleEn?: string;
+  titleEs?: string;
+  descriptionEn?: string;
+  descriptionEs?: string;
   kind: string;
   city: string;
   address: string;
@@ -293,6 +298,10 @@ export interface OfferValues {
   partnerName: string;
   title: string;
   description: string;
+  titleEn: string | null;
+  titleEs: string | null;
+  descriptionEn: string | null;
+  descriptionEs: string | null;
   kind: OfferKind;
   city: string | null;
   address: string | null;
@@ -316,6 +325,7 @@ export function parseOfferInput(input: OfferInput): { value: OfferValues } | { e
   // A date (yyyy-mm-dd) means "until the end of that day".
   const expiresAt = expiresRaw === "" ? null : new Date(/^\d{4}-\d{2}-\d{2}$/.test(expiresRaw) ? `${expiresRaw}T23:59:59` : expiresRaw);
   if (partnerName.length < 2 || partnerName.length > 80 || title.length < 4 || title.length > 120 || description.length < 10 || description.length > 600) return { error: "invalid" };
+  const optional = (value: string | undefined, max: number) => String(value ?? "").trim().slice(0, max) || null;
   if (!Number.isFinite(minPoints) || minPoints < 0 || minPoints > 100_000) return { error: "invalid" };
   if (maxRedemptions !== null && (!Number.isFinite(maxRedemptions) || maxRedemptions < 1 || maxRedemptions > 100_000)) return { error: "invalid" };
   if (!Number.isFinite(fee) || fee < 0 || fee > 100_000) return { error: "invalid" };
@@ -325,6 +335,10 @@ export function parseOfferInput(input: OfferInput): { value: OfferValues } | { e
       partnerName,
       title,
       description,
+      titleEn: optional(input.titleEn, 120),
+      titleEs: optional(input.titleEs, 120),
+      descriptionEn: optional(input.descriptionEn, 600),
+      descriptionEs: optional(input.descriptionEs, 600),
       kind: isOfferKind(input.kind) ? input.kind : "other",
       city: String(input.city ?? "").trim().slice(0, 80) || null,
       address: String(input.address ?? "").trim().slice(0, 160) || null,
@@ -343,4 +357,20 @@ const plain = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").
 /** Offers without a city show everywhere; otherwise only in the person's city (all when no city chosen). */
 export function offerInCity(offerCity: string | null | undefined, personCity: string | null | undefined): boolean {
   return !offerCity || !personCity || plain(offerCity) === plain(personCity);
+}
+
+/** Title and rules of an offer in the person's language (falls back to the original text). */
+export function localizeOffer<T extends { title: string; description: string; titleEn?: string | null; titleEs?: string | null; descriptionEn?: string | null; descriptionEs?: string | null }>(
+  offer: T,
+  lang: Lang,
+): T {
+  return { ...offer, title: inLang(lang, offer.title, offer.titleEn, offer.titleEs), description: inLang(lang, offer.description, offer.descriptionEn, offer.descriptionEs) };
+}
+
+/** Alert sent to the person when the shop uses their code. */
+export function codeUsedNotification(lang: Lang, code: string, partnerName: string, offerTitle: string) {
+  const c = formatRedemptionCode(code);
+  if (lang === "en") return { title: "🎁 Perk used", message: `Your code ${c} was used at ${partnerName} (${offerTitle}). Thanks for caring for the city!` };
+  if (lang === "es") return { title: "🎁 Beneficio usado", message: `Tu código ${c} se usó en ${partnerName} (${offerTitle}). ¡Gracias por cuidar la ciudad!` };
+  return { title: "🎁 Benefício usado", message: `Seu código ${c} foi usado em ${partnerName} (${offerTitle}). Obrigado por cuidar da cidade!` };
 }

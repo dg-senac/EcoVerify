@@ -1,4 +1,5 @@
 import { categoryLabels, t, tf, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import Link from "next/link";
 import { Star, Sprout } from "@/components/ui/icons";
 import { FoneAmount } from "@/components/brand/fone";
@@ -51,8 +52,8 @@ export function MissionCard({ lang, mission }: { lang: Lang; mission: MissionCar
     return mission.description;
   };
 
-  const paysFone = Number(mission.foneReward) > 0;
-  const pointsOnly = mission.needsReview && !paysFone;
+  const paysFone = PAYMENTS_ENABLED && Number(mission.foneReward) > 0;
+  const pointsOnly = PAYMENTS_ENABLED && mission.needsReview && !paysFone;
   const sponsored = mission.sponsorRemainingFone !== undefined && mission.sponsorRemainingFone !== null;
   const sponsorEmpty = sponsored && paysFone && Number(mission.sponsorRemainingFone) < Number(mission.foneReward);
 

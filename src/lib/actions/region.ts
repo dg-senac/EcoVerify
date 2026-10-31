@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, count, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { missionRequests, missions, missionSuggestions, notifications } from "@/db/schema";
+import { missionRequests, missions, missionSuggestions, notifications, users } from "@/db/schema";
+import { tx as tr } from "@/lib/i18n";
 import { getCurrentUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import {
@@ -181,13 +182,28 @@ export async function reviewSuggestionAction(suggestionId: string, approve: bool
       await tx.update(missionSuggestions).set({ missionId: mission.id }).where(eq(missionSuggestions.id, suggestionId));
     }
 
+    const [author] = await tx.select({ language: users.language }).from(users).where(eq(users.id, suggestion.userId)).limit(1);
+    const lang = author?.language ?? "en";
+    const name = suggestion.title;
     await tx.insert(notifications).values({
       userId: suggestion.userId,
       type: "system",
-      title: approve ? "Sua sugestão virou missão! 🌱" : "Sugestão analisada",
+      title: approve
+        ? tr(lang, "Sua sugestão virou missão! 🌱", "Your suggestion became a mission! 🌱", "¡Tu sugerencia se volvió misión! 🌱")
+        : tr(lang, "Sugestão analisada", "Suggestion reviewed", "Sugerencia revisada"),
       message: approve
-        ? `"${suggestion.title}" agora é uma missão para todo mundo da região. Obrigado por cuidar do seu bairro!`
-        : `Sua sugestão "${suggestion.title}" não foi aprovada desta vez. Você pode sugerir outra ação.`,
+        ? tr(
+            lang,
+            `"${name}" agora é uma missão para todo mundo da região. Obrigado por cuidar do seu bairro!`,
+            `"${name}" is now a mission for everyone in the area. Thanks for caring for your neighbourhood!`,
+            `"${name}" ahora es una misión para todos en la región. ¡Gracias por cuidar tu barrio!`,
+          )
+        : tr(
+            lang,
+            `Sua sugestão "${name}" não foi aprovada desta vez. Você pode sugerir outra ação.`,
+            `Your suggestion "${name}" was not approved this time. You can suggest another action.`,
+            `Tu sugerencia "${name}" no fue aprobada esta vez. Puedes sugerir otra acción.`,
+          ),
     });
   });
 

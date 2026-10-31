@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { ArrowLeft, Camera, Crosshair, Loader2, MapPin, Navigation, Star, Target, Lightbulb } from "lucide-react";
-import { categoryEmoji, t } from "@/lib/i18n";
+import { categoryEmoji, inLang, t } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { goBack, Link, navigate } from "../router";
 import { dt, errorText } from "../i18n";
 import { checkProof, localizedDescription, localizedTitle, submitProof, useLang, useStore, type NewSubmission } from "../store";
@@ -163,7 +164,9 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
             <h1 className="text-xl font-extrabold leading-tight">{localizedTitle(mission, lang)}</h1>
             <div className="mt-2 flex gap-2 text-xs font-bold">
               <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5"><Star className="h-3.5 w-3.5" /> {mission.pointsReward} {t(lang, "points")}</span>
-              <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5"><FoneAmount amount={mission.foneReward} size={14} /></span>
+              {PAYMENTS_ENABLED && Number(mission.foneReward) > 0 && (
+                <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5"><FoneAmount amount={mission.foneReward} size={14} /></span>
+              )}
             </div>
           </div>
         </div>
@@ -176,10 +179,10 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
             </p>
           )}
           {mission.context && (
-            <p className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-emerald-900"><Target className="mt-0.5 h-4 w-4 shrink-0" /><span><b>{dt(lang, "what_to_do")}:</b> {mission.context}</span></p>
+            <p className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-emerald-900"><Target className="mt-0.5 h-4 w-4 shrink-0" /><span><b>{dt(lang, "what_to_do")}:</b> {inLang(lang, mission.context, mission.contextEn, mission.contextEs)}</span></p>
           )}
           {mission.impact && (
-            <p className="flex gap-2 rounded-xl bg-sky-50 p-3 text-sky-900"><Lightbulb className="mt-0.5 h-4 w-4 shrink-0" /><span><b>{dt(lang, "why_it_matters")}:</b> {mission.impact}</span></p>
+            <p className="flex gap-2 rounded-xl bg-sky-50 p-3 text-sky-900"><Lightbulb className="mt-0.5 h-4 w-4 shrink-0" /><span><b>{dt(lang, "why_it_matters")}:</b> {inLang(lang, mission.impact, mission.impactEn, mission.impactEs)}</span></p>
           )}
         </div>
       </div>

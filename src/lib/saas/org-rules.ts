@@ -2,6 +2,7 @@
  * Organization rules (pure): slugs, invite codes, roles and plan limits.
  * Shared by the server (src/lib/saas/orgs.ts, src/lib/actions/orgs.ts) and the offline demo.
  */
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { effectivePlan, hasFeature, PLANS, TRIAL_DAYS, type BillingCycle, type PlanFeature, type PlanId, type SubscriptionLike } from "@/lib/plans";
 
 export const ORG_TYPES = ["school", "business", "government", "ngo", "other"] as const;
@@ -48,6 +49,8 @@ export interface OrgLike extends SubscriptionLike {
 }
 
 export function orgPlan(org: OrgLike, now: Date = new Date()): PlanId {
+  // While payments are off, every organization gets every feature and no limits (pilot).
+  if (!PAYMENTS_ENABLED) return "government";
   return effectivePlan(org, now);
 }
 

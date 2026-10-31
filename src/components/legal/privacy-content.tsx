@@ -1,11 +1,21 @@
 import { MIN_AGE, type LegalInfo } from "@/lib/legal";
+import type { Lang } from "@/lib/i18n";
 import { LegalList, LegalSection, contactText } from "./legal-ui";
+import { PrivacyEn } from "./privacy-en";
+import { PrivacyEs } from "./privacy-es";
 
 /**
  * Política de Privacidade do EcoVerify, alinhada à LGPD (Lei 13.709/2018).
  * Texto-base escrito a partir dos fluxos reais de dados do app: revisar com advogado.
+ * Esta é a versão que vale; privacy-en.tsx e privacy-es.tsx são traduções (atualize-as junto).
  */
-export function PrivacyContent({ info }: { info: LegalInfo }) {
+export function PrivacyContent({ info, lang = "pt" }: { info: LegalInfo; lang?: Lang }) {
+  if (lang === "en") return <PrivacyEn info={info} />;
+  if (lang === "es") return <PrivacyEs info={info} />;
+  return <PrivacyPt info={info} />;
+}
+
+function PrivacyPt({ info }: { info: LegalInfo }) {
   return (
     <div>
       <p className="text-sm leading-relaxed text-slate-700">

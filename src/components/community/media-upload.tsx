@@ -79,7 +79,7 @@ export function MediaUpload({ lang, onMediaUploaded }: MediaUploadProps) {
       onMediaUploaded(data.url, "audio");
     } catch (error) {
       console.error("Audio upload error:", error);
-      alert("Erro ao fazer upload do áudio. Tente novamente.");
+      alert(t(lang, "audio_upload_error"));
     } finally {
       setUploading(false);
     }

@@ -1,5 +1,5 @@
 import { Gift } from "lucide-react";
-import { BENEFIT_TEXT, firstName, offerExpired, offerInCity, offerVisible, sortOffers } from "@/lib/benefits";
+import { BENEFIT_TEXT, firstName, localizeOffer, offerExpired, offerInCity, offerVisible, sortOffers } from "@/lib/benefits";
 import { BenefitsView } from "@/components/benefits/benefits-view";
 import { PartnerValidateView } from "@/components/benefits/partner-validate";
 import { declareAdult, redeemOffer, useLang, useStore, validateOfferCode, type User } from "../store";
@@ -15,7 +15,7 @@ export function BenefitsScreen({ user }: { user: User }) {
 
   const local = offers.filter((o) => o.isActive && offerInCity(o.city, city) && !offerExpired(o));
   const visible = sortOffers(
-    local.filter((o) => offerVisible(o, user)).map((o) => ({ ...o, redeemedCount: redemptions.filter((r) => r.offerId === o.id).length })),
+    local.filter((o) => offerVisible(o, user)).map((o) => ({ ...localizeOffer(o, lang), redeemedCount: redemptions.filter((r) => r.offerId === o.id).length })),
     user.totalPoints,
   );
   const mine = redemptions.filter((r) => r.userId === user.id);
@@ -31,7 +31,7 @@ export function BenefitsScreen({ user }: { user: User }) {
         offers={visible}
         codes={mine.map((r) => {
           const offer = offers.find((o) => o.id === r.offerId);
-          return { offerId: r.offerId, code: r.code, createdAt: r.createdAt, usedAt: r.usedAt, title: offer?.title, partnerName: offer?.partnerName };
+          return { offerId: r.offerId, code: r.code, createdAt: r.createdAt, usedAt: r.usedAt, title: offer ? localizeOffer(offer, lang).title : undefined, partnerName: offer?.partnerName };
         })}
         onRedeem={async (offerId) => redeemOffer(offerId)}
         onDeclareAdult={async () => {
@@ -61,7 +61,7 @@ export function PartnerScreen({ token }: { token: string }) {
     <PartnerValidateView
       lang={lang}
       partnerName={offer.partnerName}
-      offerTitle={offer.title}
+      offerTitle={localizeOffer(offer, lang).title}
       isActive={offer.isActive}
       generated={redemptions.length}
       used={used.length}

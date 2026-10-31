@@ -7,6 +7,7 @@ import { PLAN_TEXT } from "@/lib/saas/plan-text";
 import { ORG_TYPES, canManage, canPromote, memberLimit, orgPlan } from "@/lib/saas/org-rules";
 import { PLANS, TRIAL_DAYS, formatBRL, hasFeature, type BillingCycle, type PlanId } from "@/lib/plans";
 import { pixPayload } from "@/lib/saas/pix";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { BillingPanel } from "@/components/org/billing-panel";
 import { EventsPanel } from "@/components/org/events-panel";
 import { EventFields, type EventWindowValue } from "@/components/org/event-fields";
@@ -98,7 +99,8 @@ export function OrgListScreen({ user }: { user: User }) {
                   {text.types[org.type]} · {text.roles[role]}
                 </p>
                 <p className="mt-1 text-xs font-semibold text-emerald-700">
-                  {mk.planNames[orgPlan(org)]} · {text.usage(members, PLANS[orgPlan(org)].maxMembers)}
+                  {PAYMENTS_ENABLED && `${mk.planNames[orgPlan(org)]} · `}
+                  {text.usage(members, PLANS[orgPlan(org)].maxMembers)}
                 </p>
               </div>
             </Link>
@@ -138,7 +140,7 @@ export function OrgNewScreen({ user }: { user: User }) {
   const text = ORG_TEXT[lang];
   const mk = PLAN_TEXT[lang];
   const trialUsed = useStore((s) => (s.orgs ?? []).some((o) => o.ownerId === user.id && o.trialUsed));
-  const [form, setForm] = useState({ name: "", type: "school", city: "", plan: "school" as PlanId, cycle: "monthly" as BillingCycle });
+  const [form, setForm] = useState({ name: "", type: "school", city: "", plan: (PAYMENTS_ENABLED ? "school" : "free") as PlanId, cycle: "monthly" as BillingCycle });
   const [error, setError] = useState<string | null>(null);
 
   return (
@@ -174,6 +176,7 @@ export function OrgNewScreen({ user }: { user: User }) {
             <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className={input} />
           </label>
         </div>
+        {PAYMENTS_ENABLED && (
         <fieldset className="grid gap-2">
           <legend className={label}>{text.plan}</legend>
           {(["free", "school", "business"] as PlanId[]).map((id) => {
@@ -199,7 +202,8 @@ export function OrgNewScreen({ user }: { user: User }) {
             );
           })}
         </fieldset>
-        {form.plan !== "free" && (
+        )}
+        {PAYMENTS_ENABLED && form.plan !== "free" && (
           <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">{trialUsed ? text.trialUsedInfo : text.trialInfo(TRIAL_DAYS)}</p>
         )}
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -229,7 +233,7 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
   if (!org || !role || !stats) return <EmptyState emoji="🏫" text={text.noOrgs} />;
   const manager = canManage(role);
   const plan = orgPlan(org);
-  const tabs: Tab[] = manager ? [...TABS] : ["overview"];
+  const tabs: Tab[] = manager ? TABS.filter((x) => PAYMENTS_ENABLED || x !== "plan") : ["overview"];
   const tab: Tab = tabs.find((x) => x === rawTab) ?? "overview";
   const active = missions.filter((m) => m.isActive && eventPhase(m) !== "closed");
   const missionIds = new Set(missions.map((m) => m.id));
@@ -251,7 +255,14 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
           </h1>
           <p className="text-sm text-slate-500">
             {text.types[org.type]}
-            {org.city ? ` · ${org.city}` : ""} · <span className="font-semibold text-emerald-700">{mk.planNames[plan]}</span> · {text.roles[role]}
+            {org.city ? ` · ${org.city}` : ""}
+            {PAYMENTS_ENABLED && (
+              <>
+                {" · "}
+                <span className="font-semibold text-emerald-700">{mk.planNames[plan]}</span>
+              </>
+            )}{" "}
+            · {text.roles[role]}
           </p>
         </div>
         {hasFeature(plan, "certificates") && me && (
@@ -468,7 +479,7 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
           </div>
         )}
 
-        {tab === "plan" && manager && (
+        {tab === "plan" && manager && PAYMENTS_ENABLED && (
           <div className="grid gap-4">
             <BillingPanel
               lang={lang}

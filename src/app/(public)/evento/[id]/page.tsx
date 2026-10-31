@@ -11,7 +11,7 @@ import { membershipRole, orgById } from "@/lib/saas/orgs";
 import { EventReportView } from "@/components/org/event-report";
 import { PrintButton } from "@/components/org/print-button";
 
-export const metadata: Metadata = { title: "Relatório do evento · EcoVerify", robots: { index: false } };
+export const metadata: Metadata = { title: "Event report · EcoVerify", robots: { index: false } };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

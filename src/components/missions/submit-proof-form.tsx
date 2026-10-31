@@ -1,8 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { createSubmissionAction, type SubmissionActionState } from "@/lib/actions/submissions";
-import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
+import { categoryEmoji, categoryLabels, inLang, t, type Lang } from "@/lib/i18n";
 import { useRouter } from "next/navigation";
 import { FoneAmount, FoneMark } from "@/components/brand/fone";
 import { RecyclingFields, type RecyclingValue } from "@/components/missions/recycling-fields";
@@ -39,7 +40,11 @@ export function SubmitProofForm({
     titleEn?: string | null;
     titleEs?: string | null;
     context?: string | null;
+    contextEn?: string | null;
+    contextEs?: string | null;
     impact?: string | null;
+    impactEn?: string | null;
+    impactEs?: string | null;
     latitude: string | null;
     longitude: string | null;
     scope?: "local" | "anywhere";
@@ -137,8 +142,8 @@ export function SubmitProofForm({
 
           {(mission.context || mission.impact) && (
             <div className="space-y-3 rounded-2xl bg-emerald-50 p-4 text-sm text-slate-700">
-              {mission.context && <p><strong className="text-emerald-800">O que fazer:</strong> {mission.context}</p>}
-              {mission.impact && <p><strong className="text-emerald-800">Por que importa:</strong> {mission.impact}</p>}
+              {mission.context && <p><strong className="text-emerald-800">{t(lang, "what_to_do")}:</strong> {inLang(lang, mission.context, mission.contextEn, mission.contextEs)}</p>}
+              {mission.impact && <p><strong className="text-emerald-800">{t(lang, "why_it_matters")}:</strong> {inLang(lang, mission.impact, mission.impactEn, mission.impactEs)}</p>}
             </div>
           )}
 
@@ -150,7 +155,7 @@ export function SubmitProofForm({
             <label className="block cursor-pointer rounded-2xl border-2 border-dashed border-slate-300 p-4 text-center transition hover:border-emerald-400 hover:bg-emerald-50/40 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100">
               {preview ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={preview} alt="Pré-visualização" className="mx-auto max-h-56 rounded-xl object-cover" />
+                <img src={preview} alt={t(lang, "photo_preview")} className="mx-auto max-h-56 rounded-xl object-cover" />
               ) : (
                 <div className="flex flex-col items-center gap-2 py-6 text-slate-500">
                   <span className="text-4xl">📷</span>
@@ -190,7 +195,7 @@ export function SubmitProofForm({
               rows={4}
               value={report}
               onChange={(e) => setReport(e.target.value)}
-              placeholder="Conte como foi a experiência, onde e como você realizou a ação..."
+              placeholder={t(lang, "report_placeholder")}
               className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
             />
             {reportTooShort && (
@@ -237,8 +242,13 @@ export function SubmitProofForm({
           )}
 
           <div className="rounded-xl bg-slate-50 px-4 py-2.5 text-xs text-slate-500">
-            {categoryLabels[mission.category]?.[lang]} · ⭐ {mission.pointsReward} {t(lang, "reward_points")} ·{" "}
-            <FoneAmount amount={mission.foneReward} size={14} className="align-middle" />
+            {categoryLabels[mission.category]?.[lang]} · ⭐ {mission.pointsReward} {t(lang, "reward_points")}
+            {PAYMENTS_ENABLED && Number(mission.foneReward) > 0 && (
+              <>
+                {" · "}
+                <FoneAmount amount={mission.foneReward} size={14} className="align-middle" />
+              </>
+            )}
           </div>
 
           <div className="flex gap-3 pt-1">

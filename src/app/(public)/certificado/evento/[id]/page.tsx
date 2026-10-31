@@ -15,7 +15,7 @@ import { EventCertificateView } from "@/components/org/event-report";
 import { PrintButton } from "@/components/org/print-button";
 import { PublicShell } from "@/components/org/public-shell";
 
-export const metadata: Metadata = { title: "Certificado de participação · EcoVerify", robots: { index: false } };
+export const metadata: Metadata = { title: "Certificate of participation · EcoVerify", robots: { index: false } };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

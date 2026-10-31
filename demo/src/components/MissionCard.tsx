@@ -1,6 +1,7 @@
 import { Star, MapPin } from "lucide-react";
 import { categoryEmoji, categoryLabels, t, tf, type Lang } from "@/lib/i18n";
 import { centsToFone } from "@/lib/fone";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { Link } from "../router";
 import { localizedDescription, localizedTitle, sponsorBalance, useStore, type Mission, type SubmissionStatus } from "../store";
 import { StatusBadge, card } from "./ui";
@@ -19,7 +20,7 @@ export const categoryStyles: Record<string, string> = {
 /** Same look as src/components/missions/mission-card.tsx. */
 export function MissionCard({ lang, mission, myStatus, distanceKm }: { lang: Lang; mission: Mission; myStatus?: SubmissionStatus; distanceKm?: number }) {
   const done = myStatus === "pending" || myStatus === "approved";
-  const paysFone = Number(mission.foneReward) > 0;
+  const paysFone = PAYMENTS_ENABLED && Number(mission.foneReward) > 0;
   const anywhere = mission.scope === "anywhere";
   const sponsorLeftCents = useStore((s) => (mission.sponsorId ? sponsorBalance(s, mission.sponsorId).remainingCents : null));
   const sponsorEmpty = sponsorLeftCents !== null && paysFone && sponsorLeftCents < Math.round(Number(mission.foneReward) * 100);
@@ -75,7 +76,7 @@ export function MissionCard({ lang, mission, myStatus, distanceKm }: { lang: Lan
           {sponsorEmpty ? t(lang, "mission_sponsor_empty") : tf(lang, "mission_sponsor_left", { fone: centsToFone(sponsorLeftCents) })}
         </p>
       )}
-      {mission.needsReview && !paysFone && <p className="mt-2 text-[11px] text-slate-400">{t(lang, "mission_auto_points_only")}</p>}
+      {PAYMENTS_ENABLED && mission.needsReview && !paysFone && <p className="mt-2 text-[11px] text-slate-400">{t(lang, "mission_auto_points_only")}</p>}
       {done ? (
         <span className="mt-4 w-full rounded-xl bg-slate-100 px-4 py-2.5 text-center text-sm font-semibold text-slate-500">
           {t(lang, `status_${myStatus}`)}

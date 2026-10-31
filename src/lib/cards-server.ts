@@ -62,7 +62,7 @@ export async function issueCard(input: IssueCardInput): Promise<{ outcome: Yello
       })
       .returning({ id: userCards.id });
 
-    const label = CARD_REASON_LABELS[input.reason].pt;
+    const label = CARD_REASON_LABELS[input.reason][target.language];
     if (outcome?.suspend) {
       // The cards of this series are used up: after the suspension the count starts again.
       for (const old of countingYellows(existing, now)) {

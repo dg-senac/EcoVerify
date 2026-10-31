@@ -1,3 +1,4 @@
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { initials } from "@/lib/utils";
 import { FoneAmount, FoneMark } from "@/components/brand/fone";
 
@@ -24,8 +25,12 @@ export function MetricsTab({
     { label: "Taxa de aprovação", value: `${metrics.approvalRate}%`, icon: "📈", color: "from-sky-400 to-sky-500" },
     { label: "Pontos distribuídos", value: metrics.pointsDistributed, icon: "⭐", color: "from-purple-400 to-purple-500" },
     { label: "Total de usuários", value: metrics.totalUsers, icon: "👥", color: "from-teal-400 to-teal-500" },
-    { label: "FONE na fila", value: <FoneAmount amount={metrics.foneQueued} size={22} />, icon: "⏱️", color: "from-orange-400 to-orange-500" },
-    { label: "FONE já pago", value: <FoneAmount amount={metrics.fonePaid} size={22} />, icon: "💸", color: "from-green-400 to-green-500" },
+    ...(PAYMENTS_ENABLED
+      ? [
+          { label: "FONE na fila", value: <FoneAmount amount={metrics.foneQueued} size={22} />, icon: "⏱️", color: "from-orange-400 to-orange-500" },
+          { label: "FONE já pago", value: <FoneAmount amount={metrics.fonePaid} size={22} />, icon: "💸", color: "from-green-400 to-green-500" },
+        ]
+      : []),
   ];
 
   return (

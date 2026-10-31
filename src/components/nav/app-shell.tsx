@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { LogoMark } from "@/components/logo";
-import { navItemsFor, MOBILE_PRIMARY_HREFS, type Role } from "@/lib/nav";
+import { homeFor, navItemsFor, mobileNav, type Role } from "@/lib/nav";
 import { t, type Lang } from "@/lib/i18n";
 import { initials } from "@/lib/utils";
 import { logoutAction } from "@/lib/actions/auth";
@@ -35,8 +35,7 @@ export function AppShell({
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const items = navItemsFor(user.role, moderatorsEnabled);
-  const primaryMobile = items.filter((item) => MOBILE_PRIMARY_HREFS.includes(item.href));
-  const moreItems = items.filter((item) => !MOBILE_PRIMARY_HREFS.includes(item.href));
+  const { primary: primaryMobile, more: moreItems } = mobileNav(items);
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
@@ -95,7 +94,7 @@ export function AppShell({
 
       {/* Mobile top bar */}
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-black/5 bg-white/90 px-4 py-3 backdrop-blur md:hidden">
-        <Link href="/missions" className="flex items-center gap-2">
+        <Link href={homeFor(user.role, moderatorsEnabled)} className="flex items-center gap-2">
           <LogoMark size={32} />
           <span className="text-lg font-extrabold text-slate-900">EcoVerify</span>
         </Link>
@@ -199,7 +198,7 @@ export function AppShell({
           className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium text-slate-500"
         >
           <Menu className="h-6 w-6" />
-          <span>{moreItems.length > 0 ? "Mais" : ""}</span>
+          <span>{moreItems.length > 0 ? t(lang, "nav_more") : ""}</span>
         </button>
       </nav>
     </div>

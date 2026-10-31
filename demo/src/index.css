@@ -19,6 +19,7 @@
 @source "../../src/components/org/event-report.tsx";
 @source "../../src/components/benefits";
 @source "../../src/components/admin/benefits-tab.tsx";
+@source "../../src/components/profile";
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Ubuntu, sans-serif;

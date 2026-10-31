@@ -111,7 +111,7 @@ export function RejectModal({
                 rows={4}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder={flagged ? t(lang, "internet_explain_placeholder") : "Explique por que a comprovação está sendo rejeitada..."}
+                placeholder={flagged ? t(lang, "internet_explain_placeholder") : t(lang, "reject_placeholder")}
                 data-testid="reject-reason"
                 className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
               />

@@ -1,11 +1,21 @@
 import { FONE_MIN_AGE, MIN_AGE, type LegalInfo } from "@/lib/legal";
+import type { Lang } from "@/lib/i18n";
 import { LegalList, LegalSection, contactText } from "./legal-ui";
+import { TermsEn } from "./terms-en";
+import { TermsEs } from "./terms-es";
 
 /**
  * Termos de Uso do EcoVerify (texto-base: revisar com advogado antes da publicação).
  * Ao alterar algo relevante, atualize TERMS_VERSION em src/lib/legal.ts.
+ * Esta é a versão que vale; terms-en.tsx e terms-es.tsx são traduções (atualize-as junto).
  */
-export function TermsContent({ info }: { info: LegalInfo }) {
+export function TermsContent({ info, lang = "pt" }: { info: LegalInfo; lang?: Lang }) {
+  if (lang === "en") return <TermsEn info={info} />;
+  if (lang === "es") return <TermsEs info={info} />;
+  return <TermsPt info={info} />;
+}
+
+function TermsPt({ info }: { info: LegalInfo }) {
   return (
     <div>
       <p className="text-sm leading-relaxed text-slate-700">

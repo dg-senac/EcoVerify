@@ -1,7 +1,10 @@
 import { useState } from "react";
-import { Check, ShieldCheck, Sprout, BarChart3 } from "lucide-react";
+import { Check, ShieldCheck, Sprout, BarChart3, Building2 } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { navigate } from "../router";
+import { homeFor } from "@/lib/nav";
+import { DEMO_IDS } from "../seed";
 import { dt } from "../i18n";
 import { loginAs, moderatorsOn, useLang, useStore, type User } from "../store";
 import { isSuspended } from "@/lib/cards";
@@ -39,14 +42,16 @@ export function ProfileList({ onPicked }: { onPicked?: () => void }) {
       return;
     }
     onPicked?.();
-    navigate(user.role === "admin" ? "/admin" : user.role === "moderator" && moderatorsOn() ? "/moderation" : "/missions", { replace: true });
+    navigate(homeFor(user.role, moderatorsOn()), { replace: true });
   };
 
   return (
     <div className="grid gap-2.5">
       {users.map((user) => {
-        const Icon = roleIcon[user.role];
-        const roleKey = user.role === "admin" ? "demo_role_admin" : user.role === "moderator" ? "demo_role_moderator" : "demo_role_citizen";
+        // Juliana is a regular account that coordinates an organization (not platform staff).
+        const coordinator = user.id === DEMO_IDS.teacher;
+        const Icon = coordinator ? Building2 : roleIcon[user.role];
+        const roleKey = coordinator ? "demo_role_org" : user.role === "admin" ? "demo_role_admin" : user.role === "moderator" ? "demo_role_moderator" : "demo_role_citizen";
         return (
           <button
             key={user.id}
@@ -68,7 +73,7 @@ export function ProfileList({ onPicked }: { onPicked?: () => void }) {
               <p className="flex items-center gap-1 text-xs font-semibold text-slate-500">
                 <Icon className="h-3.5 w-3.5" /> {dt(lang, roleKey)}
               </p>
-              {user.isDemoProfile && <p className="mt-0.5 text-xs text-slate-400">{dt(lang, `${roleKey}_desc`)}</p>}
+              {user.isDemoProfile && <p className="mt-0.5 text-xs text-slate-400">{dt(lang, PAYMENTS_ENABLED || roleKey === "demo_role_moderator" || roleKey === "demo_role_org" ? `${roleKey}_desc` : `${roleKey}_desc_free`)}</p>}
             </div>
             {user.id === currentId && <Check className="h-5 w-5 text-emerald-600" />}
           </button>

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Check, FileBarChart, Lock, MessageCircle, Users } from "lucide-react";
 import { categoryEmoji, type Lang } from "@/lib/i18n";
 import { formatBRL, type PlanId } from "@/lib/plans";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { ORG_TEXT } from "@/lib/saas/org-text";
 import {
   EVENT_PACKAGE_IDS,
@@ -68,7 +69,7 @@ export function EventsPanel({
   const text = EVENT_TEXT[lang];
   return (
     <div className="grid gap-5" data-testid="events-panel">
-      <p className="text-sm text-slate-500">{text.intro}</p>
+      <p className="text-sm text-slate-500">{PAYMENTS_ENABLED ? text.intro : text.introFree}</p>
       {events.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500" data-testid="events-empty">
           {text.empty}
@@ -156,7 +157,7 @@ function EventCard({
         >
           {unlocked ? <Check className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
           {unlocked ? text.unlocked : text.locked}
-          {unlocked && !paidPackage ? ` · ${text.includedInPlan}` : paidPackage ? ` · ${EVENT_PACKAGE_NAMES[paidPackage][lang]}` : ""}
+          {unlocked && !paidPackage && PAYMENTS_ENABLED ? ` · ${text.includedInPlan}` : paidPackage ? ` · ${EVENT_PACKAGE_NAMES[paidPackage][lang]}` : ""}
         </span>
       </div>
 

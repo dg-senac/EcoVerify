@@ -6,6 +6,7 @@ export const TRANSPARENCY_TEXT: Record<Lang, Record<string, string>> = {
     title: "Transparência",
     intro:
       "O que o EcoVerify distribuiu até agora, em números públicos. Cada pagamento em FONE tem um hash que qualquer pessoa pode conferir no explorador da Fone. Sem nomes nem fotos: só valores, datas e endereços públicos da blockchain.",
+    introFree: "O impacto verificado do EcoVerify em números públicos. Sem nomes nem fotos: só totais de ações comprovadas com foto e localização.",
     impact: "Impacto",
     approved: "ações aprovadas",
     people: "pessoas com ações aprovadas",
@@ -45,6 +46,7 @@ export const TRANSPARENCY_TEXT: Record<Lang, Record<string, string>> = {
     title: "Transparency",
     intro:
       "What EcoVerify has distributed so far, in public numbers. Every FONE payment has a hash anyone can check in the Fone explorer. No names or photos: only amounts, dates and public blockchain addresses.",
+    introFree: "EcoVerify's verified impact in public numbers. No names or photos: only totals of actions proven with a photo and location.",
     impact: "Impact",
     approved: "approved actions",
     people: "people with approved actions",
@@ -84,6 +86,7 @@ export const TRANSPARENCY_TEXT: Record<Lang, Record<string, string>> = {
     title: "Transparencia",
     intro:
       "Lo que EcoVerify ha distribuido hasta ahora, en números públicos. Cada pago en FONE tiene un hash que cualquiera puede comprobar en el explorador de Fone. Sin nombres ni fotos: solo montos, fechas y direcciones públicas de la blockchain.",
+    introFree: "El impacto verificado de EcoVerify en números públicos. Sin nombres ni fotos: solo totales de acciones comprobadas con foto y ubicación.",
     impact: "Impacto",
     approved: "acciones aprobadas",
     people: "personas con acciones aprobadas",

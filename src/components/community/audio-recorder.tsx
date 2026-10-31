@@ -88,7 +88,7 @@ export function AudioRecorder({ lang, onAudioRecorded }: AudioRecorderProps) {
 
     } catch (error) {
       console.error("Error starting recording:", error);
-      alert("Erro ao acessar microfone. Verifique as permissões.");
+      alert(t(lang, "mic_error"));
     }
   };
 

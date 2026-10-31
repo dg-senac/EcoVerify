@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight, Minus, Play, X } from "lucide-react";
-import type { Lang } from "@/lib/i18n";
+import { DEFAULT_LANG, tx, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { regionFromMunicipality } from "@/lib/region";
 import { getState, loginAs, moderatorsOn, setRegion, submitProof, useLang } from "../store";
 import { DEMO_IDS } from "../seed";
@@ -29,8 +30,14 @@ async function chooseRecife() {
 async function sendSampleProof() {
   const photo = drawSamplePhoto("recycling");
   const photoHash = await hashBytes(new TextEncoder().encode(photo + uid()));
-  const report =
-    "Separei plástico, papel e metal em sacolas diferentes, lavei as embalagens e deixei tudo pronto para a coleta seletiva do bairro.";
+  // Written as Maria would write it, in her language.
+  const lang = getState().users.find((u) => u.id === DEMO_IDS.citizen)?.language ?? DEFAULT_LANG;
+  const report = tx(
+    lang,
+    "Separei plástico, papel e metal em sacolas diferentes, lavei as embalagens e deixei tudo pronto para a coleta seletiva do bairro.",
+    "I sorted plastic, paper and metal into separate bags, rinsed the packaging and left everything ready for the neighbourhood's recycling pickup.",
+    "Separé plástico, papel y metal en bolsas distintas, lavé los envases y dejé todo listo para la recolección selectiva del barrio.",
+  );
   for (const missionId of ["m-casa-reciclaveis", "m-casa-oleo"]) {
     const already = getState().submissions.some((s) => s.userId === DEMO_IDS.citizen && s.missionId === missionId && s.status !== "rejected");
     if (already) continue;
@@ -40,7 +47,8 @@ async function sendSampleProof() {
   navigate("/submissions");
 }
 
-const STEPS: Step[] = [
+/** Full tour (payments on): FONE payout, wallet and paid plans. */
+const STEPS_PAID: Step[] = [
   {
     title: { pt: "EcoVerify em 3 minutos", en: "EcoVerify in 3 minutes", es: "EcoVerify en 3 minutos" },
     text: {
@@ -119,12 +127,12 @@ const STEPS: Step[] = [
   {
     title: { pt: "6. Escolas, empresas e prefeituras", en: "6. Schools, companies and city halls", es: "6. Escuelas, empresas y alcaldías" },
     text: {
-      pt: "Para o cidadão é sempre grátis. Quem paga são as organizações: Carlos coordena a Escola Técnica Horizonte, com missões só da escola, ranking da turma, relatório de impacto e certificados. O plano é pago por Pix (QR code) e a Ana confirma em Admin → Negócios. É assim que o EcoVerify se sustenta.",
-      en: "Citizens never pay. Organizations do: Carlos runs the Escola Técnica Horizonte, with school-only missions, class ranking, impact report and certificates. The plan is paid by Pix (QR code) and Ana confirms it in Admin → Business. That's how EcoVerify sustains itself.",
-      es: "Para el ciudadano siempre es gratis. Pagan las organizaciones: Carlos coordina la Escola Técnica Horizonte, con misiones solo de la escuela, ranking del grupo, informe de impacto y certificados. El plan se paga por Pix (código QR) y Ana lo confirma en Admin → Negocios. Así se sostiene EcoVerify.",
+      pt: "Para o cidadão é sempre grátis. Quem paga são as organizações: a professora Juliana coordena a Escola Técnica Horizonte, com missões só da escola, ranking da turma, relatório de impacto e certificados. O plano é pago por Pix (QR code) e a Ana confirma em Admin → Negócios. É assim que o EcoVerify se sustenta.",
+      en: "Citizens never pay. Organizations do: teacher Juliana runs the Escola Técnica Horizonte, with school-only missions, class ranking, impact report and certificates. The plan is paid by Pix (QR code) and Ana confirms it in Admin → Business. That's how EcoVerify sustains itself.",
+      es: "Para el ciudadano siempre es gratis. Pagan las organizaciones: la profesora Juliana coordina la Escola Técnica Horizonte, con misiones solo de la escuela, ranking del grupo, informe de impacto y certificados. El plan se paga por Pix (código QR) y Ana lo confirma en Admin → Negocios. Así se sostiene EcoVerify.",
     },
     run: () => {
-      loginAs(DEMO_IDS.moderator);
+      loginAs(DEMO_IDS.teacher);
       navigate("/org/escola-tecnica-horizonte/plan");
     },
   },
@@ -138,6 +146,68 @@ const STEPS: Step[] = [
     run: () => navigate("/transparencia"),
   },
 ];
+
+/** Tour while payments are off (PAYMENTS_ENABLED): points, ranking, local perks and organizations. */
+const STEPS_FREE: Step[] = [
+  {
+    title: STEPS_PAID[0].title,
+    text: {
+      pt: "Uma pessoa faz uma ação sustentável, prova com foto + GPS, a IA confere, a moderação garante e a pessoa ganha pontos, sobe no ranking e resgata benefícios no comércio da cidade. Vamos seguir esse caminho trocando de perfil sozinhos.",
+      en: "Someone does a sustainable action, proves it with photo + GPS, the AI checks it, moderators make sure, and the person earns points, climbs the ranking and redeems perks at local shops. We will follow that path, switching profiles automatically.",
+      es: "Una persona hace una acción sostenible, la prueba con foto + GPS, la IA la revisa, la moderación la garantiza y la persona gana puntos, sube en el ranking y canjea beneficios en comercios de la ciudad. Seguiremos ese camino cambiando de perfil solos.",
+    },
+  },
+  STEPS_PAID[1],
+  STEPS_PAID[2],
+  STEPS_PAID[3],
+  {
+    title: { pt: "4. Benefícios no comércio local", en: "4. Local perks", es: "4. Beneficios en comercios locales" },
+    text: {
+      pt: "Comércios da cidade dão descontos e brindes para quem faz ações verificadas. Resgatar não gasta pontos: Maria gera um código e mostra no balcão; o comércio valida por um link, sem precisar de conta. Ofertas para maiores de 18 só aparecem para quem declara a idade.",
+      en: "Local shops give discounts and freebies to people who do verified actions. Redeeming doesn't spend points: Maria gets a code and shows it at the counter; the shop validates it through a link, no account needed. 18+ offers only show for people who declare their age.",
+      es: "Los comercios de la ciudad dan descuentos y regalos a quien hace acciones verificadas. Canjear no gasta puntos: María genera un código y lo muestra en el mostrador; el comercio lo valida con un enlace, sin cuenta. Las ofertas para mayores de 18 solo aparecen a quien declara su edad.",
+    },
+    run: () => {
+      loginAs(DEMO_IDS.citizen);
+      navigate("/beneficios");
+    },
+  },
+  {
+    title: { pt: "5. Pontos, níveis e ranking", en: "5. Points, levels and ranking", es: "5. Puntos, niveles y ranking" },
+    text: {
+      pt: "Cada ação aprovada dá pontos e sobe o nível. O ranking mostra quem mais cuida da cidade, e adolescentes participam do mesmo jeito.",
+      en: "Every approved action gives points and raises the level. The ranking shows who cares most for the city, and teenagers take part the same way.",
+      es: "Cada acción aprobada da puntos y sube el nivel. El ranking muestra quién cuida más la ciudad, y los adolescentes participan igual.",
+    },
+    run: () => {
+      loginAs(DEMO_IDS.citizen);
+      navigate("/ranking");
+    },
+  },
+  {
+    title: STEPS_PAID[6].title,
+    text: {
+      pt: "A professora Juliana coordena a Escola Técnica Horizonte: missões só da escola, ranking da turma, mutirões com data e horário, relatório de impacto e certificados. A Ana acompanha a reciclagem e os dados agregados (sem nomes) no Admin.",
+      en: "Teacher Juliana runs the Escola Técnica Horizonte: school-only missions, class ranking, clean-up events with a date and time, impact report and certificates. Ana follows recycling and aggregated data (no names) in Admin.",
+      es: "La profesora Juliana coordina la Escola Técnica Horizonte: misiones solo de la escuela, ranking del grupo, jornadas con fecha y hora, informe de impacto y certificados. Ana sigue el reciclaje y los datos agregados (sin nombres) en Admin.",
+    },
+    run: () => {
+      loginAs(DEMO_IDS.teacher);
+      navigate("/org/escola-tecnica-horizonte");
+    },
+  },
+  {
+    title: STEPS_PAID[7].title,
+    text: {
+      pt: "Esta é a página pública de Transparência: o impacto verificado, sem nomes. Agora explore à vontade: troque de perfil no menu, escolha outra cidade em Missões ou envie uma foto de verdade.",
+      en: "This is the public Transparency page: verified impact, with no names. Now explore freely: switch profiles from the menu, pick another city in Missions or send a real photo.",
+      es: "Esta es la página pública de Transparencia: el impacto verificado, sin nombres. Ahora explora libremente: cambia de perfil en el menú, elige otra ciudad en Misiones o envía una foto real.",
+    },
+    run: () => navigate("/transparencia"),
+  },
+];
+
+const STEPS = PAYMENTS_ENABLED ? STEPS_PAID : STEPS_FREE;
 
 const KEY = "ecoverify-tour";
 type TourState = { step: number; minimized: boolean } | null;

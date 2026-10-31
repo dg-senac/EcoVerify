@@ -126,6 +126,8 @@ export const EVENT_TEXT: Record<Lang, {
   hint: string;
   tab: string;
   intro: string;
+  /** Intro while payments are off (PAYMENTS_ENABLED): no plans or packages to mention. */
+  introFree: string;
   empty: string;
   participants: string;
   actions: string;
@@ -160,6 +162,7 @@ export const EVENT_TEXT: Record<Lang, {
     hint: `As comprovações só valem dentro do horário (com ${EVENT_GRACE_HOURS} h de tolerância depois do fim).`,
     tab: "Eventos",
     intro: "Mutirões com data e horário. Com plano pago, o relatório e os certificados já estão incluídos; sem plano, pague só o evento.",
+    introFree: "Mutirões com data e horário. Cada evento tem relatório de impacto e certificado de participação para quem teve a ação verificada.",
     empty: "Nenhum evento ainda. Crie um na aba Missões marcando \"É um evento\".",
     participants: "participantes",
     actions: "ações aprovadas",
@@ -194,6 +197,7 @@ export const EVENT_TEXT: Record<Lang, {
     hint: `Proofs only count within the time window (plus ${EVENT_GRACE_HOURS} h after the end).`,
     tab: "Events",
     intro: "Events with a date and time. Paid plans include the report and certificates; without a plan, pay just for the event.",
+    introFree: "Events with a date and time. Each event gets an impact report and a certificate of participation for everyone whose action was verified.",
     empty: "No events yet. Create one in the Missions tab by ticking \"It's an event\".",
     participants: "participants",
     actions: "approved actions",
@@ -228,6 +232,7 @@ export const EVENT_TEXT: Record<Lang, {
     hint: `Las pruebas solo valen dentro del horario (con ${EVENT_GRACE_HOURS} h de tolerancia después del fin).`,
     tab: "Eventos",
     intro: "Jornadas con fecha y hora. Con plan pago, el informe y los certificados ya están incluidos; sin plan, paga solo el evento.",
+    introFree: "Jornadas con fecha y hora. Cada evento tiene informe de impacto y certificado de participación para quien tuvo su acción verificada.",
     empty: "Aún no hay eventos. Crea uno en la pestaña Misiones marcando \"Es un evento\".",
     participants: "participantes",
     actions: "acciones aprobadas",

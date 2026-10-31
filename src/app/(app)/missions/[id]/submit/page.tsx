@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { missions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
+import { citizenOnly } from "@/lib/role-guard";
 import { SubmitProofForm } from "@/components/missions/submit-proof-form";
 import { membershipRole } from "@/lib/saas/orgs";
 import { eventSubmissionError } from "@/lib/saas/events";
@@ -12,6 +13,7 @@ import { t } from "@/lib/i18n";
 export default async function SubmitMissionPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  citizenOnly(user.role);
 
   const { id } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) notFound();
@@ -47,7 +49,11 @@ export default async function SubmitMissionPage({ params }: { params: Promise<{ 
           titleEn: mission.titleEn,
           titleEs: mission.titleEs,
           context: mission.context,
+          contextEn: mission.contextEn,
+          contextEs: mission.contextEs,
           impact: mission.impact,
+          impactEn: mission.impactEn,
+          impactEs: mission.impactEs,
           latitude: mission.latitude,
           longitude: mission.longitude,
           scope: mission.scope,

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CARD_APPEAL_MIN, CARD_REASON_LABELS, isCardActive, isCardReason, type CardType } from "@/lib/cards";
 import { t, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { formatDate } from "@/lib/utils";
 
 /** What the panel needs about a card (server rows and demo objects both fit). */
@@ -30,7 +31,7 @@ export function CardsPanel({ lang, cards, onAppeal, errorText }: { lang: Lang; c
   return (
     <section className="card-surface rounded-3xl border border-black/5 bg-white p-5 shadow-sm" data-testid="cards-panel">
       <h2 className="flex items-center gap-2 font-bold text-slate-900">🟨 {t(lang, "cards_title")}</h2>
-      <p className="mt-1 text-xs leading-relaxed text-slate-500">{t(lang, "cards_rules")}</p>
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">{t(lang, PAYMENTS_ENABLED ? "cards_rules" : "cards_rules_free")}</p>
       {cards.length === 0 ? (
         <p className="mt-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">{t(lang, "cards_none")}</p>
       ) : (

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { notFound, redirect } from "next/navigation";
+import { citizenOnly } from "@/lib/role-guard";
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { Award, ExternalLink, FileBarChart, Users } from "lucide-react";
 import { db } from "@/db";
@@ -36,6 +38,7 @@ export default async function OrganizationPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  citizenOnly(user.role);
   const { slug } = await params;
   const query = await searchParams;
   const org = await orgBySlug(slug);
@@ -48,7 +51,7 @@ export default async function OrganizationPage({
   const mk = PLAN_TEXT[lang];
   const manager = canManage(role);
   const plan = orgPlan(org);
-  const visibleTabs: Tab[] = manager ? [...TABS] : ["overview"];
+  const visibleTabs: Tab[] = manager ? TABS.filter((x) => PAYMENTS_ENABLED || x !== "plan") : ["overview"];
   const tab: Tab = visibleTabs.find((t) => t === query.tab) ?? "overview";
   const accent = org.brandColor && hasFeature(plan, "branding") ? org.brandColor : null;
 
@@ -99,7 +102,14 @@ export default async function OrganizationPage({
           </h1>
           <p className="text-sm text-slate-500">
             {text.types[org.type]}
-            {org.city ? ` · ${org.city}` : ""} · <span className="font-semibold text-emerald-700">{mk.planNames[plan]}</span> · {text.roles[role]}
+            {org.city ? ` · ${org.city}` : ""}
+            {PAYMENTS_ENABLED && (
+              <>
+                {" · "}
+                <span className="font-semibold text-emerald-700">{mk.planNames[plan]}</span>
+              </>
+            )}{" "}
+            · {text.roles[role]}
           </p>
         </div>
         <Link href={`/o/${org.slug}`} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
@@ -111,7 +121,7 @@ export default async function OrganizationPage({
         <div className="mt-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 p-5 text-white shadow-md" data-testid="org-welcome">
           <p className="text-lg font-extrabold">🎉 {org.name}</p>
           <p className="mt-1 text-sm text-white/90">
-            {org.subscriptionStatus === "trialing" ? `${text.statusLabels.trialing} · ${mk.planNames[org.plan]}. ` : ""}
+            {PAYMENTS_ENABLED && org.subscriptionStatus === "trialing" ? `${text.statusLabels.trialing} · ${mk.planNames[org.plan]}. ` : ""}
             {text.inviteHint}
           </p>
         </div>
@@ -328,7 +338,7 @@ export default async function OrganizationPage({
           </div>
         )}
 
-        {tab === "plan" && manager && <PlanTab org={org} lang={lang} isOwner={role === "owner"} />}
+        {tab === "plan" && manager && PAYMENTS_ENABLED && <PlanTab org={org} lang={lang} isOwner={role === "owner"} />}
 
         {tab === "report" && manager && (
           <div className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">

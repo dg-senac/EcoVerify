@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
-import { BarChart3, Crosshair, Loader2, Plus, Users, Clock, CheckCircle2, Coins, Hourglass, Target } from "lucide-react";
-import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
+import { BarChart3, Crosshair, Loader2, Plus, Users, Clock, CheckCircle2, Coins, Gift, Hourglass, Target } from "lucide-react";
+import { categoryEmoji, categoryLabels, t, tx, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { formatDate, formatFone } from "@/lib/utils";
 import type { Role } from "@/lib/nav";
 import { dt, errorText, type DemoKey } from "../i18n";
@@ -57,6 +58,7 @@ import { monthStart } from "@/lib/payout-rules";
 import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
 import { dataTables, recyclingSummary } from "@/lib/impact";
 import { BenefitsTab, type AdminOffer } from "@/components/admin/benefits-tab";
+import { localizeOffer } from "@/lib/benefits";
 
 type Tab = "metrics" | "business" | "benefits" | "missions" | "users" | "rewards" | "recycling" | "data";
 export const ADMIN_TAB_KEY = "ecoverify-admin-tab";
@@ -70,13 +72,14 @@ const EXTRA_TABS: Partial<Record<Tab, { icon: string; label: Record<Lang, string
 
 /** Same panel as the web app (src/components/admin/benefits-tab.tsx); the partner link opens #/parceiro/<token>. */
 function DemoBenefitsTab() {
+  const lang = useLang();
   const offers = useStore<AdminOffer[]>((s) => {
     const since = Date.now() - 30 * 24 * 60 * 60 * 1000;
     return (s.offers ?? [])
       .map((o) => {
         const codes = (s.redemptions ?? []).filter((r) => r.offerId === o.id);
         return {
-          ...o,
+          ...localizeOffer(o, s.users.find((u) => u.id === s.currentUserId)?.language ?? s.guestLanguage),
           generated: codes.length,
           used: codes.filter((r) => r.usedAt).length,
           used30: codes.filter((r) => r.usedAt && new Date(r.usedAt).getTime() > since).length,
@@ -86,6 +89,7 @@ function DemoBenefitsTab() {
   });
   return (
     <BenefitsTab
+      lang={lang}
       offers={offers}
       partnerBase={`${window.location.origin}${window.location.pathname}#/parceiro/`}
       actions={{
@@ -99,9 +103,11 @@ function DemoBenefitsTab() {
 
 /** Same panels as the web app (src/components/admin/impact-tabs.tsx); the CSV is built in the browser. */
 function DemoRecyclingTab() {
+  const lang = useLang();
   const all = useStore((s) => impactRows(s));
   return (
     <RecyclingTab
+      lang={lang}
       summary={recyclingSummary(all)}
       rows={all}
     />
@@ -109,9 +115,11 @@ function DemoRecyclingTab() {
 }
 
 function DemoDataTab() {
+  const lang = useLang();
   const tables = useStore((s) => dataTables(impactRows(s)));
   return (
     <DataTab
+      lang={lang}
       tables={tables}
     />
   );
@@ -175,8 +183,9 @@ export function AdminScreen({ user }: { user: User }) {
     // The presentation tour opens the Rewards tab directly.
     const wanted = sessionStorage.getItem(ADMIN_TAB_KEY);
     sessionStorage.removeItem(ADMIN_TAB_KEY);
-    return wanted === "rewards" || wanted === "missions" || wanted === "users" || wanted === "business" || wanted === "recycling" || wanted === "data"
-      ? wanted
+    const payments = wanted === "rewards" || wanted === "business";
+    return (payments && PAYMENTS_ENABLED) || wanted === "missions" || wanted === "users" || wanted === "recycling" || wanted === "data"
+      ? (wanted as Tab)
       : "metrics";
   });
   const businessBadge = useStore((st) => (st.invoices ?? []).filter((i) => i.status === "pending" && i.reportedAt).length);
@@ -186,6 +195,7 @@ export function AdminScreen({ user }: { user: User }) {
       (st.cards ?? []).filter((c) => c.appealedAt && !c.revokedAt && !c.appealRejectedAt).length +
       st.users.filter((u) => u.banAppealedAt && (u.isBanned || isSuspended(u.suspendedUntil))).length,
   );
+  // Business (plans/Pix) and Rewards (FONE payouts) only exist while payments are on.
   const tabs: { id: Tab; key: "admin_tab_metrics" | "admin_tab_missions" | "admin_tab_users" | "admin_tab_rewards" | null }[] = [
     { id: "metrics", key: "admin_tab_metrics" },
     { id: "business", key: null },
@@ -195,7 +205,7 @@ export function AdminScreen({ user }: { user: User }) {
     { id: "rewards", key: "admin_tab_rewards" },
     { id: "recycling", key: null },
     { id: "data", key: null },
-  ];
+  ].filter((tb) => PAYMENTS_ENABLED || (tb.id !== "business" && tb.id !== "rewards")) as typeof tabs;
   return (
     <>
       <PageHeader title={t(lang, "admin_title")} icon={BarChart3} />
@@ -234,8 +244,20 @@ function MetricsTab() {
     { icon: Target, key: "metric_active_missions", value: String(s.missions.filter((m) => m.isActive).length), tone: "bg-emerald-50 text-emerald-700" },
     { icon: Clock, key: "metric_pending", value: String(s.submissions.filter((x) => x.status === "pending").length), tone: "bg-amber-50 text-amber-700" },
     { icon: CheckCircle2, key: "metric_approved", value: String(s.submissions.filter((x) => x.status === "approved").length), tone: "bg-teal-50 text-teal-700" },
-    { icon: Coins, key: "metric_fone_paid", value: formatFone(sum("paid")), tone: "bg-lime-50 text-lime-700" },
-    { icon: Hourglass, key: "metric_fone_queue", value: formatFone(sum("pending")), tone: "bg-orange-50 text-orange-700" },
+    ...(PAYMENTS_ENABLED
+      ? [
+          { icon: Coins, key: "metric_fone_paid" as DemoKey, value: formatFone(sum("paid")), tone: "bg-lime-50 text-lime-700" },
+          { icon: Hourglass, key: "metric_fone_queue" as DemoKey, value: formatFone(sum("pending")), tone: "bg-orange-50 text-orange-700" },
+        ]
+      : [
+          {
+            icon: Users,
+            key: "metric_people_active" as DemoKey,
+            value: String(new Set(s.submissions.filter((x) => x.status === "approved").map((x) => x.userId)).size),
+            tone: "bg-lime-50 text-lime-700",
+          },
+          { icon: Gift, key: "metric_perks_redeemed" as DemoKey, value: String((s.redemptions ?? []).length), tone: "bg-orange-50 text-orange-700" },
+        ]),
   ];
   const byCategory = Object.keys(categoryLabels).map((cat) => ({
     cat,
@@ -271,7 +293,7 @@ function MetricsTab() {
   );
 }
 
-const emptyForm = { title: "", description: "", category: "cleanup" as Category, points: "50", fone: "25", latitude: "-8.0631", longitude: "-34.8711", sponsor: "", sponsorId: "" };
+const emptyForm = { title: "", description: "", category: "cleanup" as Category, points: "50", fone: PAYMENTS_ENABLED ? "25" : "0", latitude: "-8.0631", longitude: "-34.8711", sponsor: "", sponsorId: "" };
 
 function ReviewItem({ mission }: { mission: Mission }) {
   const lang = useLang();
@@ -289,9 +311,15 @@ function ReviewItem({ mission }: { mission: Mission }) {
         ✨ OpenStreetMap · ⭐ {mission.pointsReward} · {mission.city}, {mission.stateCode}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <input className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" inputMode="decimal" placeholder="FONE" value={fone} onChange={(e) => setFone(e.target.value)} aria-label="FONE" />
-        <button type="button" onClick={() => decide("fone")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">{dt(lang, "review_fone")}</button>
-        <button type="button" onClick={() => decide("points")} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">{dt(lang, "review_points")}</button>
+        {PAYMENTS_ENABLED ? (
+          <>
+            <input className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" inputMode="decimal" placeholder="FONE" value={fone} onChange={(e) => setFone(e.target.value)} aria-label="FONE" />
+            <button type="button" onClick={() => decide("fone")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">{dt(lang, "review_fone")}</button>
+            <button type="button" onClick={() => decide("points")} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">{dt(lang, "review_points")}</button>
+          </>
+        ) : (
+          <button type="button" onClick={() => decide("points")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">{tx(lang, "Aprovar missão", "Approve mission", "Aprobar misión")}</button>
+        )}
         <button type="button" onClick={() => decide("deactivate")} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600">{dt(lang, "review_off")}</button>
       </div>
     </div>
@@ -387,14 +415,14 @@ function MissionsTab() {
       <button type="button" className={`${btnPrimary} mb-4`} onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" /> {dt(lang, "new_mission")}
       </button>
-      <SponsorsPanel />
+      {PAYMENTS_ENABLED && <SponsorsPanel />}
       <div className="grid gap-2.5">
         {missions.map((m) => (
           <div key={m.id} className={`${card} flex items-center gap-3 p-4 ${m.isActive ? "" : "opacity-60"}`}>
             <span className="text-2xl">{categoryEmoji[m.category] ?? "🌱"}</span>
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold text-slate-900">{localizedTitle(m, lang)}</p>
-              <p className="text-xs text-slate-500">{m.pointsReward} {t(lang, "reward_points")} · <FoneAmount amount={m.foneReward} size={12} className="align-middle" /> · {m.scope === "anywhere" ? `🌎 ${t(lang, "mission_anywhere")}` : m.city ? `📍 ${m.city}, ${m.stateCode}` : `${m.latitude.toFixed(4)}, ${m.longitude.toFixed(4)}`}</p>
+              <p className="text-xs text-slate-500">{m.pointsReward} {t(lang, "reward_points")} · {PAYMENTS_ENABLED && (<><FoneAmount amount={m.foneReward} size={12} className="align-middle" /> · </>)}{m.scope === "anywhere" ? `🌎 ${t(lang, "mission_anywhere")}` : m.city ? `📍 ${m.city}, ${m.stateCode}` : `${m.latitude.toFixed(4)}, ${m.longitude.toFixed(4)}`}</p>
             </div>
             <button
               type="button"
@@ -431,10 +459,12 @@ function MissionsTab() {
                 <label className={label}>{dt(lang, "field_points")}</label>
                 <input className={input} type="number" min={1} max={10000} value={form.points} onChange={set("points")} required />
               </div>
-              <div>
-                <label className={label}>{dt(lang, "field_fone")}</label>
-                <input className={input} inputMode="decimal" value={form.fone} onChange={set("fone")} required />
-              </div>
+              {PAYMENTS_ENABLED && (
+                <div>
+                  <label className={label}>{dt(lang, "field_fone")}</label>
+                  <input className={input} inputMode="decimal" value={form.fone} onChange={set("fone")} required />
+                </div>
+              )}
               <div>
                 <label className={label}>{dt(lang, "field_latitude")}</label>
                 <input className={input} inputMode="decimal" value={form.latitude} onChange={set("latitude")} required />
@@ -448,7 +478,7 @@ function MissionsTab() {
               <input type="checkbox" checked={anywhere} onChange={(e) => setAnywhere(e.target.checked)} className="accent-emerald-600" />
               🌎 {dt(lang, "field_anywhere")}
             </label>
-            {sponsors.length > 0 && (
+            {PAYMENTS_ENABLED && sponsors.length > 0 && (
               <div>
                 <label className={label}>💰 {dt(lang, "field_sponsor_pays")}</label>
                 <select className={input} value={form.sponsorId} onChange={set("sponsorId")} data-testid="mission-sponsor">
@@ -509,11 +539,13 @@ function sheetUser(u: User): SheetUser {
 
 /** Same sheet as the web app (src/components/admin/user-sheet-view.tsx), fed by the local store. */
 function DemoUserSheet({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const lang = useLang();
   const user = useStore((s) => s.users.find((u) => u.id === userId));
   const details = useStore((s) => demoDetails(s, userId));
   if (!user) return null;
   return (
     <UserSheetView
+      lang={lang}
       user={sheetUser(user)}
       details={details}
       onClose={onClose}
@@ -531,6 +563,7 @@ function DemoUserSheet({ userId, onClose }: { userId: string; onClose: () => voi
 }
 
 function ModeratorsSwitch() {
+  const lang = useLang();
   const enabled = useStore((s) => moderatorsOn(s));
   return (
     <label className={`${card} mb-4 flex items-start gap-3 p-4 text-sm`} data-testid="moderators-switch">
@@ -542,11 +575,11 @@ function ModeratorsSwitch() {
         data-testid="moderators-toggle"
       />
       <span>
-        <span className="font-bold text-slate-900">Moderadores podem revisar comprovações</span>
+        <span className="font-bold text-slate-900">{tx(lang, "Moderadores podem revisar comprovações", "Moderators can review proofs", "Los moderadores pueden revisar pruebas")}</span>
         <span className="mt-0.5 block text-xs text-slate-500">
           {enabled
-            ? "Ligado: quem tem o papel Moderador revisa comprovações e dá cartão amarelo. Vermelho, suspensão, banimento e FONE são só do admin."
-            : "Desligado: só administradores veem a Moderação."}
+            ? tx(lang, "Ligado: quem tem o papel Moderador revisa comprovações e dá cartão amarelo. Vermelho, suspensão e banimento são só do admin.", "On: people with the Moderator role review proofs and give yellow cards. Red cards, suspensions and bans are admin-only.", "Activado: quien tiene el rol Moderador revisa pruebas y da tarjeta amarilla. Roja, suspensión y bloqueo son solo del admin.")
+            : tx(lang, "Desligado: só administradores veem a Moderação.", "Off: only admins see Moderation.", "Desactivado: solo los administradores ven la Moderación.")}
         </span>
       </span>
     </label>
@@ -563,23 +596,23 @@ function CardAppealsPanel({ onOpen }: { onOpen: (userId: string) => void }) {
   if (!appeals.length) return null;
   return (
     <div className={`${card} mb-4 border-sky-200 p-4`} data-testid="card-appeals">
-      <h3 className="mb-2 font-bold text-slate-900">⚖️ Contestações de cartões ({appeals.length})</h3>
+      <h3 className="mb-2 font-bold text-slate-900">⚖️ {tx(lang, "Contestações de cartões", "Card appeals", "Apelaciones de tarjetas")} ({appeals.length})</h3>
       <ul className="space-y-2">
         {appeals.map((c) => (
           <li key={c.id} className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
             <p className="font-bold">
-              {c.type === "red" ? "🟥" : "🟨"} {c.userName} · {CARD_REASON_LABELS[c.reasonCode].pt} · {c.appealedAt ? formatDate(c.appealedAt, lang) : ""}
+              {c.type === "red" ? "🟥" : "🟨"} {c.userName} · {CARD_REASON_LABELS[c.reasonCode][lang]} · {c.appealedAt ? formatDate(c.appealedAt, lang) : ""}
             </p>
             <p className="mt-0.5 whitespace-pre-line">“{c.appealMessage}”</p>
             <div className="mt-1.5 flex flex-wrap gap-2">
               <button type="button" onClick={() => revokeCard(c.id)} className="rounded-lg border border-emerald-300 bg-white px-2.5 py-1 font-bold text-emerald-700" data-testid="appeal-accept">
-                Aceitar (cancelar cartão)
+                {tx(lang, "Aceitar (cancelar cartão)", "Accept (cancel card)", "Aceptar (anular tarjeta)")}
               </button>
               <button type="button" onClick={() => keepCard(c.id)} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-bold text-slate-700" data-testid="appeal-keep">
-                Manter cartão
+                {tx(lang, "Manter cartão", "Keep card", "Mantener tarjeta")}
               </button>
               <button type="button" onClick={() => onOpen(c.userId)} className="rounded-lg px-2.5 py-1 font-bold text-sky-800 underline">
-                Ver ficha
+                {tx(lang, "Ver ficha", "View profile", "Ver ficha")}
               </button>
             </div>
           </li>
@@ -617,7 +650,7 @@ function UsersTab({ me }: { me: User }) {
                   <span className="truncate">{u.name}</span>
                   {u.id === me.id && <span className="text-xs text-emerald-600">({dt(lang, "you")})</span>}
                   {u.isBanned && <span className="rounded bg-red-100 px-1.5 text-[10px] font-bold text-red-700">{dt(lang, "banned_label")}</span>}
-                  <CardBadges cards={allCards.filter((c) => c.userId === u.id)} suspendedUntil={u.suspendedUntil ?? null} />
+                  <CardBadges lang={lang} cards={allCards.filter((c) => c.userId === u.id)} suspendedUntil={u.suspendedUntil ?? null} />
                 </p>
                 <p className="truncate text-xs text-slate-500">{u.email} · {u.totalPoints} {t(lang, "reward_points")}</p>
                 {u.isBanned && (
@@ -641,7 +674,7 @@ function UsersTab({ me }: { me: User }) {
                   className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
                   data-testid="open-user-sheet"
                 >
-                  Ficha
+                  {tx(lang, "Ficha", "Profile", "Ficha")}
                 </button>
                 {u.id !== me.id && (
                   <>

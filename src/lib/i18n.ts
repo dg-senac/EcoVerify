@@ -16,6 +16,20 @@ export function isLang(value: unknown): value is Lang {
   return value === "pt" || value === "en" || value === "es";
 }
 
+/** Inline text in three languages (screens with few strings of their own, e.g. the admin panel). */
+export function tx(lang: Lang, pt: string, en: string, es: string): string {
+  return lang === "en" ? en : lang === "es" ? es : pt;
+}
+
+/** Text in the person's language when a translation exists, otherwise the original (Portuguese) one. */
+export function inLang(lang: Lang, base: string, en?: string | null, es?: string | null): string;
+export function inLang(lang: Lang, base: string | null | undefined, en?: string | null, es?: string | null): string | null;
+export function inLang(lang: Lang, base: string | null | undefined, en?: string | null, es?: string | null) {
+  if (lang === "en" && en) return en;
+  if (lang === "es" && es) return es;
+  return base ?? null;
+}
+
 /** Browser only: remembers the visitor's choice so the next pages (and the sign-up) use it. */
 export function rememberGuestLang(lang: Lang) {
   document.cookie = `${LANG_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`;
@@ -756,8 +770,8 @@ const dict = {
   },
   legal_pt_only: {
     pt: "",
-    en: "This document is available in Portuguese, which is the version that applies.",
-    es: "Este documento está disponible en portugués, que es la versión que se aplica.",
+    en: "Translation provided for convenience. If there is any difference, the Portuguese version prevails.",
+    es: "Traducción ofrecida por comodidad. Si hay alguna diferencia, prevalece la versión en portugués.",
   },
   legal_version: { pt: "Versão de {date}", en: "Version of {date}", es: "Versión del {date}" },
   back: { pt: "Voltar", en: "Back", es: "Volver" },
@@ -1114,6 +1128,126 @@ const dict = {
     pt: "Informe o peso aproximado entre 0,1 e 200 kg.",
     en: "Enter the approximate weight between 0.1 and 200 kg.",
     es: "Indica el peso aproximado entre 0,1 y 200 kg.",
+  },
+  what_to_do: {
+    pt: "O que fazer",
+    en: "What to do",
+    es: "Qué hacer",
+  },
+  why_it_matters: {
+    pt: "Por que importa",
+    en: "Why it matters",
+    es: "Por qué importa",
+  },
+  photo_preview: {
+    pt: "Pré-visualização da foto",
+    en: "Photo preview",
+    es: "Vista previa de la foto",
+  },
+  report_placeholder: {
+    pt: "Conte como foi a experiência, onde e como você realizou a ação...",
+    en: "Tell us how it went, where and how you did it...",
+    es: "Cuenta cómo fue, dónde y cómo realizaste la acción...",
+  },
+  mic_error: {
+    pt: "Erro ao acessar o microfone. Verifique as permissões.",
+    en: "Couldn't access the microphone. Check the permissions.",
+    es: "Error al acceder al micrófono. Revisa los permisos.",
+  },
+  audio_upload_error: {
+    pt: "Erro ao enviar o áudio. Tente novamente.",
+    en: "Couldn't upload the audio. Try again.",
+    es: "Error al subir el audio. Inténtalo de nuevo.",
+  },
+  user_fallback: {
+    pt: "Usuário",
+    en: "User",
+    es: "Usuario",
+  },
+  no_history: {
+    pt: "Nenhum histórico encontrado.",
+    en: "No history found.",
+    es: "No se encontró historial.",
+  },
+  proof_approved_ok: {
+    pt: "Comprovação aprovada com sucesso!",
+    en: "Proof approved!",
+    es: "¡Comprobante aprobado!",
+  },
+  reject_placeholder: {
+    pt: "Explique por que a comprovação está sendo rejeitada...",
+    en: "Explain why the proof is being rejected...",
+    es: "Explica por qué se rechaza el comprobante...",
+  },
+  prefs_saved: {
+    pt: "✓ Preferências salvas",
+    en: "✓ Preferences saved",
+    es: "✓ Preferencias guardadas",
+  },
+  community_subtitle: {
+    pt: "Converse com outros guardiões do planeta",
+    en: "Chat with other guardians of the planet",
+    es: "Conversa con otros guardianes del planeta",
+  },
+  you_suffix: {
+    pt: "(você)",
+    en: "(you)",
+    es: "(tú)",
+  },
+  role_citizen: {
+    pt: "Cidadão(ã)",
+    en: "Citizen",
+    es: "Ciudadano(a)",
+  },
+  role_moderator: {
+    pt: "Moderador(a)",
+    en: "Moderator",
+    es: "Moderador(a)",
+  },
+  role_admin: {
+    pt: "Administrador(a)",
+    en: "Administrator",
+    es: "Administrador(a)",
+  },
+  cards_rules_free: {
+    pt: "Cartão amarelo é dado por uma pessoa da equipe quando há tentativa de fraude (foto da internet, de tela, reaproveitada, localização falsa...). Vale por 6 meses. Com 3 válidos, a conta fica suspensa por 14 dias. Reincidência depois de uma suspensão pode levar a cartão vermelho (bloqueio). Erro honesto não dá cartão.",
+    en: "A team member gives a yellow card when there is a fraud attempt (photo from the internet, of a screen, reused, fake location...). It lasts 6 months. With 3 valid cards the account is suspended for 14 days. Repeat offences after a suspension can lead to a red card (block). Honest mistakes don't get a card.",
+    es: "Un miembro del equipo da tarjeta amarilla cuando hay intento de fraude (foto de internet, de pantalla, reutilizada, ubicación falsa...). Vale 6 meses. Con 3 válidas, la cuenta se suspende 14 días. La reincidencia después de una suspensión puede llevar a tarjeta roja (bloqueo). Un error honesto no recibe tarjeta.",
+  },
+  suspended_intro_free: {
+    pt: "Você recebeu 3 cartões amarelos válidos. A conta volta a funcionar sozinha na data abaixo. Seus pontos continuam guardados.",
+    en: "You got 3 valid yellow cards. The account works again by itself on the date below. Your points are kept.",
+    es: "Recibiste 3 tarjetas amarillas válidas. La cuenta vuelve a funcionar sola en la fecha de abajo. Tus puntos se conservan.",
+  },
+  register_age_confirm_free: {
+    pt: "Tenho 13 anos ou mais. Se tiver menos de 18, meu responsável legal autorizou o uso do app.",
+    en: "I am 13 or older. If I am under 18, my legal guardian has authorised me to use the app.",
+    es: "Tengo 13 años o más. Si tengo menos de 18, mi tutor legal autorizó el uso de la app.",
+  },
+  verify_ok_text_free: {
+    pt: "Obrigado! Sua conta está protegida. Bora para as missões!",
+    en: "Thanks! Your account is protected. Off to the missions!",
+    es: "¡Gracias! Tu cuenta está protegida. ¡A las misiones!",
+  },
+  delete_text_free: {
+    pt: "Apaga seu nome, e-mail, fotos, relatos, localização e mensagens. Seus pontos e posição no ranking também são perdidos.",
+    en: "Erases your name, e-mail, photos, reports, location and messages. Your points and ranking position are lost too.",
+    es: "Borra tu nombre, correo, fotos, relatos, ubicación y mensajes. Tus puntos y tu posición en el ranking también se pierden.",
+  },
+  suggestion_points_hint_free: {
+    pt: "Vira missão com pontos para todo mundo da região.",
+    en: "Becomes a mission with points for everyone in the area.",
+    es: "Se convierte en misión con puntos para todos en la región.",
+  },
+  splash_step4_text_free: {
+    pt: "Pontos, níveis, ranking e benefícios em comércios da sua cidade.",
+    en: "Points, levels, the ranking and perks at local shops.",
+    es: "Puntos, niveles, ranking y beneficios en comercios de tu ciudad.",
+  },
+  nav_more: {
+    pt: "Mais",
+    en: "More",
+    es: "Más",
   },
 } as const;
 

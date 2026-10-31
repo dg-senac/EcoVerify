@@ -120,7 +120,7 @@ export function SettingsForm({
       </div>
 
       <div className="flex items-center gap-3 border-t border-slate-100 pt-5">
-        {saved && <span className="text-sm font-medium text-emerald-600">✓ Preferências salvas</span>}
+        {saved && <span className="text-sm font-medium text-emerald-600">{t(lang, "prefs_saved")}</span>}
         <button
           type="submit"
           disabled={pending}

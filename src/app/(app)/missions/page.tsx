@@ -8,6 +8,7 @@ import { myOrganizationIds } from "@/lib/saas/orgs";
 import { ORG_TEXT } from "@/lib/saas/org-text";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { citizenOnly } from "@/lib/role-guard";
 import { t, tf, type Lang } from "@/lib/i18n";
 import { MissionCard, type MissionCardData } from "@/components/missions/mission-card";
 import { RegionBar } from "@/components/missions/region-bar";
@@ -62,6 +63,7 @@ function Grid({ lang, items, sponsorLeft }: { lang: Lang; items: (MissionRow & {
 export default async function MissionsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  citizenOnly(user.role);
   const lang = user.language;
 
   const userSubmissions = await db
