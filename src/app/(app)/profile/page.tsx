@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { rewardQueue, submissions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { initials, formatDate, levelForPoints } from "@/lib/utils";
-import { t, tf } from "@/lib/i18n";
+import { t, tf, tx } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { getPayoutSettings } from "@/lib/payouts";
 import { splitOpenRewards } from "@/lib/payout-rules";
 import { WalletPanel } from "@/components/wallet/wallet-panel";
@@ -100,6 +101,9 @@ export default async function ProfilePage() {
           </div>
         </div>
 
+        {/* Wallet and FONE payouts: hidden while payments are off (PAYMENTS_ENABLED). */}
+        {PAYMENTS_ENABLED && (
+          <>
         <div className="mt-6 border-t border-slate-100 pt-5">
           <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
             <FoneMark size={18} /> {t(user.language, "wallet_section")}
@@ -182,8 +186,11 @@ export default async function ProfilePage() {
           </div>
         )}
 
+          </>
+        )}
+
         <div className="mt-5 border-t border-slate-100 pt-5 text-sm text-slate-500">
-          Na plataforma desde {formatDate(user.createdAt, user.language)}
+          {tx(user.language, "Na plataforma desde", "Member since", "En la plataforma desde")} {formatDate(user.createdAt, user.language)}
         </div>
 
         <div className="mt-6">

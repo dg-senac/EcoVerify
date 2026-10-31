@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { createMissionAction, type AdminActionState } from "@/lib/actions/admin";
 import { categoryEmoji, categoryLabels } from "@/lib/i18n";
 import { Star, Utensils } from "@/components/ui/icons";
@@ -139,6 +140,7 @@ export function MissionForm({ sponsors = [] }: { sponsors?: SponsorItem[] }) {
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
             />
           </div>
+          {PAYMENTS_ENABLED ? (
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700 flex items-center gap-1">
               <FoneMark size={16} /> FONE
@@ -153,8 +155,11 @@ export function MissionForm({ sponsors = [] }: { sponsors?: SponsorItem[] }) {
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
             />
           </div>
+          ) : (
+            <input type="hidden" name="foneReward" value="0" />
+          )}
         </div>
-        {sponsors.length > 0 && (
+        {PAYMENTS_ENABLED && sponsors.length > 0 && (
           <div className="sm:col-span-2">
             <label className="mb-1 block text-sm font-medium text-slate-700">💰 Patrocinador que paga o FONE (opcional)</label>
             <select

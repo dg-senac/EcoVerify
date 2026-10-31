@@ -1,3 +1,4 @@
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
@@ -522,13 +523,13 @@ export default async function AdminPage() {
               key: "recycling",
               label: "Reciclagem",
               icon: "♻️",
-              content: <RecyclingTab summary={recyclingSummary(impactRows)} exportBase="/api/admin/export" />,
+              content: <RecyclingTab lang={user.language} summary={recyclingSummary(impactRows)} exportBase="/api/admin/export" />,
             },
             {
               key: "data",
               label: "Dados",
               icon: "🗺️",
-              content: <DataTab tables={dataTables(impactRows)} exportBase="/api/admin/export" />,
+              content: <DataTab lang={user.language} tables={dataTables(impactRows)} exportBase="/api/admin/export" />,
             },
             {
               key: "ai",
@@ -536,7 +537,7 @@ export default async function AdminPage() {
               icon: "🤖",
               content: <AiTab settings={aiConfig} stats={aiStats} model={geminiModel()} hasKey={!!geminiApiKey()} vision={vision} />,
             },
-          ]}
+          ].filter((tab) => PAYMENTS_ENABLED || !["business", "wallets", "rewards"].includes(tab.key))}
         />
       </div>
     </div>

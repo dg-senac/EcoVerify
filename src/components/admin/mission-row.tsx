@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { toggleMissionAction } from "@/lib/actions/admin";
 import { categoryEmoji, categoryLabels } from "@/lib/i18n";
 import { FoneAmount, FoneMark } from "@/components/brand/fone";
@@ -30,8 +31,13 @@ export function MissionRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-slate-800">{mission.title}</p>
         <p className="text-xs text-slate-400">
-          {categoryLabels[mission.category]?.pt} · ⭐ {mission.pointsReward} ·{" "}
-          <FoneAmount amount={mission.foneReward} size={14} className="align-middle" />
+          {categoryLabels[mission.category]?.pt} · ⭐ {mission.pointsReward}
+          {PAYMENTS_ENABLED && (
+            <>
+              {" · "}
+              <FoneAmount amount={mission.foneReward} size={14} className="align-middle" />
+            </>
+          )}
           {" · "}
           {mission.scope === "anywhere" ? "🌎 qualquer lugar" : mission.city ? `📍 ${mission.city}${mission.stateCode ? `, ${mission.stateCode}` : ""}` : "📍"}
           {mission.needsReview ? " · 🔎 revisar" : ""}

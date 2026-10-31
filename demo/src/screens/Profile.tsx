@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Copy, Star, Wallet, CheckCircle2, Clock, Users, ShieldCheck } from "lucide-react";
 import { t, tf } from "@/lib/i18n";
 import { centsToFone } from "@/lib/fone";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { formatDate, formatFone, levelForPoints } from "@/lib/utils";
 import { dt, errorText } from "../i18n";
 import { appealCard, cardsOf, payoutSettingsOf, useLang, useStore, userPayout, type User } from "../store";
@@ -31,8 +32,12 @@ export function ProfileScreen({ user }: { user: User }) {
   const stats = [
     { icon: Star, label: t(lang, "points"), value: String(user.totalPoints), tone: "bg-amber-50 text-amber-700" },
     { icon: CheckCircle2, label: dt(lang, "approved_actions"), value: String(approved), tone: "bg-emerald-50 text-emerald-700" },
-    { icon: FoneStatIcon, label: dt(lang, "fone_received"), value: formatFone(received), tone: "bg-teal-50 text-teal-700" },
-    { icon: Clock, label: dt(lang, "fone_pending"), value: formatFone(pending), tone: "bg-sky-50 text-sky-700" },
+    ...(PAYMENTS_ENABLED
+      ? [
+          { icon: FoneStatIcon, label: dt(lang, "fone_received"), value: formatFone(received), tone: "bg-teal-50 text-teal-700" },
+          { icon: Clock, label: dt(lang, "fone_pending"), value: formatFone(pending), tone: "bg-sky-50 text-sky-700" },
+        ]
+      : []),
   ];
 
   return (
@@ -53,7 +58,7 @@ export function ProfileScreen({ user }: { user: User }) {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className={`mt-4 grid grid-cols-2 gap-3 ${stats.length > 2 ? "lg:grid-cols-4" : ""}`}>
         {stats.map((s) => (
           <div key={s.label} className={`${card} p-4 animate-slide-up`}>
             <div className={`mb-2 grid h-9 w-9 place-items-center rounded-xl ${s.tone}`}>
@@ -65,7 +70,7 @@ export function ProfileScreen({ user }: { user: User }) {
         ))}
       </div>
 
-      {pending > 0 && (
+      {PAYMENTS_ENABLED && pending > 0 && (
         <div className={`${card} mt-4 grid gap-2 p-4 text-sm animate-slide-up`} data-testid="profile-payouts">
           {split.payableCents > 0 && (
             <div className="rounded-xl bg-amber-50 px-3 py-2" data-testid="profile-fone-ready">
@@ -94,6 +99,7 @@ export function ProfileScreen({ user }: { user: User }) {
         </div>
       )}
 
+      {PAYMENTS_ENABLED && (
       <div className={`${card} mt-4 p-5 animate-slide-up`}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 font-bold text-slate-900"><Wallet className="h-5 w-5 text-emerald-600" /> {dt(lang, "wallet_label")}</h3>
@@ -127,6 +133,7 @@ export function ProfileScreen({ user }: { user: User }) {
         )}
         <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">{dt(lang, "wallet_demo_note_verify")}</p>
       </div>
+      )}
 
       <div className="mt-4">
         <CardsPanel lang={lang} cards={myCards} onAppeal={appealCard} errorText={(code) => errorText(lang, code)} />

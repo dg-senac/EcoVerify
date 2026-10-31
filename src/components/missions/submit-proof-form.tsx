@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { createSubmissionAction, type SubmissionActionState } from "@/lib/actions/submissions";
 import { categoryEmoji, categoryLabels, inLang, t, type Lang } from "@/lib/i18n";
 import { useRouter } from "next/navigation";
@@ -241,8 +242,13 @@ export function SubmitProofForm({
           )}
 
           <div className="rounded-xl bg-slate-50 px-4 py-2.5 text-xs text-slate-500">
-            {categoryLabels[mission.category]?.[lang]} · ⭐ {mission.pointsReward} {t(lang, "reward_points")} ·{" "}
-            <FoneAmount amount={mission.foneReward} size={14} className="align-middle" />
+            {categoryLabels[mission.category]?.[lang]} · ⭐ {mission.pointsReward} {t(lang, "reward_points")}
+            {PAYMENTS_ENABLED && Number(mission.foneReward) > 0 && (
+              <>
+                {" · "}
+                <FoneAmount amount={mission.foneReward} size={14} className="align-middle" />
+              </>
+            )}
           </div>
 
           <div className="flex gap-3 pt-1">

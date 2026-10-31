@@ -11,6 +11,7 @@ import { getPayoutSettings, sponsorBalances } from "@/lib/payouts";
 import { monthStart } from "@/lib/payout-rules";
 import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
 import { TRANSPARENCY_TEXT as TEXT } from "@/lib/transparency-text";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { LogoHorizontal } from "@/components/logo";
 import { FoneAmount, PoweredByFone } from "@/components/brand/fone";
 import { guestLang } from "@/lib/guest-lang";
@@ -100,7 +101,7 @@ export default async function TransparencyPage({ searchParams }: { searchParams:
         <h1 className="text-3xl font-bold text-slate-900" data-testid="transparency-title">
           🔎 {text.title}
         </h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">{text.intro}</p>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">{PAYMENTS_ENABLED ? text.intro : text.introFree}</p>
 
         <h2 className="mt-8 mb-3 text-lg font-bold text-slate-900">🌱 {text.impact}</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="transparency-impact">
@@ -129,6 +130,9 @@ export default async function TransparencyPage({ searchParams }: { searchParams:
           </div>
         )}
 
+        {/* FONE payouts, sponsors and payments: hidden while payments are off (PAYMENTS_ENABLED). */}
+        {PAYMENTS_ENABLED && (
+          <>
         <h2 className="mt-8 mb-3 text-lg font-bold text-slate-900">🪙 {text.fone}</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="transparency-fone">
           <div className={card}>
@@ -254,6 +258,9 @@ export default async function TransparencyPage({ searchParams }: { searchParams:
             </table>
           )}
         </div>
+
+          </>
+        )}
 
         <div className="mt-8 flex flex-col items-center gap-3">
           <Link href="/" className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2.5 text-sm font-bold text-white">

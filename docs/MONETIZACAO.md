@@ -2,6 +2,8 @@
 
 > **Regra de ouro:** quem ajuda o meio ambiente usa **de graça, sempre**. Quem paga são as **organizações, marcas e comércios** que ganham com isso: engajamento, prova de impacto, clientes novos ou dados para decidir melhor. Todo o dinheiro entra **em reais** (Pix, boleto ou nota), **nunca em FONE**.
 
+> **Pagamentos desligados por enquanto.** Pix, planos, mensalidades de comércios, recompensas em FONE, carteira e patrocinadores com orçamento em FONE estão escondidos das telas pela chave `PAYMENTS_ENABLED = false` em [`src/lib/features.ts`](../src/lib/features.ts) (vale para o app web e o APK). Enquanto isso, o app funciona com pontos, níveis, ranking e benefícios, e **toda organização tem todos os recursos liberados** (missões, eventos, relatório, certificados, moderação da equipe). O código continua no lugar: para ligar, mude a chave para `true`, revise os textos dos Termos e faça um novo build.
+
 Há dois caminhos que se somam:
 
 1. **Planos** (assinatura mensal ou anual) para escolas, empresas e prefeituras. Já estão prontos no app e explicados em [`SAAS.md`](SAAS.md).

@@ -1,5 +1,6 @@
 import type { ChatMessage, DemoInvoice, DemoOffer, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import type { Material } from "@/lib/impact";
 import { DEFAULT_LANG, type Lang } from "@/lib/i18n";
 import { registerText } from "./seed-text";
@@ -697,11 +698,19 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       id: "n-maria-lindu",
       userId: DEMO_IDS.citizen,
       title: L({ pt: "Comprovação aprovada! 🎉", en: "Proof approved! 🎉", es: "¡Comprobante aprobado! 🎉" }),
-      message: L({
-        pt: "Sua comprovação para \"Doação de roupas no Parque Dona Lindu\" foi aprovada. Você ganhou 40 pontos e 20.00 FONE entrou na fila de pagamento.",
-        en: "Your proof for \"Clothing donation at Dona Lindu Park\" was approved. You earned 40 points and 20.00 FONE is queued for payout.",
-        es: "Tu comprobante para \"Donación de ropa en el Parque Dona Lindu\" fue aprobado. Ganaste 40 puntos y 20.00 FONE entró en la cola de pago.",
-      }),
+      message: L(
+        PAYMENTS_ENABLED
+          ? {
+              pt: "Sua comprovação para \"Doação de roupas no Parque Dona Lindu\" foi aprovada. Você ganhou 40 pontos e 20.00 FONE entrou na fila de pagamento.",
+              en: "Your proof for \"Clothing donation at Dona Lindu Park\" was approved. You earned 40 points and 20.00 FONE is queued for payout.",
+              es: "Tu comprobante para \"Donación de ropa en el Parque Dona Lindu\" fue aprobado. Ganaste 40 puntos y 20.00 FONE entró en la cola de pago.",
+            }
+          : {
+              pt: "Sua comprovação para \"Doação de roupas no Parque Dona Lindu\" foi aprovada. Você ganhou 40 pontos.",
+              en: "Your proof for \"Clothing donation at Dona Lindu Park\" was approved. You earned 40 points.",
+              es: "Tu comprobante para \"Donación de ropa en el Parque Dona Lindu\" fue aprobado. Ganaste 40 puntos.",
+            },
+      ),
       isRead: false,
       createdAt: ago(8 * DAY),
     },

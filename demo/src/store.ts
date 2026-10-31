@@ -1,5 +1,6 @@
 import { useRef, useSyncExternalStore } from "react";
 import { DEFAULT_LANG, t, tf, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import type { Role } from "@/lib/nav";
 import { dt, botReplies } from "./i18n";
 import { createSeed, STATE_VERSION } from "./seed";
@@ -806,7 +807,7 @@ function applyApproval(s: State, submissionId: string, reviewerId: string | null
     users: s.users.map((u) => (u.id === sub.userId ? { ...u, totalPoints: u.totalPoints + mission.pointsReward } : u)),
   };
   // Same rules as the server (src/lib/review.ts): 0-FONE missions create no payment, budgets/caps hold the FONE.
-  const paysFone = Number(mission.foneReward) > 0;
+  const paysFone = PAYMENTS_ENABLED && Number(mission.foneReward) > 0;
   const holdReason = paysFone ? holdReasonFor(s, sub.userId, mission) : null;
   if (paysFone) {
     next.rewards = [

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { revalidatePath } from "next/cache";
 import { and, eq, gt, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/db";
@@ -63,6 +64,7 @@ async function takenChallengeCents(excludeUserId: string) {
 }
 
 export async function linkWalletAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  if (!PAYMENTS_ENABLED) return { error: "unavailable" };
   const user = await requireUser();
   const address = normalizeHex(formData.get("address"));
   const adult = formData.get("adult") === "on";

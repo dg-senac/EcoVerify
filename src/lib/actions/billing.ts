@@ -1,6 +1,7 @@
 "use server";
 
 import { randomInt } from "node:crypto";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, isNull } from "drizzle-orm";
@@ -38,6 +39,7 @@ async function requireAdmin() {
 
 /** Creates a Pix charge for a paid plan (any previous unpaid charge of the organization is canceled). */
 export async function createInvoiceAction(orgId: string, plan: PlanId, cycle: BillingCycle): Promise<BillingActionState> {
+  if (!PAYMENTS_ENABLED) return { error: "unavailable" };
   const owner = await requireOwner(orgId);
   if (!owner) return { error: "forbidden" };
   if (!PAID_PLANS.includes(plan) || (cycle !== "monthly" && cycle !== "yearly")) return { error: "invalid" };
@@ -73,6 +75,7 @@ export async function createInvoiceAction(orgId: string, plan: PlanId, cycle: Bi
  * event and lifts the member limit around it. Replaces a previous unpaid charge of the same event.
  */
 export async function createEventInvoiceAction(missionId: string, pkg: string): Promise<BillingActionState> {
+  if (!PAYMENTS_ENABLED) return { error: "unavailable" };
   if (!isEventPackage(pkg)) return { error: "invalid" };
   const [mission] = await db.select().from(missions).where(eq(missions.id, missionId)).limit(1);
   if (!mission?.organizationId || !isEvent(mission)) return { error: "invalid" };
@@ -123,6 +126,7 @@ function invoiceLabel(invoice: { kind: "plan" | "event"; plan: PlanId; eventPack
 
 /** "I've paid": flags the charge for the admin and notifies them. */
 export async function reportInvoicePaidAction(invoiceId: string): Promise<BillingActionState> {
+  if (!PAYMENTS_ENABLED) return { error: "unavailable" };
   const [invoice] = await db.select().from(invoices).where(eq(invoices.id, invoiceId)).limit(1);
   if (!invoice || invoice.status !== "pending") return { error: "invalid" };
   const owner = await requireOwner(invoice.organizationId);

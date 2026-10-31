@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { reviewMissionAction, type AdminActionState } from "@/lib/actions/admin";
 import { categoryEmoji, categoryLabels } from "@/lib/i18n";
 
@@ -53,21 +54,29 @@ export function MissionReview({ mission }: { mission: ReviewMission }) {
       </p>
       <p className="mt-1 line-clamp-2 text-sm text-slate-500">{mission.description}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <input
-          type="number"
-          name="foneReward"
-          step="0.01"
-          min={0.01}
-          placeholder="FONE"
-          aria-label="Recompensa em FONE"
-          className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-        />
-        <button name="decision" value="fone" disabled={pending} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
-          Aprovar com FONE
-        </button>
-        <button name="decision" value="points" disabled={pending} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-60">
-          Manter só pontos
-        </button>
+        {PAYMENTS_ENABLED ? (
+          <>
+            <input
+              type="number"
+              name="foneReward"
+              step="0.01"
+              min={0.01}
+              placeholder="FONE"
+              aria-label="Recompensa em FONE"
+              className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+            />
+            <button name="decision" value="fone" disabled={pending} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
+              Aprovar com FONE
+            </button>
+            <button name="decision" value="points" disabled={pending} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-60">
+              Manter só pontos
+            </button>
+          </>
+        ) : (
+          <button name="decision" value="points" disabled={pending} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
+            Aprovar missão
+          </button>
+        )}
         <button name="decision" value="deactivate" disabled={pending} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60">
           Desativar
         </button>

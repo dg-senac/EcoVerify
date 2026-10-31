@@ -413,6 +413,31 @@ const demoDict = {
   },
   ai_source_simulated: { pt: "IA simulada", en: "Simulated AI", es: "IA simulada" },
   ai_source_gemini: { pt: "Gemini (chave de teste)", en: "Gemini (test key)", es: "Gemini (clave de prueba)" },
+  metric_people_active: {
+    pt: "Pessoas com ações aprovadas",
+    en: "People with approved actions",
+    es: "Personas con acciones aprobadas",
+  },
+  metric_perks_redeemed: {
+    pt: "Benefícios resgatados",
+    en: "Perks redeemed",
+    es: "Beneficios canjeados",
+  },
+  demo_osm_note_free: {
+    pt: "Criamos missões sugeridas perto do centro da cidade (praias, parques e pontos de coleta). Elas já dão pontos; a equipe revisa cada uma depois.",
+    en: "We create suggested missions near the city centre (beaches, parks and collection points). They give points right away; the team reviews each one later.",
+    es: "Creamos misiones sugeridas cerca del centro de la ciudad (playas, parques y puntos de recolección). Ya dan puntos; el equipo revisa cada una después.",
+  },
+  demo_role_citizen_desc_free: {
+    pt: "Faz missões, envia comprovações, ganha pontos e resgata benefícios",
+    en: "Completes missions, submits proof, earns points and redeems perks",
+    es: "Hace misiones, envía comprobantes, gana puntos y canjea beneficios",
+  },
+  demo_role_admin_desc_free: {
+    pt: "Cria missões, gerencia usuários, benefícios e dados de impacto",
+    en: "Creates missions, manages users, perks and impact data",
+    es: "Crea misiones, gestiona usuarios, beneficios y datos de impacto",
+  },
 } satisfies Record<string, Record<Lang, string>>;
 
 export type DemoKey = keyof typeof demoDict;

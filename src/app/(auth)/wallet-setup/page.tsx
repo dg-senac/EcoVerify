@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { getCurrentUser } from "@/lib/auth";
 import { skipWalletAction } from "@/lib/actions/wallet";
 import { WalletPanel } from "@/components/wallet/wallet-panel";
@@ -9,6 +10,7 @@ import { t } from "@/lib/i18n";
 export default async function WalletSetupPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (!PAYMENTS_ENABLED) redirect("/missions");
   const { treasury, explorerUrl } = getFoneConfig();
   const request = walletRequestState(user);
   const verified = verifiedWallet(user);

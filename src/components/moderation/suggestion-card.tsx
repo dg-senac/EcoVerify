@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { reviewSuggestionAction } from "@/lib/actions/region";
 
 export type SuggestionCardData = {
@@ -67,7 +68,7 @@ export function SuggestionCard({ lang, suggestion }: { lang: Lang; suggestion: S
               ✓ {t(lang, "suggestion_approve")}
             </button>
           </div>
-          <p className="mt-2 text-[11px] text-slate-400">{t(lang, "suggestion_points_hint")}</p>
+          <p className="mt-2 text-[11px] text-slate-400">{t(lang, PAYMENTS_ENABLED ? "suggestion_points_hint" : "suggestion_points_hint_free")}</p>
         </>
       )}
     </div>

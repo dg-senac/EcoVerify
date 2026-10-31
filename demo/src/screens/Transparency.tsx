@@ -3,6 +3,7 @@ import { LogoHorizontal } from "@/components/logo";
 import { FoneAmount, PoweredByFone } from "@/components/brand/fone";
 import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
 import { centsToFone } from "@/lib/fone";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { TRANSPARENCY_TEXT } from "@/lib/transparency-text";
 import { goBack, Link } from "../router";
 import { payoutSettingsOf, sponsorBalance, treasuryMonthCents, useLang, useStore } from "../store";
@@ -58,7 +59,7 @@ export function TransparencyScreen() {
           <LogoHorizontal height={32} />
         </div>
         <h1 className="text-3xl font-extrabold text-slate-900" data-testid="transparency-title">🔎 {text.title}</h1>
-        <p className="mt-2 text-sm text-slate-600">{text.intro}</p>
+        <p className="mt-2 text-sm text-slate-600">{PAYMENTS_ENABLED ? text.intro : text.introFree}</p>
 
         <h2 className="mt-6 mb-3 text-lg font-bold text-slate-900">🌱 {text.impact}</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -84,6 +85,9 @@ export function TransparencyScreen() {
           </div>
         )}
 
+        {/* FONE payouts, sponsors and payments: hidden while payments are off (PAYMENTS_ENABLED). */}
+        {PAYMENTS_ENABLED && (
+          <>
         <h2 className="mt-6 mb-3 text-lg font-bold text-slate-900">🪙 {text.fone}</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className={`${card} p-4`}>
@@ -178,6 +182,9 @@ export function TransparencyScreen() {
             </table>
           )}
         </div>
+
+          </>
+        )}
 
         <div className="mt-6 flex flex-col items-center gap-3">
           <nav className="flex gap-4 text-xs font-medium text-slate-500">

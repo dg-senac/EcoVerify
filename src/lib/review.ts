@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { missions, notifications, pointsLedger, rewardQueue, submissions, users } from "@/db/schema";
 import { composeRejectionMessage, rejectionReasonText, type RejectionCode } from "@/lib/ai/decision";
 import type { Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { holdReasonForNewReward } from "@/lib/payouts";
 import type { HoldReason } from "@/lib/payout-rules";
 
@@ -16,12 +17,26 @@ import type { HoldReason } from "@/lib/payout-rules";
 
 export type Reviewer = { kind: "human"; userId: string } | { kind: "ai" };
 
-const AI_TEXT: Record<Lang, { approvedTitle: string; approved: (m: string, p: number, f: string | null) => string; rejectedTitle: string; rejected: (m: string, r: string) => string }> = {
+const AI_TEXT: Record<
+  Lang,
+  {
+    approvedTitle: string;
+    approved: (m: string, p: number, f: string | null) => string;
+    approvedByTeam: (m: string, p: number, f: string | null) => string;
+    rejectedTitle: string;
+    rejected: (m: string, r: string) => string;
+    rejectedByTeamTitle: string;
+    rejectedByTeam: (m: string, r: string) => string;
+  }
+> = {
   pt: {
     approvedTitle: "Comprovação aprovada! 🎉",
     approved: (m, p, f) =>
       `Sua comprovação para "${m}" foi aprovada pela verificação automática. Você ganhou ${p} pontos${f ? ` e ${f} FONE entrou na fila de pagamento` : ""}.`,
+    approvedByTeam: (m, p, f) => `Sua comprovação para "${m}" foi aprovada. Você ganhou ${p} pontos${f ? ` e ${f} FONE entrou na fila de pagamento` : ""}.`,
     rejectedTitle: "Comprovação rejeitada pela verificação automática",
+    rejectedByTeamTitle: "Comprovação rejeitada",
+    rejectedByTeam: (m, r) => `Sua comprovação para "${m}" foi rejeitada. Motivo: ${r}. Você pode enviar uma nova comprovação para esta missão.`,
     rejected: (m, r) =>
       `Sua comprovação para "${m}" foi rejeitada. Motivo: ${r} Se achar que houve engano, abra "Minhas Submissões" e toque em "Contestar" para um moderador revisar. Você também pode enviar uma nova comprovação.`,
   },
@@ -29,7 +44,10 @@ const AI_TEXT: Record<Lang, { approvedTitle: string; approved: (m: string, p: nu
     approvedTitle: "Proof approved! 🎉",
     approved: (m, p, f) =>
       `Your proof for "${m}" was approved by the automatic verification. You earned ${p} points${f ? ` and ${f} FONE was added to the payment queue` : ""}.`,
+    approvedByTeam: (m, p, f) => `Your proof for "${m}" was approved. You earned ${p} points${f ? ` and ${f} FONE was added to the payment queue` : ""}.`,
     rejectedTitle: "Proof rejected by the automatic verification",
+    rejectedByTeamTitle: "Proof rejected",
+    rejectedByTeam: (m, r) => `Your proof for "${m}" was rejected. Reason: ${r}. You can send a new proof for this mission.`,
     rejected: (m, r) =>
       `Your proof for "${m}" was rejected. Reason: ${r} If you think this is a mistake, open "My Submissions" and tap "Appeal" so a moderator reviews it. You can also send a new proof.`,
   },
@@ -37,7 +55,10 @@ const AI_TEXT: Record<Lang, { approvedTitle: string; approved: (m: string, p: nu
     approvedTitle: "¡Comprobación aprobada! 🎉",
     approved: (m, p, f) =>
       `Tu comprobación para "${m}" fue aprobada por la verificación automática. Ganaste ${p} puntos${f ? ` y ${f} FONE entró en la cola de pago` : ""}.`,
+    approvedByTeam: (m, p, f) => `Tu comprobación para "${m}" fue aprobada. Ganaste ${p} puntos${f ? ` y ${f} FONE entró en la cola de pago` : ""}.`,
     rejectedTitle: "Comprobación rechazada por la verificación automática",
+    rejectedByTeamTitle: "Comprobación rechazada",
+    rejectedByTeam: (m, r) => `Tu comprobación para "${m}" fue rechazada. Motivo: ${r}. Puedes enviar una nueva comprobación para esta misión.`,
     rejected: (m, r) =>
       `Tu comprobación para "${m}" fue rechazada. Motivo: ${r} Si crees que es un error, abre "Mis Envíos" y toca "Apelar" para que un moderador la revise. También puedes enviar una nueva comprobación.`,
   },
@@ -99,9 +120,10 @@ export async function approveSubmission(submissionId: string, reviewer: Reviewer
       .update(users)
       .set({ totalPoints: sql`${users.totalPoints} + ${mission.pointsReward}` })
       .where(eq(users.id, submission.userId));
-    // Missions worth 0 FONE (points only) don't create an empty payment.
+    // Missions worth 0 FONE (points only) don't create an empty payment; nothing is queued while payments are off.
     let holdReason: HoldReason | null = null;
-    if (Number(mission.foneReward) > 0) {
+    const paysFone = PAYMENTS_ENABLED && Number(mission.foneReward) > 0;
+    if (paysFone) {
       holdReason = await holdReasonForNewReward(tx, {
         userId: submission.userId,
         amount: mission.foneReward,
@@ -127,11 +149,8 @@ export async function approveSubmission(submissionId: string, reviewer: Reviewer
       await tx.insert(notifications).values({
         userId: submission.userId,
         type: "system",
-        title: reviewer.kind === "ai" ? text.approvedTitle : "Comprovação aprovada! 🎉",
-        message:
-          reviewer.kind === "ai"
-            ? text.approved(mission.title, mission.pointsReward, Number(mission.foneReward) > 0 && !holdReason ? mission.foneReward : null)
-            : `Sua comprovação para "${mission.title}" foi aprovada. Você ganhou ${mission.pointsReward} pontos${Number(mission.foneReward) > 0 && !holdReason ? ` e ${mission.foneReward} FONE entrou na fila de pagamento` : ""}.`,
+        title: text.approvedTitle,
+        message: (reviewer.kind === "ai" ? text.approved : text.approvedByTeam)(mission.title, mission.pointsReward, paysFone && !holdReason ? mission.foneReward : null),
       });
       if (holdReason) {
         const hold = HOLD_TEXT[submitter.language];
@@ -188,11 +207,11 @@ export async function rejectSubmission(
       await tx.insert(notifications).values({
         userId: submission.userId,
         type: "alert",
-        title: reviewer.kind === "ai" ? text.rejectedTitle : "Comprovação rejeitada",
+        title: reviewer.kind === "ai" ? text.rejectedTitle : text.rejectedByTeamTitle,
         message:
           reviewer.kind === "ai"
             ? text.rejected(missionTitle, localizedReason)
-            : `Sua comprovação para "${missionTitle}" foi rejeitada. Motivo: ${composeRejectionMessage(reason.code, reason.text, submitter.language).replace(/[.!\s]+$/, "")}. Você pode enviar uma nova comprovação para esta missão.`,
+            : text.rejectedByTeam(missionTitle, composeRejectionMessage(reason.code, reason.text, submitter.language).replace(/[.!\s]+$/, "")),
       });
     }
     return true;

@@ -1,3 +1,4 @@
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { MissionForm } from "@/components/admin/mission-form";
 import { MissionRow } from "@/components/admin/mission-row";
 import { MissionReview, type ReviewMission } from "@/components/admin/mission-review";
@@ -70,7 +71,7 @@ export function MissionsTab({
       )}
 
       <MissionForm sponsors={sponsors.filter((sponsor) => sponsor.isActive)} />
-      <SponsorsPanel sponsors={sponsors} />
+      {PAYMENTS_ENABLED && <SponsorsPanel sponsors={sponsors} />}
       <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
         <h3 className="mb-3 font-bold text-slate-900">Todas as missões</h3>
         <div className="space-y-2">

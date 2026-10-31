@@ -5,6 +5,7 @@ import { canReview } from "@/lib/nav";
 import { startTour, TourPanel } from "./components/Tour";
 import { matchRoute, navigate, useRoute } from "./router";
 import { dt } from "./i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { Shell } from "./components/Shell";
 import { Toaster, toast } from "./components/ui";
 import { LoginScreen, RegisterScreen } from "./screens/Login";
@@ -95,7 +96,7 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
     case "/missions":
       return <MissionsScreen user={user} />;
     case "/wallet":
-      return <WalletSetupScreen />;
+      return PAYMENTS_ENABLED ? <WalletSetupScreen /> : <Redirect to="/profile" />;
     case "/submissions":
       return <SubmissionsScreen user={user} />;
     case "/ranking":

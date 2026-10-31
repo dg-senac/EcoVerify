@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Download, Monitor, Moon, Settings as SettingsIcon, Sun, Trash2 } from "lucide-react";
 import { THEMES } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { deleteMyAccount, exportMyData, updateSettings, useLang, type FontSize, type User } from "../store";
 import { PageHeader, btnDanger, btnSecondary, card, toast } from "../components/ui";
 import { Link, navigate } from "../router";
@@ -62,7 +63,7 @@ function PrivacySection({ user }: { user: User }) {
       </div>
       <div className="rounded-2xl border border-red-200 bg-red-50/40 p-4">
         <p className="text-sm font-semibold text-red-700">{t(lang, "delete_title")}</p>
-        <p className="mt-1 text-sm text-slate-600">{t(lang, "delete_text")}</p>
+        <p className="mt-1 text-sm text-slate-600">{t(lang, PAYMENTS_ENABLED ? "delete_text" : "delete_text_free")}</p>
         <label className="mt-3 flex items-start gap-2.5 text-sm text-slate-700">
           <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-red-600" />
           <span>{t(lang, "delete_confirm_label")}</span>

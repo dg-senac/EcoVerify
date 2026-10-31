@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
-import { BarChart3, Crosshair, Loader2, Plus, Users, Clock, CheckCircle2, Coins, Hourglass, Target } from "lucide-react";
+import { BarChart3, Crosshair, Loader2, Plus, Users, Clock, CheckCircle2, Coins, Gift, Hourglass, Target } from "lucide-react";
 import { categoryEmoji, categoryLabels, t, tx, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { formatDate, formatFone } from "@/lib/utils";
 import type { Role } from "@/lib/nav";
 import { dt, errorText, type DemoKey } from "../i18n";
@@ -182,8 +183,9 @@ export function AdminScreen({ user }: { user: User }) {
     // The presentation tour opens the Rewards tab directly.
     const wanted = sessionStorage.getItem(ADMIN_TAB_KEY);
     sessionStorage.removeItem(ADMIN_TAB_KEY);
-    return wanted === "rewards" || wanted === "missions" || wanted === "users" || wanted === "business" || wanted === "recycling" || wanted === "data"
-      ? wanted
+    const payments = wanted === "rewards" || wanted === "business";
+    return (payments && PAYMENTS_ENABLED) || wanted === "missions" || wanted === "users" || wanted === "recycling" || wanted === "data"
+      ? (wanted as Tab)
       : "metrics";
   });
   const businessBadge = useStore((st) => (st.invoices ?? []).filter((i) => i.status === "pending" && i.reportedAt).length);
@@ -193,6 +195,7 @@ export function AdminScreen({ user }: { user: User }) {
       (st.cards ?? []).filter((c) => c.appealedAt && !c.revokedAt && !c.appealRejectedAt).length +
       st.users.filter((u) => u.banAppealedAt && (u.isBanned || isSuspended(u.suspendedUntil))).length,
   );
+  // Business (plans/Pix) and Rewards (FONE payouts) only exist while payments are on.
   const tabs: { id: Tab; key: "admin_tab_metrics" | "admin_tab_missions" | "admin_tab_users" | "admin_tab_rewards" | null }[] = [
     { id: "metrics", key: "admin_tab_metrics" },
     { id: "business", key: null },
@@ -202,7 +205,7 @@ export function AdminScreen({ user }: { user: User }) {
     { id: "rewards", key: "admin_tab_rewards" },
     { id: "recycling", key: null },
     { id: "data", key: null },
-  ];
+  ].filter((tb) => PAYMENTS_ENABLED || (tb.id !== "business" && tb.id !== "rewards")) as typeof tabs;
   return (
     <>
       <PageHeader title={t(lang, "admin_title")} icon={BarChart3} />
@@ -241,8 +244,20 @@ function MetricsTab() {
     { icon: Target, key: "metric_active_missions", value: String(s.missions.filter((m) => m.isActive).length), tone: "bg-emerald-50 text-emerald-700" },
     { icon: Clock, key: "metric_pending", value: String(s.submissions.filter((x) => x.status === "pending").length), tone: "bg-amber-50 text-amber-700" },
     { icon: CheckCircle2, key: "metric_approved", value: String(s.submissions.filter((x) => x.status === "approved").length), tone: "bg-teal-50 text-teal-700" },
-    { icon: Coins, key: "metric_fone_paid", value: formatFone(sum("paid")), tone: "bg-lime-50 text-lime-700" },
-    { icon: Hourglass, key: "metric_fone_queue", value: formatFone(sum("pending")), tone: "bg-orange-50 text-orange-700" },
+    ...(PAYMENTS_ENABLED
+      ? [
+          { icon: Coins, key: "metric_fone_paid" as DemoKey, value: formatFone(sum("paid")), tone: "bg-lime-50 text-lime-700" },
+          { icon: Hourglass, key: "metric_fone_queue" as DemoKey, value: formatFone(sum("pending")), tone: "bg-orange-50 text-orange-700" },
+        ]
+      : [
+          {
+            icon: Users,
+            key: "metric_people_active" as DemoKey,
+            value: String(new Set(s.submissions.filter((x) => x.status === "approved").map((x) => x.userId)).size),
+            tone: "bg-lime-50 text-lime-700",
+          },
+          { icon: Gift, key: "metric_perks_redeemed" as DemoKey, value: String((s.redemptions ?? []).length), tone: "bg-orange-50 text-orange-700" },
+        ]),
   ];
   const byCategory = Object.keys(categoryLabels).map((cat) => ({
     cat,
@@ -278,7 +293,7 @@ function MetricsTab() {
   );
 }
 
-const emptyForm = { title: "", description: "", category: "cleanup" as Category, points: "50", fone: "25", latitude: "-8.0631", longitude: "-34.8711", sponsor: "", sponsorId: "" };
+const emptyForm = { title: "", description: "", category: "cleanup" as Category, points: "50", fone: PAYMENTS_ENABLED ? "25" : "0", latitude: "-8.0631", longitude: "-34.8711", sponsor: "", sponsorId: "" };
 
 function ReviewItem({ mission }: { mission: Mission }) {
   const lang = useLang();
@@ -296,9 +311,15 @@ function ReviewItem({ mission }: { mission: Mission }) {
         ✨ OpenStreetMap · ⭐ {mission.pointsReward} · {mission.city}, {mission.stateCode}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <input className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" inputMode="decimal" placeholder="FONE" value={fone} onChange={(e) => setFone(e.target.value)} aria-label="FONE" />
-        <button type="button" onClick={() => decide("fone")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">{dt(lang, "review_fone")}</button>
-        <button type="button" onClick={() => decide("points")} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">{dt(lang, "review_points")}</button>
+        {PAYMENTS_ENABLED ? (
+          <>
+            <input className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" inputMode="decimal" placeholder="FONE" value={fone} onChange={(e) => setFone(e.target.value)} aria-label="FONE" />
+            <button type="button" onClick={() => decide("fone")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">{dt(lang, "review_fone")}</button>
+            <button type="button" onClick={() => decide("points")} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">{dt(lang, "review_points")}</button>
+          </>
+        ) : (
+          <button type="button" onClick={() => decide("points")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">{tx(lang, "Aprovar missão", "Approve mission", "Aprobar misión")}</button>
+        )}
         <button type="button" onClick={() => decide("deactivate")} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600">{dt(lang, "review_off")}</button>
       </div>
     </div>
@@ -394,14 +415,14 @@ function MissionsTab() {
       <button type="button" className={`${btnPrimary} mb-4`} onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" /> {dt(lang, "new_mission")}
       </button>
-      <SponsorsPanel />
+      {PAYMENTS_ENABLED && <SponsorsPanel />}
       <div className="grid gap-2.5">
         {missions.map((m) => (
           <div key={m.id} className={`${card} flex items-center gap-3 p-4 ${m.isActive ? "" : "opacity-60"}`}>
             <span className="text-2xl">{categoryEmoji[m.category] ?? "🌱"}</span>
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold text-slate-900">{localizedTitle(m, lang)}</p>
-              <p className="text-xs text-slate-500">{m.pointsReward} {t(lang, "reward_points")} · <FoneAmount amount={m.foneReward} size={12} className="align-middle" /> · {m.scope === "anywhere" ? `🌎 ${t(lang, "mission_anywhere")}` : m.city ? `📍 ${m.city}, ${m.stateCode}` : `${m.latitude.toFixed(4)}, ${m.longitude.toFixed(4)}`}</p>
+              <p className="text-xs text-slate-500">{m.pointsReward} {t(lang, "reward_points")} · {PAYMENTS_ENABLED && (<><FoneAmount amount={m.foneReward} size={12} className="align-middle" /> · </>)}{m.scope === "anywhere" ? `🌎 ${t(lang, "mission_anywhere")}` : m.city ? `📍 ${m.city}, ${m.stateCode}` : `${m.latitude.toFixed(4)}, ${m.longitude.toFixed(4)}`}</p>
             </div>
             <button
               type="button"
@@ -438,10 +459,12 @@ function MissionsTab() {
                 <label className={label}>{dt(lang, "field_points")}</label>
                 <input className={input} type="number" min={1} max={10000} value={form.points} onChange={set("points")} required />
               </div>
-              <div>
-                <label className={label}>{dt(lang, "field_fone")}</label>
-                <input className={input} inputMode="decimal" value={form.fone} onChange={set("fone")} required />
-              </div>
+              {PAYMENTS_ENABLED && (
+                <div>
+                  <label className={label}>{dt(lang, "field_fone")}</label>
+                  <input className={input} inputMode="decimal" value={form.fone} onChange={set("fone")} required />
+                </div>
+              )}
               <div>
                 <label className={label}>{dt(lang, "field_latitude")}</label>
                 <input className={input} inputMode="decimal" value={form.latitude} onChange={set("latitude")} required />
@@ -455,7 +478,7 @@ function MissionsTab() {
               <input type="checkbox" checked={anywhere} onChange={(e) => setAnywhere(e.target.checked)} className="accent-emerald-600" />
               🌎 {dt(lang, "field_anywhere")}
             </label>
-            {sponsors.length > 0 && (
+            {PAYMENTS_ENABLED && sponsors.length > 0 && (
               <div>
                 <label className={label}>💰 {dt(lang, "field_sponsor_pays")}</label>
                 <select className={input} value={form.sponsorId} onChange={set("sponsorId")} data-testid="mission-sponsor">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { Check } from "lucide-react";
 import type { Lang } from "@/lib/i18n";
 import { createOrganizationAction, type OrgActionState } from "@/lib/actions/orgs";
@@ -28,7 +29,7 @@ export function CreateOrgForm({
   const text = ORG_TEXT[lang];
   const mk = PLAN_TEXT[lang];
   const [state, action, pending] = useActionState<OrgActionState, FormData>(createOrganizationAction, {});
-  const [plan, setPlan] = useState<PlanId>(CHOICES.includes(defaultPlan) ? defaultPlan : "free");
+  const [plan, setPlan] = useState<PlanId>(PAYMENTS_ENABLED && CHOICES.includes(defaultPlan) ? defaultPlan : "free");
   const [cycle, setCycle] = useState<BillingCycle>(defaultCycle);
 
   return (
@@ -54,6 +55,9 @@ export function CreateOrgForm({
         </label>
       </div>
 
+      {/* Plans and prices: hidden while payments are off (PAYMENTS_ENABLED); the org starts on "free" with every feature. */}
+      {PAYMENTS_ENABLED ? (
+        <>
       <fieldset className="grid gap-2">
         <legend className="mb-1.5 text-sm font-semibold text-slate-700">{text.plan}</legend>
         {CHOICES.map((id) => {
@@ -99,6 +103,10 @@ export function CreateOrgForm({
             {trialAvailable ? text.trialInfo(TRIAL_DAYS) : text.trialUsedInfo}
           </p>
         </div>
+      )}
+        </>
+      ) : (
+        <input type="hidden" name="plan" value="free" />
       )}
       <input type="hidden" name="cycle" value={cycle} />
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { redirect } from "next/navigation";
 import { Building2, Plus, Users } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
@@ -61,7 +62,7 @@ export default async function OrganizationsPage() {
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-                <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-bold text-emerald-700">{mk.planNames[orgPlan(org)]}</span>
+                {PAYMENTS_ENABLED && <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-bold text-emerald-700">{mk.planNames[orgPlan(org)]}</span>}
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">{text.roles[org.role]}</span>
                 <span className="inline-flex items-center gap-1 text-slate-500">
                   <Users className="h-3.5 w-3.5" /> {org.members}

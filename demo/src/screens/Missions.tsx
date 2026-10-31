@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sprout } from "lucide-react";
 import { t, tf } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { groupMissionsByRegion, MIN_LOCAL_MISSIONS } from "@/lib/region";
 import { myOrgs, requestMissionsHere, seedExampleMissions, useLang, useStore, type Mission, type User, type SubmissionStatus } from "../store";
 import { ORG_TEXT } from "@/lib/saas/org-text";
@@ -133,7 +134,7 @@ export function MissionsScreen({ user }: { user: User }) {
           </p>
         )}
         {grouped.nearby.some((m) => m.origin === "auto") && (
-          <p className="mb-3 text-xs text-slate-500" data-testid="demo-osm-note">ℹ️ {dt(lang, "demo_osm_note")}</p>
+          <p className="mb-3 text-xs text-slate-500" data-testid="demo-osm-note">ℹ️ {dt(lang, PAYMENTS_ENABLED ? "demo_osm_note" : "demo_osm_note_free")}</p>
         )}
         {grouped.nearby.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center" data-testid="region-empty">

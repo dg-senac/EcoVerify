@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { registerAction, type ActionState } from "@/lib/actions/auth";
 import { t, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { GuestLangMenu } from "@/components/auth/guest-lang-menu";
 import { actionErrorMessage } from "@/lib/action-errors";
 
@@ -86,7 +87,7 @@ export function RegisterForm({ lang, next }: { lang: Lang; next?: string | null 
         </label>
         <label className="flex items-start gap-2.5 text-sm text-slate-600">
           <input type="checkbox" name="ageConfirm" required className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-600" />
-          <span>{t(currentLang, "register_age_confirm")}</span>
+          <span>{t(currentLang, PAYMENTS_ENABLED ? "register_age_confirm" : "register_age_confirm_free")}</span>
         </label>
 
         {errorMessage && (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Check, ShieldCheck, Sprout, BarChart3 } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { navigate } from "../router";
 import { dt } from "../i18n";
 import { loginAs, moderatorsOn, useLang, useStore, type User } from "../store";
@@ -68,7 +69,7 @@ export function ProfileList({ onPicked }: { onPicked?: () => void }) {
               <p className="flex items-center gap-1 text-xs font-semibold text-slate-500">
                 <Icon className="h-3.5 w-3.5" /> {dt(lang, roleKey)}
               </p>
-              {user.isDemoProfile && <p className="mt-0.5 text-xs text-slate-400">{dt(lang, `${roleKey}_desc`)}</p>}
+              {user.isDemoProfile && <p className="mt-0.5 text-xs text-slate-400">{dt(lang, PAYMENTS_ENABLED || roleKey === "demo_role_moderator" ? `${roleKey}_desc` : `${roleKey}_desc_free`)}</p>}
             </div>
             {user.id === currentId && <Check className="h-5 w-5 text-emerald-600" />}
           </button>

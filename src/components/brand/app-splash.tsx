@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import symbolImg from "@/assets/brand/ecoverify/symbol.png";
 import { assetUrl, FoneMark, FoneProtocolLogo } from "@/components/brand/fone";
 import { t, type DictKey, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 
 /**
  * Animated splash shown when the app opens (once per session), right after the native Android splash
@@ -55,7 +56,7 @@ const STEPS: { emoji: string; title: DictKey; text: DictKey }[] = [
   { emoji: "🗺️", title: "splash_step1_title", text: "splash_step1_text" },
   { emoji: "📸", title: "splash_step2_title", text: "splash_step2_text" },
   { emoji: "✅", title: "splash_step3_title", text: "splash_step3_text" },
-  { emoji: "🏆", title: "splash_step4_title", text: "splash_step4_text" },
+  { emoji: "🏆", title: "splash_step4_title", text: PAYMENTS_ENABLED ? "splash_step4_text" : "splash_step4_text_free" },
 ];
 
 type Phase = "intro" | "steps" | "exit" | "done";

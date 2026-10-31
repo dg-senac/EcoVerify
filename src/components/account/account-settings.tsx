@@ -5,6 +5,7 @@ import { changePasswordAction, deleteAccountAction } from "@/lib/actions/account
 import type { ActionState } from "@/lib/actions/auth";
 import { actionErrorMessage } from "@/lib/action-errors";
 import { t, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { EmailBanner } from "@/components/account/email-banner";
 
 const initialState: ActionState = {};
@@ -53,7 +54,7 @@ function DeleteAccountForm({ lang }: { lang: Lang }) {
     <details className="rounded-2xl border border-red-200 bg-red-50/40 p-4">
       <summary className="cursor-pointer text-sm font-semibold text-red-700">{t(lang, "delete_title")}</summary>
       <form action={formAction} className="mt-4 space-y-3">
-        <p className="text-sm text-slate-600">{t(lang, "delete_text")}</p>
+        <p className="text-sm text-slate-600">{t(lang, PAYMENTS_ENABLED ? "delete_text" : "delete_text_free")}</p>
         <input type="password" name="password" required autoComplete="current-password" placeholder={t(lang, "delete_password")} className={input} />
         <label className="flex items-start gap-2.5 text-sm text-slate-700">
           <input type="checkbox" name="confirm" required className="mt-0.5 h-4 w-4 shrink-0 accent-red-600" />

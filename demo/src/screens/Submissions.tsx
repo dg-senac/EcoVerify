@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FileText, RotateCcw, Star } from "lucide-react";
 import { categoryEmoji, t, type Lang } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { formatDate } from "@/lib/utils";
 import { Link } from "../router";
 import { dt, errorText } from "../i18n";
@@ -65,9 +66,11 @@ export function SubmissionsScreen({ user }: { user: User }) {
                   {sub.status === "approved" && mission && (
                     <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
                       <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-700"><Star className="h-3.5 w-3.5" /> +{mission.pointsReward}</span>
-                      <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-teal-700">
-                        <FoneAmount amount={reward?.foneAmount ?? mission.foneReward} size={14} /> · {dt(lang, reward?.status === "paid" ? "reward_paid" : "reward_pending")}
-                      </span>
+                      {PAYMENTS_ENABLED && (
+                        <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-teal-700">
+                          <FoneAmount amount={reward?.foneAmount ?? mission.foneReward} size={14} /> · {dt(lang, reward?.status === "paid" ? "reward_paid" : "reward_pending")}
+                        </span>
+                      )}
                     </div>
                   )}
                   {sub.status === "rejected" && (

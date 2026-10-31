@@ -5,6 +5,7 @@ import { users } from "@/db/schema";
 import { peekAuthTokenUser } from "@/lib/auth-tokens";
 import { getLegalInfo } from "@/lib/legal-config";
 import { t, tf } from "@/lib/i18n";
+import { PAYMENTS_ENABLED } from "@/lib/features";
 import { guestLang } from "@/lib/guest-lang";
 import { formatDate } from "@/lib/utils";
 import { isSuspended } from "@/lib/cards";
@@ -71,7 +72,7 @@ export default async function BlockedAccountPage({ searchParams }: { searchParam
       <div className="text-center">
         <div className="mb-2 text-4xl">{suspended ? "🟨" : "🚫"}</div>
         <h1 className="text-xl font-bold text-slate-900">{t(lang, suspended ? "suspended_title" : "banned_title")}</h1>
-        <p className="mt-1 text-sm text-slate-500">{t(lang, suspended ? "suspended_intro" : "banned_intro")}</p>
+        <p className="mt-1 text-sm text-slate-500">{t(lang, suspended ? (PAYMENTS_ENABLED ? "suspended_intro" : "suspended_intro_free") : "banned_intro")}</p>
       </div>
 
       <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
