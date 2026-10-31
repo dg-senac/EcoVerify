@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { redirect } from "next/navigation";
+import { citizenOnly } from "@/lib/role-guard";
 import { Building2, Plus, Users } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { myOrganizations } from "@/lib/saas/orgs";
@@ -12,6 +13,7 @@ import { JoinOrgForm } from "@/components/org/join-form";
 export default async function OrganizationsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  citizenOnly(user.role);
   const lang = user.language;
   const text = ORG_TEXT[lang];
   const mk = PLAN_TEXT[lang];

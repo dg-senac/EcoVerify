@@ -5,7 +5,9 @@ import { centsToFone } from "@/lib/fone";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { formatDate, formatFone, levelForPoints } from "@/lib/utils";
 import { dt, errorText } from "../i18n";
-import { appealCard, cardsOf, payoutSettingsOf, useLang, useStore, userPayout, type User } from "../store";
+import { appealCard, cardsOf, moderatorsOn, payoutSettingsOf, useLang, useStore, userPayout, type User } from "../store";
+import { isStaffExperience } from "@/lib/nav";
+import { StaffWork } from "@/components/profile/staff-work";
 import { CardsPanel } from "@/components/cards/cards-panel";
 import { Avatar, PageHeader, card, toast } from "../components/ui";
 import { roleTone, ProfileSwitcher } from "../components/ProfileSwitcher";
@@ -28,6 +30,18 @@ export function ProfileScreen({ user }: { user: User }) {
   const split = useStore((s) => userPayout(s, user.id));
   const settings = useStore((s) => payoutSettingsOf(s));
   const roleKey = user.role === "admin" ? "demo_role_admin" : user.role === "moderator" ? "demo_role_moderator" : "demo_role_citizen";
+  // Staff get their own profile: review work and permissions, no points, level or cards.
+  const staff = useStore((s) => isStaffExperience(user.role, moderatorsOn(s)));
+  const staffStats = useStore((s) => {
+    const mine = s.submissions.filter((x) => x.reviewedBy === user.id);
+    const weekAgo = Date.now() - 7 * 86_400_000;
+    return {
+      approved: mine.filter((x) => x.status === "approved").length,
+      rejected: mine.filter((x) => x.status === "rejected").length,
+      lastWeek: mine.filter((x) => x.reviewedAt && new Date(x.reviewedAt).getTime() >= weekAgo).length,
+      cardsGiven: (s.cards ?? []).filter((c) => c.issuedBy === user.id).length,
+    };
+  });
 
   const stats = [
     { icon: Star, label: t(lang, "points"), value: String(user.totalPoints), tone: "bg-amber-50 text-amber-700" },
@@ -50,14 +64,23 @@ export function ProfileScreen({ user }: { user: User }) {
           <p className="text-sm text-slate-500">{user.email}</p>
           <div className="mt-2 flex flex-wrap justify-center gap-2 sm:justify-start">
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{dt(lang, roleKey)}</span>
-            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
-              {dt(lang, "level")}: {level.emoji} {level.name}
-            </span>
+            {!staff && (
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                {dt(lang, "level")}: {level.emoji} {level.name}
+              </span>
+            )}
           </div>
           <p className="mt-2 text-xs text-slate-400">{dt(lang, "member_since")} {formatDate(user.createdAt, lang)}</p>
         </div>
       </div>
 
+      {staff && (user.role === "admin" || user.role === "moderator") && (
+        <div className={`${card} mt-4 p-5 animate-slide-up`}>
+          <StaffWork lang={lang} role={user.role} stats={staffStats} />
+        </div>
+      )}
+
+      {!staff && (
       <div className={`mt-4 grid grid-cols-2 gap-3 ${stats.length > 2 ? "lg:grid-cols-4" : ""}`}>
         {stats.map((s) => (
           <div key={s.label} className={`${card} p-4 animate-slide-up`}>
@@ -69,8 +92,9 @@ export function ProfileScreen({ user }: { user: User }) {
           </div>
         ))}
       </div>
+      )}
 
-      {PAYMENTS_ENABLED && pending > 0 && (
+      {PAYMENTS_ENABLED && !staff && pending > 0 && (
         <div className={`${card} mt-4 grid gap-2 p-4 text-sm animate-slide-up`} data-testid="profile-payouts">
           {split.payableCents > 0 && (
             <div className="rounded-xl bg-amber-50 px-3 py-2" data-testid="profile-fone-ready">
@@ -99,7 +123,7 @@ export function ProfileScreen({ user }: { user: User }) {
         </div>
       )}
 
-      {PAYMENTS_ENABLED && (
+      {PAYMENTS_ENABLED && !staff && (
       <div className={`${card} mt-4 p-5 animate-slide-up`}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 font-bold text-slate-900"><Wallet className="h-5 w-5 text-emerald-600" /> {dt(lang, "wallet_label")}</h3>
@@ -135,9 +159,11 @@ export function ProfileScreen({ user }: { user: User }) {
       </div>
       )}
 
+      {!staff && (
       <div className="mt-4">
         <CardsPanel lang={lang} cards={myCards} onAppeal={appealCard} errorText={(code) => errorText(lang, code)} />
       </div>
+      )}
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <button

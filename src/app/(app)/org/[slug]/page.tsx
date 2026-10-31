@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { notFound, redirect } from "next/navigation";
+import { citizenOnly } from "@/lib/role-guard";
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { Award, ExternalLink, FileBarChart, Users } from "lucide-react";
 import { db } from "@/db";
@@ -37,6 +38,7 @@ export default async function OrganizationPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  citizenOnly(user.role);
   const { slug } = await params;
   const query = await searchParams;
   const org = await orgBySlug(slug);

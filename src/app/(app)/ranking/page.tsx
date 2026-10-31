@@ -1,5 +1,6 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { citizenOnly } from "@/lib/role-guard";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
@@ -13,6 +14,7 @@ const RANKING_LIMIT = 100;
 export default async function RankingPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  citizenOnly(user.role);
 
   const visible = await db
     .select({ id: users.id, name: users.name, totalPoints: users.totalPoints })

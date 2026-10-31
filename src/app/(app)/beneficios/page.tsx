@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { citizenOnly } from "@/lib/role-guard";
 import { desc, eq, sql } from "drizzle-orm";
 import { Gift } from "lucide-react";
 import { db } from "@/db";
@@ -17,6 +18,7 @@ export const metadata: Metadata = { title: "Perks · EcoVerify" };
 export default async function BenefitsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/beneficios");
+  citizenOnly(user.role);
   const lang = user.language;
   const text = BENEFIT_TEXT[lang];
   const region = await getRegion();

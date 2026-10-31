@@ -1,7 +1,10 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { rewardQueue, submissions } from "@/db/schema";
+import { rewardQueue, submissions, userCards } from "@/db/schema";
+import { isStaffExperience } from "@/lib/nav";
+import { moderatorsEnabled } from "@/lib/staff-config";
+import { StaffWork, type StaffWorkStats } from "@/components/profile/staff-work";
 import { getCurrentUser } from "@/lib/auth";
 import { initials, formatDate, levelForPoints } from "@/lib/utils";
 import { t, tf, tx } from "@/lib/i18n";
@@ -20,6 +23,22 @@ import { cardsOf } from "@/lib/cards-server";
 export default async function ProfilePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  // Staff get their own profile: review work and permissions instead of points, level and cards.
+  const staff = isStaffExperience(user.role, moderatorsEnabled());
+  let staffStats: StaffWorkStats | null = null;
+  if (staff) {
+    const [work] = await db
+      .select({
+        approved: sql<number>`(count(*) filter (where ${submissions.status} = 'approved'))::int`,
+        rejected: sql<number>`(count(*) filter (where ${submissions.status} = 'rejected'))::int`,
+        lastWeek: sql<number>`(count(*) filter (where ${submissions.reviewedAt} >= now() - interval '7 days'))::int`,
+      })
+      .from(submissions)
+      .where(eq(submissions.reviewedBy, user.id));
+    const [given] = await db.select({ count: sql<number>`count(*)::int` }).from(userCards).where(eq(userCards.issuedBy, user.id));
+    staffStats = { approved: work?.approved ?? 0, rejected: work?.rejected ?? 0, lastWeek: work?.lastWeek ?? 0, cardsGiven: given?.count ?? 0 };
+  }
 
   const [approved] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -72,20 +91,31 @@ export default async function ProfilePage() {
             <h2 className="text-xl font-bold text-slate-900">{user.name}</h2>
             <p className="text-sm text-slate-500">{user.email}</p>
             <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                {level.emoji} {level.name}
-              </span>
+              {!staff && (
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                  {level.emoji} {level.name}
+                </span>
+              )}
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
                 {t(user.language, user.role === "admin" ? "role_admin" : user.role === "moderator" ? "role_moderator" : "role_citizen")}
               </span>
             </div>
           </div>
-          <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 px-6 py-4 text-center">
-            <p className="text-3xl font-extrabold text-emerald-700">{user.totalPoints}</p>
-            <p className="text-xs font-medium text-slate-500">{t(user.language, "points")}</p>
-          </div>
+          {!staff && (
+            <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 px-6 py-4 text-center">
+              <p className="text-3xl font-extrabold text-emerald-700">{user.totalPoints}</p>
+              <p className="text-xs font-medium text-slate-500">{t(user.language, "points")}</p>
+            </div>
+          )}
         </div>
 
+        {staffStats && (user.role === "admin" || user.role === "moderator") && (
+          <div className="mt-6">
+            <StaffWork lang={user.language} role={user.role} stats={staffStats} />
+          </div>
+        )}
+
+        {!staff && (
         <div className="mt-6 grid grid-cols-3 gap-3">
           <div className="rounded-xl bg-emerald-50 p-3 text-center">
             <p className="text-lg font-extrabold text-emerald-700">{approved.count}</p>
@@ -100,9 +130,10 @@ export default async function ProfilePage() {
             <p className="text-xs font-medium text-red-600">{t(user.language, "status_rejected")}</p>
           </div>
         </div>
+        )}
 
         {/* Wallet and FONE payouts: hidden while payments are off (PAYMENTS_ENABLED). */}
-        {PAYMENTS_ENABLED && (
+        {PAYMENTS_ENABLED && !staff && (
           <>
         <div className="mt-6 border-t border-slate-100 pt-5">
           <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -193,9 +224,11 @@ export default async function ProfilePage() {
           {tx(user.language, "Na plataforma desde", "Member since", "En la plataforma desde")} {formatDate(user.createdAt, user.language)}
         </div>
 
-        <div className="mt-6">
-          <MyCards lang={user.language} cards={cards} />
-        </div>
+        {!staff && (
+          <div className="mt-6">
+            <MyCards lang={user.language} cards={cards} />
+          </div>
+        )}
 
         <form action={logoutAction} className="mt-6">
           <button

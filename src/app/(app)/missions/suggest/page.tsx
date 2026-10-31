@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { citizenOnly } from "@/lib/role-guard";
 import { getCurrentUser } from "@/lib/auth";
 import { t } from "@/lib/i18n";
 import { SuggestMissionForm } from "@/components/missions/suggest-mission-form";
@@ -7,6 +8,7 @@ import { SuggestMissionForm } from "@/components/missions/suggest-mission-form";
 export default async function SuggestMissionPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  citizenOnly(user.role);
   const lang = user.language;
   return (
     <div className="mx-auto max-w-2xl">

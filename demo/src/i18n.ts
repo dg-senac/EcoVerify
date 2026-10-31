@@ -131,9 +131,15 @@ const demoDict = {
     es: "Hace misiones, envía comprobantes y gana puntos y FONE",
   },
   demo_role_moderator_desc: {
-    pt: "Analisa as comprovações e aprova ou rejeita",
-    en: "Reviews proof submissions and approves or rejects them",
-    es: "Revisa los comprobantes y los aprueba o rechaza",
+    pt: "Revisa comprovações duvidosas e contestações, dá cartão amarelo",
+    en: "Reviews doubtful proofs and appeals, gives yellow cards",
+    es: "Revisa comprobantes dudosos y apelaciones, da tarjeta amarilla",
+  },
+  demo_role_org: { pt: "Coordenadora de organização", en: "Organization coordinator", es: "Coordinadora de organización" },
+  demo_role_org_desc: {
+    pt: "Professora da Escola Técnica Horizonte: missões da escola, mutirões e relatório",
+    en: "Teacher at Escola Técnica Horizonte: school missions, clean-up events and report",
+    es: "Profesora de la Escola Técnica Horizonte: misiones de la escuela, jornadas e informe",
   },
   demo_role_admin_desc: {
     pt: "Cria missões, gerencia usuários e pagamentos",

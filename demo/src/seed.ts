@@ -8,7 +8,7 @@ import { registerText } from "./seed-text";
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 12;
+export const STATE_VERSION = 13;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -17,6 +17,8 @@ export const DEMO_IDS = {
   citizen: "u-citizen",
   moderator: "u-moderator",
   admin: "u-admin",
+  /** School coordinator: a regular (citizen) account that runs an organization. */
+  teacher: "u-teacher",
 } as const;
 
 function person(partial: Partial<User> & Pick<User, "id" | "name" | "email">, lang: Lang): User {
@@ -73,6 +75,7 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       createdAt: ago(20 * DAY),
     }, lang),
     person({ id: DEMO_IDS.moderator, name: "Carlos Mendes", email: "moderador@ecoverify.dev", role: "moderator", isDemoProfile: true }, lang),
+    person({ id: DEMO_IDS.teacher, name: "Juliana Rocha", email: "escola@ecoverify.dev", isDemoProfile: true, createdAt: ago(6 * DAY) }, lang),
     person({ id: DEMO_IDS.admin, name: "Ana Ribeiro", email: "admin@ecoverify.dev", role: "admin", isDemoProfile: true, createdAt: ago(60 * DAY) }, lang),
     person({ id: "u-bot-1", name: "João Silva", email: "joao@ecoverify.dev", totalPoints: 340, walletAddress: "fec87a171ac826a6fce48478dcb74f21345d2cce8038a39d5e0853964b50af03", isBot: true }, lang),
     person({ id: "u-bot-2", name: "Luana Costa", email: "luana@ecoverify.dev", totalPoints: 260, walletAddress: "fb971722f244f58d669cbee3772a077021721a278f64f7fd633dbdde131ca376", isBot: true }, lang),
@@ -429,7 +432,7 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     { id: "c5", userId: "u-bot-5", message: L({ pt: "Primeira missão aprovada! Bora subir no ranking 💪🌱", en: "First mission approved! Let's climb the ranking 💪🌱", es: "¡Primera misión aprobada! A subir en el ranking 💪🌱" }), replyToId: null, deleted: false, createdAt: ago(6 * 60 * 60 * 1000) },
   ];
 
-  /* SaaS: a school on a free trial (Carlos runs it, Maria takes part) and a paying company. */
+  /* SaaS: a school on a free trial (teacher Juliana runs it, Maria takes part) and a paying company. */
   const school: DemoOrg = {
     id: "org-escola",
     name: "Escola Técnica Horizonte",
@@ -442,7 +445,7 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     currentPeriodEnd: new Date(Date.now() + 9 * DAY).toISOString(),
     trialUsed: true,
     inviteCode: "ESCOLA24",
-    ownerId: DEMO_IDS.moderator,
+    ownerId: DEMO_IDS.teacher,
     createdAt: ago(5 * DAY),
   };
   const company: DemoOrg = {
@@ -468,7 +471,7 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     joinedAt: ago(days * DAY),
   });
   const orgMembers: DemoOrgMember[] = [
-    orgMember(school.id, DEMO_IDS.moderator, "owner", 5),
+    orgMember(school.id, DEMO_IDS.teacher, "owner", 5),
     orgMember(school.id, DEMO_IDS.citizen, "member", 4),
     orgMember(school.id, "u-bot-2", "member", 4),
     orgMember(school.id, "u-bot-3", "member", 3),
@@ -511,7 +514,7 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       photo: P(emoji, "#34d399", "#0d9488", caption),
       report: L(join(caption, { pt: "Atividade feita na escola junto com a turma, conforme as instruções da missão.", en: "Done at school with my class, following the mission instructions.", es: "Actividad hecha en la escuela con mi grupo, según las instrucciones de la misión." })),
       status: "approved",
-      reviewedBy: DEMO_IDS.moderator,
+      reviewedBy: DEMO_IDS.teacher,
       rejectionReason: null,
       submittedAt: ago(days * DAY + 3600000),
       reviewedAt: ago(days * DAY),

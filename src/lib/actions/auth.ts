@@ -16,6 +16,8 @@ import { createAuthToken } from "@/lib/auth-tokens";
 import { isSuspended } from "@/lib/cards";
 import { TERMS_VERSION } from "@/lib/legal";
 import { DEFAULT_LANG, isLang } from "@/lib/i18n";
+import { homeFor } from "@/lib/nav";
+import { moderatorsEnabled } from "@/lib/staff-config";
 
 export type ActionState = { error?: string; success?: boolean };
 
@@ -67,7 +69,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
 
   const promoted = await promoteOwnerIfNeeded(user);
   await createSession(user.id);
-  redirect(safeNextPath(formData.get("next")) ?? (promoted || user.role === "admin" ? "/admin" : "/missions"));
+  redirect(safeNextPath(formData.get("next")) ?? (promoted ? "/admin" : homeFor(user.role, moderatorsEnabled())));
 }
 
 export async function registerAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

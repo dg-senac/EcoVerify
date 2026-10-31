@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { AppSplash } from "@/components/brand/app-splash";
 import { moderatorsOn, onStorageError, setGuestLanguage, updateSettings, useCurrentUser, useLang, useStore, type User } from "./store";
-import { canReview } from "@/lib/nav";
+import { canReview, homeFor, isStaffExperience } from "@/lib/nav";
 import { startTour, TourPanel } from "./components/Tour";
 import { matchRoute, navigate, useRoute } from "./router";
 import { dt } from "./i18n";
@@ -79,6 +79,11 @@ function Redirect({ to }: { to: string }) {
 
 function AuthedRoutes({ user, path }: { user: User; path: string }) {
   const staff = useStore((s) => canReview(user.role, moderatorsOn(s)));
+  const home = useStore((s) => homeFor(user.role, moderatorsOn(s)));
+  // Staff (active moderators and admins) have their own app: citizen screens send them home.
+  const staffApp = useStore((s) => isStaffExperience(user.role, moderatorsOn(s)));
+  const citizenOnly = path.startsWith("/missions") || path.startsWith("/org") || ["/submissions", "/ranking", "/beneficios", "/community", "/wallet"].includes(path);
+  if (staffApp && citizenOnly) return <Redirect to={home} />;
   const submit = matchRoute("/missions/:id/submit", path);
   if (submit) return <SubmitScreen key={submit.id} missionId={submit.id} />;
   if (path === "/org") return <OrgListScreen user={user} />;
@@ -112,11 +117,11 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
     case "/settings":
       return <SettingsScreen user={user} />;
     case "/moderation":
-      return staff ? <ModerationScreen user={user} /> : <Redirect to="/missions" />;
+      return staff ? <ModerationScreen user={user} /> : <Redirect to={home} />;
     case "/admin":
-      return user.role === "admin" ? <AdminScreen user={user} /> : <Redirect to="/missions" />;
+      return user.role === "admin" ? <AdminScreen user={user} /> : <Redirect to={home} />;
     default:
-      return <Redirect to={user.role === "admin" ? "/admin" : staff ? "/moderation" : "/missions"} />;
+      return <Redirect to={home} />;
   }
 }
 

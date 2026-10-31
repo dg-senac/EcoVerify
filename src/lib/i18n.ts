@@ -1244,6 +1244,11 @@ const dict = {
     en: "Points, levels, the ranking and perks at local shops.",
     es: "Puntos, niveles, ranking y beneficios en comercios de tu ciudad.",
   },
+  nav_more: {
+    pt: "Mais",
+    en: "More",
+    es: "Más",
+  },
 } as const;
 
 export type DictKey = keyof typeof dict;
