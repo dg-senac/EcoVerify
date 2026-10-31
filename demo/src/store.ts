@@ -1,8 +1,9 @@
 import { useRef, useSyncExternalStore } from "react";
-import { t, tf, type Lang } from "@/lib/i18n";
+import { DEFAULT_LANG, t, tf, type Lang } from "@/lib/i18n";
 import type { Role } from "@/lib/nav";
 import { dt, botReplies } from "./i18n";
 import { createSeed, STATE_VERSION } from "./seed";
+import { hasSeedTexts, seedText } from "./seed-text";
 import { centsToFone, foneToCents, isValidFoneAddress, normalizeHex, pickChallengeCents } from "@/lib/fone";
 import { TERMS_VERSION } from "@/lib/legal";
 import type { Theme } from "@/lib/theme";
@@ -51,7 +52,9 @@ import { newInvoiceReference } from "@/lib/saas/pix";
 import { EVENT_PACKAGES, eventMemberAllowance, eventPhase, eventSubmissionError, isEvent, isEventPackage, parseEventWindow, type EventPackage } from "@/lib/saas/events";
 import {
   firstName,
+  codeUsedNotification,
   formatRedemptionCode,
+  localizeOffer,
   newPartnerToken,
   newRedemptionCode,
   normalizeRedemptionCode,
@@ -121,7 +124,11 @@ export type Mission = {
   descriptionEn?: string | null;
   descriptionEs?: string | null;
   context?: string | null;
+  contextEn?: string | null;
+  contextEs?: string | null;
   impact?: string | null;
+  impactEn?: string | null;
+  impactEs?: string | null;
   latitude: number;
   longitude: number;
   category: Category;
@@ -218,6 +225,8 @@ export type Notification = {
   userId: string;
   title: string;
   message: string;
+  /** The same alert in the three languages: shown in the language the person uses now. */
+  i18n?: Record<Lang, { title: string; message: string }>;
   isRead: boolean;
   createdAt: string;
 };
@@ -271,7 +280,11 @@ export type DemoOffer = {
   id: string;
   partnerName: string;
   title: string;
+  titleEn?: string | null;
+  titleEs?: string | null;
   description: string;
+  descriptionEn?: string | null;
+  descriptionEs?: string | null;
   kind: OfferKind;
   city: string | null;
   address: string | null;
@@ -407,11 +420,45 @@ export function getState() {
  * Subscribes to a slice of the state. The result is cached per state snapshot, so selectors
  * may safely return derived arrays/objects (useSyncExternalStore requires stable snapshots).
  */
+/**
+ * The state as the current viewer reads it: alerts and the texts of the initial data (chat, reports,
+ * photos, notes) in the viewer's language. Actions always work on the stored state.
+ */
+let viewCache: { snapshot: State; lang: Lang; view: State } | null = null;
+function viewOf(s: State): State {
+  const lang = s.users.find((u) => u.id === s.currentUserId)?.language ?? s.guestLanguage;
+  if (viewCache?.snapshot === s && viewCache.lang === lang) return viewCache.view;
+  if (!hasSeedTexts()) createSeed(DEFAULT_LANG);
+  const view: State = {
+    ...s,
+    notifications: s.notifications.map((n) => {
+      const text = n.i18n?.[lang] ?? { title: seedText(n.title, lang), message: seedText(n.message, lang) };
+      return text.title === n.title && text.message === n.message ? n : { ...n, ...text };
+    }),
+    chat: s.chat.map((m) => {
+      const message = seedText(m.message, lang);
+      return message === m.message ? m : { ...m, message };
+    }),
+    submissions: s.submissions.map((x) => {
+      const report = seedText(x.report, lang);
+      const photo = seedText(x.photo, lang);
+      const rejectionReason = seedText(x.rejectionReason, lang);
+      return report === x.report && photo === x.photo && rejectionReason === x.rejectionReason ? x : { ...x, report, photo, rejectionReason };
+    }),
+    cards: s.cards?.map((c) => {
+      const note = seedText(c.note, lang);
+      return note === c.note ? c : { ...c, note };
+    }),
+  };
+  viewCache = { snapshot: s, lang, view };
+  return view;
+}
+
 export function useStore<T>(selector: (s: State) => T): T {
   const cache = useRef<{ snapshot: State; value: T } | null>(null);
   const getSnapshot = () => {
     if (cache.current?.snapshot === state) return cache.current.value;
-    const value = selector(state);
+    const value = selector(viewOf(state));
     cache.current = { snapshot: state, value };
     return value;
   };
@@ -463,8 +510,12 @@ export function localizedDescription(mission: Mission, lang: Lang) {
 function notify(s: State, userId: string, build: (lang: Lang) => { title: string; message: string }): Notification[] {
   const user = userById(userId, s);
   if (!user || user.isBot || !user.notificationsEnabled) return s.notifications;
-  const { title, message } = build(user.language);
-  return [{ id: uid(), userId, title, message, isRead: false, createdAt: now() }, ...s.notifications];
+  return [newNotification(userId, user.language, build), ...s.notifications];
+}
+
+function newNotification(userId: string, lang: Lang, build: (lang: Lang) => { title: string; message: string }): Notification {
+  const i18n = { pt: build("pt"), en: build("en"), es: build("es") };
+  return { id: uid(), userId, ...i18n[lang], i18n, isRead: false, createdAt: now() };
 }
 
 /** In-app alert to the platform staff (like src/lib/staff-alerts.ts). */
@@ -472,8 +523,7 @@ function notifyStaff(s: State, roles: Role[], build: (lang: Lang) => { title: st
   let notifications = s.notifications;
   for (const member of s.users) {
     if (!roles.includes(member.role) || member.isBot || member.isBanned || member.deletedAt) continue;
-    const { title, message } = build(member.language);
-    notifications = [{ id: uid(), userId: member.id, title, message, isRead: false, createdAt: now() }, ...notifications];
+    notifications = [newNotification(member.id, member.language, build), ...notifications];
   }
   return notifications;
 }
@@ -974,8 +1024,12 @@ export function seedExampleMissions(region: Region): number {
       description: template.description.pt,
       descriptionEn: template.description.en,
       descriptionEs: template.description.es,
-      context: template.context,
-      impact: template.impact,
+      context: template.context.pt,
+      contextEn: template.context.en,
+      contextEs: template.context.es,
+      impact: template.impact.pt,
+      impactEn: template.impact.en,
+      impactEs: template.impact.es,
       latitude: region.lat + dLat,
       longitude: region.lng + dLng,
       category: template.category,
@@ -1117,7 +1171,8 @@ function applyCard(s: State, input: CardInput): State {
     appealRejectedAt: null,
   };
   const consumed = new Set(outcome?.suspend ? countingYellows(existing, at).map((c) => c.id) : []);
-  const label = CARD_REASON_LABELS[input.reason].pt;
+  // In the language of the person who receives the card (they read the reason on the blocked screen).
+  const label = CARD_REASON_LABELS[input.reason][userById(input.userId, s)?.language ?? DEFAULT_LANG];
   const next: State = {
     ...s,
     cards: [card, ...(s.cards ?? []).map((c) => (consumed.has(c.id) ? { ...c, consumedAt: at.toISOString() } : c))],
@@ -1181,8 +1236,7 @@ export function appealCard(cardId: string, message: string): Result {
 function notifyUser(s: State, userId: string, build: (lang: Lang) => { title: string; message: string }): Notification[] {
   const user = userById(userId, s);
   if (!user || user.isBot) return s.notifications;
-  const { title, message } = build(user.language);
-  return [{ id: uid(), userId, title, message, isRead: false, createdAt: now() }, ...s.notifications];
+  return [newNotification(userId, user.language, build), ...s.notifications];
 }
 
 /** Cancels a card; a suspension card lifts the suspension and gives back the series; a red card unblocks. */
@@ -1935,15 +1989,7 @@ export function validateOfferCode(token: string, rawCode: string): { error?: Val
   commit((s) => ({
     ...s,
     redemptions: (s.redemptions ?? []).map((r) => (r.id === row!.id ? { ...r, usedAt: now() } : r)),
-    notifications: notify(s, row!.userId, (lang) => ({
-      title: lang === "en" ? "🎁 Perk used" : lang === "es" ? "🎁 Beneficio usado" : "🎁 Benefício usado",
-      message:
-        lang === "en"
-          ? `Your code ${formatRedemptionCode(code)} was used at ${offer.partnerName} (${offer.title}). Thanks for caring for the city!`
-          : lang === "es"
-            ? `Tu código ${formatRedemptionCode(code)} se usó en ${offer.partnerName} (${offer.title}). ¡Gracias por cuidar la ciudad!`
-            : `Seu código ${formatRedemptionCode(code)} foi usado em ${offer.partnerName} (${offer.title}). Obrigado por cuidar da cidade!`,
-    })),
+    notifications: notify(s, row!.userId, (lang) => codeUsedNotification(lang, code, offer.partnerName, localizeOffer(offer, lang).title)),
   }));
   return { firstName: firstName(owner?.name ?? "") };
 }

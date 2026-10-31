@@ -15,11 +15,6 @@ import { FoneAmount, FoneMark } from "@/components/brand/fone";
 import { MyCards } from "@/components/cards/my-cards";
 import { cardsOf } from "@/lib/cards-server";
 
-const roleLabels: Record<string, string> = {
-  citizen: "Cidadão(ã)",
-  moderator: "Moderador(a)",
-  admin: "Administrador(a)",
-};
 
 export default async function ProfilePage() {
   const user = await getCurrentUser();
@@ -80,7 +75,7 @@ export default async function ProfilePage() {
                 {level.emoji} {level.name}
               </span>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                {roleLabels[user.role]}
+                {t(user.language, user.role === "admin" ? "role_admin" : user.role === "moderator" ? "role_moderator" : "role_citizen")}
               </span>
             </div>
           </div>

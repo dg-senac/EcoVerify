@@ -15,7 +15,7 @@ import { LogoHorizontal } from "@/components/logo";
 import { ImpactView } from "@/components/org/impact-view";
 import { PrintButton } from "@/components/org/print-button";
 
-export const metadata: Metadata = { title: "Relatório de impacto · EcoVerify", robots: { index: false } };
+export const metadata: Metadata = { title: "Impact report · EcoVerify", robots: { index: false } };
 
 /** Printable impact report (managers of School / Business / City hall plans). "Save as PDF" in the browser. */
 export default async function ReportPage({ params }: { params: Promise<{ slug: string }> }) {

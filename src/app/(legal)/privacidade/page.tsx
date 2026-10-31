@@ -6,7 +6,7 @@ import { LegalPage } from "@/components/legal/legal-page";
 import { PrivacyContent } from "@/components/legal/privacy-content";
 import { t } from "@/lib/i18n";
 
-export const metadata: Metadata = { title: "Política de Privacidade · EcoVerify" };
+export const metadata: Metadata = { title: "Privacy Policy · EcoVerify" };
 
 export default async function PrivacyPage() {
   const lang = await guestLang(null, await getCurrentUser());

@@ -16,6 +16,20 @@ export function isLang(value: unknown): value is Lang {
   return value === "pt" || value === "en" || value === "es";
 }
 
+/** Inline text in three languages (screens with few strings of their own, e.g. the admin panel). */
+export function tx(lang: Lang, pt: string, en: string, es: string): string {
+  return lang === "en" ? en : lang === "es" ? es : pt;
+}
+
+/** Text in the person's language when a translation exists, otherwise the original (Portuguese) one. */
+export function inLang(lang: Lang, base: string, en?: string | null, es?: string | null): string;
+export function inLang(lang: Lang, base: string | null | undefined, en?: string | null, es?: string | null): string | null;
+export function inLang(lang: Lang, base: string | null | undefined, en?: string | null, es?: string | null) {
+  if (lang === "en" && en) return en;
+  if (lang === "es" && es) return es;
+  return base ?? null;
+}
+
 /** Browser only: remembers the visitor's choice so the next pages (and the sign-up) use it. */
 export function rememberGuestLang(lang: Lang) {
   document.cookie = `${LANG_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`;
@@ -1114,6 +1128,86 @@ const dict = {
     pt: "Informe o peso aproximado entre 0,1 e 200 kg.",
     en: "Enter the approximate weight between 0.1 and 200 kg.",
     es: "Indica el peso aproximado entre 0,1 y 200 kg.",
+  },
+  what_to_do: {
+    pt: "O que fazer",
+    en: "What to do",
+    es: "Qué hacer",
+  },
+  why_it_matters: {
+    pt: "Por que importa",
+    en: "Why it matters",
+    es: "Por qué importa",
+  },
+  photo_preview: {
+    pt: "Pré-visualização da foto",
+    en: "Photo preview",
+    es: "Vista previa de la foto",
+  },
+  report_placeholder: {
+    pt: "Conte como foi a experiência, onde e como você realizou a ação...",
+    en: "Tell us how it went, where and how you did it...",
+    es: "Cuenta cómo fue, dónde y cómo realizaste la acción...",
+  },
+  mic_error: {
+    pt: "Erro ao acessar o microfone. Verifique as permissões.",
+    en: "Couldn't access the microphone. Check the permissions.",
+    es: "Error al acceder al micrófono. Revisa los permisos.",
+  },
+  audio_upload_error: {
+    pt: "Erro ao enviar o áudio. Tente novamente.",
+    en: "Couldn't upload the audio. Try again.",
+    es: "Error al subir el audio. Inténtalo de nuevo.",
+  },
+  user_fallback: {
+    pt: "Usuário",
+    en: "User",
+    es: "Usuario",
+  },
+  no_history: {
+    pt: "Nenhum histórico encontrado.",
+    en: "No history found.",
+    es: "No se encontró historial.",
+  },
+  proof_approved_ok: {
+    pt: "Comprovação aprovada com sucesso!",
+    en: "Proof approved!",
+    es: "¡Comprobante aprobado!",
+  },
+  reject_placeholder: {
+    pt: "Explique por que a comprovação está sendo rejeitada...",
+    en: "Explain why the proof is being rejected...",
+    es: "Explica por qué se rechaza el comprobante...",
+  },
+  prefs_saved: {
+    pt: "✓ Preferências salvas",
+    en: "✓ Preferences saved",
+    es: "✓ Preferencias guardadas",
+  },
+  community_subtitle: {
+    pt: "Converse com outros guardiões do planeta",
+    en: "Chat with other guardians of the planet",
+    es: "Conversa con otros guardianes del planeta",
+  },
+  you_suffix: {
+    pt: "(você)",
+    en: "(you)",
+    es: "(tú)",
+  },
+  role_citizen: {
+    pt: "Cidadão(ã)",
+    en: "Citizen",
+    es: "Ciudadano(a)",
+  },
+  role_moderator: {
+    pt: "Moderador(a)",
+    en: "Moderator",
+    es: "Moderador(a)",
+  },
+  role_admin: {
+    pt: "Administrador(a)",
+    en: "Administrator",
+    es: "Administrador(a)",
   },
 } as const;
 

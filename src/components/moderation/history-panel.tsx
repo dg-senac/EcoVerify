@@ -70,7 +70,7 @@ export function HistoryPanel({ lang, userId, userName }: { lang: Lang; userId: s
             )}
 
             {rows && rows.length === 0 && (
-              <p className="text-sm text-slate-400">Nenhum histórico encontrado.</p>
+              <p className="text-sm text-slate-400">{t(lang, "no_history")}</p>
             )}
 
             <div className="space-y-3">

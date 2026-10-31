@@ -167,7 +167,7 @@ export function CommunityChat({
                   >
                     {!isOwnMessage && (
                       <p className="text-xs font-semibold mb-1 opacity-75">
-                        {msg.userName || "Usuário"}
+                        {msg.userName || t(lang, "user_fallback")}
                       </p>
                     )}
                     {msg.replyToMessage && (

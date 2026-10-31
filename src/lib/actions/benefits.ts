@@ -12,7 +12,9 @@ import { rateLimit } from "@/lib/rate-limit";
 import { isUniqueViolation } from "@/lib/utils";
 import {
   firstName,
+  codeUsedNotification,
   formatRedemptionCode,
+  localizeOffer,
   isPartnerToken,
   newPartnerToken,
   newRedemptionCode,
@@ -95,7 +97,7 @@ export async function validateRedemptionAction(token: string, rawCode: string): 
   if (!offer || !offer.isActive) return { error: "invalid" };
   const code = normalizeRedemptionCode(rawCode);
   const [row] = await db
-    .select({ id: offerRedemptions.id, usedAt: offerRedemptions.usedAt, userId: offerRedemptions.userId, name: users.name })
+    .select({ id: offerRedemptions.id, usedAt: offerRedemptions.usedAt, userId: offerRedemptions.userId, name: users.name, language: users.language })
     .from(offerRedemptions)
     .innerJoin(users, eq(users.id, offerRedemptions.userId))
     .where(and(eq(offerRedemptions.code, code), eq(offerRedemptions.offerId, offer.id)))
@@ -112,8 +114,7 @@ export async function validateRedemptionAction(token: string, rawCode: string): 
   await db.insert(notifications).values({
     userId: row!.userId,
     type: "system",
-    title: "🎁 Benefício usado",
-    message: `Seu código ${formatRedemptionCode(code)} foi usado em ${offer.partnerName} (${offer.title}). Obrigado por cuidar da cidade!`,
+    ...codeUsedNotification(row!.language, code, offer.partnerName, localizeOffer(offer, row!.language).title),
   });
   revalidatePath(`/parceiro/${token}`);
   return { firstName: firstName(row!.name) };

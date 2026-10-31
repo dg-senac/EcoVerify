@@ -1,6 +1,6 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { ArrowLeft, Camera, Crosshair, Loader2, MapPin, Navigation, Star, Target, Lightbulb } from "lucide-react";
-import { categoryEmoji, t } from "@/lib/i18n";
+import { categoryEmoji, inLang, t } from "@/lib/i18n";
 import { goBack, Link, navigate } from "../router";
 import { dt, errorText } from "../i18n";
 import { checkProof, localizedDescription, localizedTitle, submitProof, useLang, useStore, type NewSubmission } from "../store";
@@ -176,10 +176,10 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
             </p>
           )}
           {mission.context && (
-            <p className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-emerald-900"><Target className="mt-0.5 h-4 w-4 shrink-0" /><span><b>{dt(lang, "what_to_do")}:</b> {mission.context}</span></p>
+            <p className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-emerald-900"><Target className="mt-0.5 h-4 w-4 shrink-0" /><span><b>{dt(lang, "what_to_do")}:</b> {inLang(lang, mission.context, mission.contextEn, mission.contextEs)}</span></p>
           )}
           {mission.impact && (
-            <p className="flex gap-2 rounded-xl bg-sky-50 p-3 text-sky-900"><Lightbulb className="mt-0.5 h-4 w-4 shrink-0" /><span><b>{dt(lang, "why_it_matters")}:</b> {mission.impact}</span></p>
+            <p className="flex gap-2 rounded-xl bg-sky-50 p-3 text-sky-900"><Lightbulb className="mt-0.5 h-4 w-4 shrink-0" /><span><b>{dt(lang, "why_it_matters")}:</b> {inLang(lang, mission.impact, mission.impactEn, mission.impactEs)}</span></p>
           )}
         </div>
       </div>

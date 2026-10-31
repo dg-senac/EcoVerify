@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight, Minus, Play, X } from "lucide-react";
-import type { Lang } from "@/lib/i18n";
+import { DEFAULT_LANG, tx, type Lang } from "@/lib/i18n";
 import { regionFromMunicipality } from "@/lib/region";
 import { getState, loginAs, moderatorsOn, setRegion, submitProof, useLang } from "../store";
 import { DEMO_IDS } from "../seed";
@@ -29,8 +29,14 @@ async function chooseRecife() {
 async function sendSampleProof() {
   const photo = drawSamplePhoto("recycling");
   const photoHash = await hashBytes(new TextEncoder().encode(photo + uid()));
-  const report =
-    "Separei plástico, papel e metal em sacolas diferentes, lavei as embalagens e deixei tudo pronto para a coleta seletiva do bairro.";
+  // Written as Maria would write it, in her language.
+  const lang = getState().users.find((u) => u.id === DEMO_IDS.citizen)?.language ?? DEFAULT_LANG;
+  const report = tx(
+    lang,
+    "Separei plástico, papel e metal em sacolas diferentes, lavei as embalagens e deixei tudo pronto para a coleta seletiva do bairro.",
+    "I sorted plastic, paper and metal into separate bags, rinsed the packaging and left everything ready for the neighbourhood's recycling pickup.",
+    "Separé plástico, papel y metal en bolsas distintas, lavé los envases y dejé todo listo para la recolección selectiva del barrio.",
+  );
   for (const missionId of ["m-casa-reciclaveis", "m-casa-oleo"]) {
     const already = getState().submissions.some((s) => s.userId === DEMO_IDS.citizen && s.missionId === missionId && s.status !== "rejected");
     if (already) continue;

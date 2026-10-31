@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { BarChart3, Crosshair, Loader2, Plus, Users, Clock, CheckCircle2, Coins, Hourglass, Target } from "lucide-react";
-import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
+import { categoryEmoji, categoryLabels, t, tx, type Lang } from "@/lib/i18n";
 import { formatDate, formatFone } from "@/lib/utils";
 import type { Role } from "@/lib/nav";
 import { dt, errorText, type DemoKey } from "../i18n";
@@ -57,6 +57,7 @@ import { monthStart } from "@/lib/payout-rules";
 import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
 import { dataTables, recyclingSummary } from "@/lib/impact";
 import { BenefitsTab, type AdminOffer } from "@/components/admin/benefits-tab";
+import { localizeOffer } from "@/lib/benefits";
 
 type Tab = "metrics" | "business" | "benefits" | "missions" | "users" | "rewards" | "recycling" | "data";
 export const ADMIN_TAB_KEY = "ecoverify-admin-tab";
@@ -70,13 +71,14 @@ const EXTRA_TABS: Partial<Record<Tab, { icon: string; label: Record<Lang, string
 
 /** Same panel as the web app (src/components/admin/benefits-tab.tsx); the partner link opens #/parceiro/<token>. */
 function DemoBenefitsTab() {
+  const lang = useLang();
   const offers = useStore<AdminOffer[]>((s) => {
     const since = Date.now() - 30 * 24 * 60 * 60 * 1000;
     return (s.offers ?? [])
       .map((o) => {
         const codes = (s.redemptions ?? []).filter((r) => r.offerId === o.id);
         return {
-          ...o,
+          ...localizeOffer(o, s.users.find((u) => u.id === s.currentUserId)?.language ?? s.guestLanguage),
           generated: codes.length,
           used: codes.filter((r) => r.usedAt).length,
           used30: codes.filter((r) => r.usedAt && new Date(r.usedAt).getTime() > since).length,
@@ -86,6 +88,7 @@ function DemoBenefitsTab() {
   });
   return (
     <BenefitsTab
+      lang={lang}
       offers={offers}
       partnerBase={`${window.location.origin}${window.location.pathname}#/parceiro/`}
       actions={{
@@ -99,9 +102,11 @@ function DemoBenefitsTab() {
 
 /** Same panels as the web app (src/components/admin/impact-tabs.tsx); the CSV is built in the browser. */
 function DemoRecyclingTab() {
+  const lang = useLang();
   const all = useStore((s) => impactRows(s));
   return (
     <RecyclingTab
+      lang={lang}
       summary={recyclingSummary(all)}
       rows={all}
     />
@@ -109,9 +114,11 @@ function DemoRecyclingTab() {
 }
 
 function DemoDataTab() {
+  const lang = useLang();
   const tables = useStore((s) => dataTables(impactRows(s)));
   return (
     <DataTab
+      lang={lang}
       tables={tables}
     />
   );
@@ -509,11 +516,13 @@ function sheetUser(u: User): SheetUser {
 
 /** Same sheet as the web app (src/components/admin/user-sheet-view.tsx), fed by the local store. */
 function DemoUserSheet({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const lang = useLang();
   const user = useStore((s) => s.users.find((u) => u.id === userId));
   const details = useStore((s) => demoDetails(s, userId));
   if (!user) return null;
   return (
     <UserSheetView
+      lang={lang}
       user={sheetUser(user)}
       details={details}
       onClose={onClose}
@@ -531,6 +540,7 @@ function DemoUserSheet({ userId, onClose }: { userId: string; onClose: () => voi
 }
 
 function ModeratorsSwitch() {
+  const lang = useLang();
   const enabled = useStore((s) => moderatorsOn(s));
   return (
     <label className={`${card} mb-4 flex items-start gap-3 p-4 text-sm`} data-testid="moderators-switch">
@@ -542,11 +552,11 @@ function ModeratorsSwitch() {
         data-testid="moderators-toggle"
       />
       <span>
-        <span className="font-bold text-slate-900">Moderadores podem revisar comprovações</span>
+        <span className="font-bold text-slate-900">{tx(lang, "Moderadores podem revisar comprovações", "Moderators can review proofs", "Los moderadores pueden revisar pruebas")}</span>
         <span className="mt-0.5 block text-xs text-slate-500">
           {enabled
-            ? "Ligado: quem tem o papel Moderador revisa comprovações e dá cartão amarelo. Vermelho, suspensão, banimento e FONE são só do admin."
-            : "Desligado: só administradores veem a Moderação."}
+            ? tx(lang, "Ligado: quem tem o papel Moderador revisa comprovações e dá cartão amarelo. Vermelho, suspensão e banimento são só do admin.", "On: people with the Moderator role review proofs and give yellow cards. Red cards, suspensions and bans are admin-only.", "Activado: quien tiene el rol Moderador revisa pruebas y da tarjeta amarilla. Roja, suspensión y bloqueo son solo del admin.")
+            : tx(lang, "Desligado: só administradores veem a Moderação.", "Off: only admins see Moderation.", "Desactivado: solo los administradores ven la Moderación.")}
         </span>
       </span>
     </label>
@@ -563,23 +573,23 @@ function CardAppealsPanel({ onOpen }: { onOpen: (userId: string) => void }) {
   if (!appeals.length) return null;
   return (
     <div className={`${card} mb-4 border-sky-200 p-4`} data-testid="card-appeals">
-      <h3 className="mb-2 font-bold text-slate-900">⚖️ Contestações de cartões ({appeals.length})</h3>
+      <h3 className="mb-2 font-bold text-slate-900">⚖️ {tx(lang, "Contestações de cartões", "Card appeals", "Apelaciones de tarjetas")} ({appeals.length})</h3>
       <ul className="space-y-2">
         {appeals.map((c) => (
           <li key={c.id} className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
             <p className="font-bold">
-              {c.type === "red" ? "🟥" : "🟨"} {c.userName} · {CARD_REASON_LABELS[c.reasonCode].pt} · {c.appealedAt ? formatDate(c.appealedAt, lang) : ""}
+              {c.type === "red" ? "🟥" : "🟨"} {c.userName} · {CARD_REASON_LABELS[c.reasonCode][lang]} · {c.appealedAt ? formatDate(c.appealedAt, lang) : ""}
             </p>
             <p className="mt-0.5 whitespace-pre-line">“{c.appealMessage}”</p>
             <div className="mt-1.5 flex flex-wrap gap-2">
               <button type="button" onClick={() => revokeCard(c.id)} className="rounded-lg border border-emerald-300 bg-white px-2.5 py-1 font-bold text-emerald-700" data-testid="appeal-accept">
-                Aceitar (cancelar cartão)
+                {tx(lang, "Aceitar (cancelar cartão)", "Accept (cancel card)", "Aceptar (anular tarjeta)")}
               </button>
               <button type="button" onClick={() => keepCard(c.id)} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-bold text-slate-700" data-testid="appeal-keep">
-                Manter cartão
+                {tx(lang, "Manter cartão", "Keep card", "Mantener tarjeta")}
               </button>
               <button type="button" onClick={() => onOpen(c.userId)} className="rounded-lg px-2.5 py-1 font-bold text-sky-800 underline">
-                Ver ficha
+                {tx(lang, "Ver ficha", "View profile", "Ver ficha")}
               </button>
             </div>
           </li>
@@ -617,7 +627,7 @@ function UsersTab({ me }: { me: User }) {
                   <span className="truncate">{u.name}</span>
                   {u.id === me.id && <span className="text-xs text-emerald-600">({dt(lang, "you")})</span>}
                   {u.isBanned && <span className="rounded bg-red-100 px-1.5 text-[10px] font-bold text-red-700">{dt(lang, "banned_label")}</span>}
-                  <CardBadges cards={allCards.filter((c) => c.userId === u.id)} suspendedUntil={u.suspendedUntil ?? null} />
+                  <CardBadges lang={lang} cards={allCards.filter((c) => c.userId === u.id)} suspendedUntil={u.suspendedUntil ?? null} />
                 </p>
                 <p className="truncate text-xs text-slate-500">{u.email} · {u.totalPoints} {t(lang, "reward_points")}</p>
                 {u.isBanned && (
@@ -641,7 +651,7 @@ function UsersTab({ me }: { me: User }) {
                   className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
                   data-testid="open-user-sheet"
                 >
-                  Ficha
+                  {tx(lang, "Ficha", "Profile", "Ficha")}
                 </button>
                 {u.id !== me.id && (
                   <>

@@ -16,7 +16,7 @@ import { FoneAmount, PoweredByFone } from "@/components/brand/fone";
 import { guestLang } from "@/lib/guest-lang";
 
 export const metadata: Metadata = {
-  title: "Transparência · EcoVerify",
+  title: "Transparency · EcoVerify",
   description: "Impacto, recompensas em FONE e patrocínios do EcoVerify, em números públicos.",
 };
 

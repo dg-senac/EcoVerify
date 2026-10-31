@@ -15,7 +15,7 @@ export default async function CommunityPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">{t(user.language, "nav_community")}</h1>
-      <p className="mt-1 text-sm text-slate-500">Converse com outros guardiões do planeta</p>
+      <p className="mt-1 text-sm text-slate-500">{t(user.language, "community_subtitle")}</p>
 
       <CommunityChatRealtime
         lang={user.language}

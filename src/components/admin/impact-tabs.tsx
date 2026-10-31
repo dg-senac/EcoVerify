@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { categoryLabels, tx, type Lang } from "@/lib/i18n";
 import {
+  cityLabel,
   dataCsv,
-  DATA_VIEW_LABELS,
   DATA_VIEWS,
   formatKg,
   MATERIAL_EMOJI,
@@ -62,7 +63,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-function Bars({ buckets, label }: { buckets: (KgBucket & { emoji?: string })[]; label: (key: string) => string }) {
+function Bars({ lang, buckets, label }: { lang: Lang; buckets: (KgBucket & { emoji?: string })[]; label: (key: string) => string }) {
   const max = Math.max(1, ...buckets.map((b) => b.kg));
   return (
     <ul className="space-y-2">
@@ -74,7 +75,7 @@ function Bars({ buckets, label }: { buckets: (KgBucket & { emoji?: string })[]; 
               {label(b.key)}
             </span>
             <span className="shrink-0 tabular-nums text-slate-500">
-              <strong className="text-slate-800">{formatKg(b.kg)}</strong> · {b.deliveries} {b.deliveries === 1 ? "entrega" : "entregas"}
+              <strong className="text-slate-800">{formatKg(b.kg, lang)}</strong> · {b.deliveries} {b.deliveries === 1 ? tx(lang, "entrega", "delivery", "entrega") : tx(lang, "entregas", "deliveries", "entregas")}
             </span>
           </div>
           <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
@@ -86,41 +87,50 @@ function Bars({ buckets, label }: { buckets: (KgBucket & { emoji?: string })[]; 
   );
 }
 
-const monthLabel = (key: string) => {
+const locale = (lang: Lang) => (lang === "pt" ? "pt-BR" : lang === "es" ? "es-ES" : "en-US");
+const monthLabel = (key: string, lang: Lang) => {
   const [year, month] = key.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, 15)).toLocaleDateString("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" });
+  return new Date(Date.UTC(year, month - 1, 15)).toLocaleDateString(locale(lang), { month: "long", year: "numeric", timeZone: "UTC" });
+};
+const placeLabel = (label: string, lang: Lang) => (label === cityLabel({ city: null, stateCode: null }) ? tx(lang, label, "No city (missions at home)", "Sin ciudad (misiones en casa)") : label);
+const VIEW_LABELS: Record<DataView, Record<Lang, string>> = {
+  city: { pt: "Por cidade", en: "By city", es: "Por ciudad" },
+  month: { pt: "Por mês", en: "By month", es: "Por mes" },
+  category: { pt: "Por categoria", en: "By category", es: "Por categoría" },
+  grid: { pt: "Por área (~1 km)", en: "By area (~1 km)", es: "Por área (~1 km)" },
 };
 
 export function RecyclingTab({
+  lang = "pt",
   summary,
   exportBase,
   rows,
 }: {
+  lang?: Lang;
   summary: RecyclingSummary;
   exportBase?: string;
   rows?: ImpactRow[];
 }) {
+  const T = (pt: string, en: string, es: string) => tx(lang, pt, en, es);
   const day = new Date().toISOString().slice(0, 10);
   return (
     <div className="grid gap-6" data-testid="recycling-tab">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Material recolhido" value={formatKg(summary.totalKg)} hint="declarado e verificado por foto" />
-        <Stat label="Entregas aprovadas" value={String(summary.deliveries)} />
-        <Stat label="Pessoas que entregaram" value={String(summary.people)} />
+        <Stat label={T("Material recolhido", "Material collected", "Material recogido")} value={formatKg(summary.totalKg, lang)} hint={T("declarado e verificado por foto", "declared and checked by photo", "declarado y verificado por foto")} />
+        <Stat label={T("Entregas aprovadas", "Approved deliveries", "Entregas aprobadas")} value={String(summary.deliveries)} />
+        <Stat label={T("Pessoas que entregaram", "People who delivered", "Personas que entregaron")} value={String(summary.people)} />
         <Stat
-          label="Média por entrega"
-          value={summary.deliveries ? formatKg(summary.totalKg / summary.deliveries) : "—"}
+          label={T("Média por entrega", "Average per delivery", "Promedio por entrega")}
+          value={summary.deliveries ? formatKg(summary.totalKg / summary.deliveries, lang) : "—"}
         />
       </div>
 
       <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-bold text-slate-900">🧾 Coletas comprovadas</h2>
+            <h2 className="font-bold text-slate-900">🧾 {T("Coletas comprovadas", "Verified collections", "Recolecciones comprobadas")}</h2>
             <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Uma linha por entrega aprovada: data, cidade, ponto, material, kg e código da comprovação. <strong>Sem nomes.</strong> Serve de
-              relatório para a cooperativa parceira e para a empresa que patrocina a campanha. O peso é uma estimativa (declarado pela pessoa e
-              conferido pela foto), não uma pesagem certificada.
+              {T("Uma linha por entrega aprovada: data, cidade, ponto, material, kg e código da comprovação. Sem nomes. Serve de relatório para a cooperativa parceira e para a empresa que patrocina a campanha. O peso é uma estimativa (declarado pela pessoa e conferido pela foto), não uma pesagem certificada.", "One row per approved delivery: date, city, point, material, kg and proof code. No names. Works as a report for the partner cooperative and the company sponsoring the campaign. The weight is an estimate (declared by the person and checked by photo), not a certified weighing.", "Una fila por entrega aprobada: fecha, ciudad, punto, material, kg y código del comprobante. Sin nombres. Sirve de informe para la cooperativa aliada y la empresa que patrocina la campaña. El peso es una estimación (declarado por la persona y revisado por foto), no un pesaje certificado.")}
             </p>
           </div>
           <CsvButton
@@ -134,24 +144,25 @@ export function RecyclingTab({
 
       {summary.deliveries === 0 ? (
         <p className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-          Nenhuma entrega de reciclagem aprovada ainda. Missões da categoria ♻️ Reciclagem pedem o material e o peso na comprovação.
+          {T("Nenhuma entrega de reciclagem aprovada ainda. Missões da categoria ♻️ Reciclagem pedem o material e o peso na comprovação.", "No approved recycling deliveries yet. ♻️ Recycling missions ask for the material and weight in the proof.", "Todavía no hay entregas de reciclaje aprobadas. Las misiones de ♻️ Reciclaje piden el material y el peso en el comprobante.")}
         </p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 font-bold text-slate-900">Por material</h2>
+            <h2 className="mb-4 font-bold text-slate-900">{T("Por material", "By material", "Por material")}</h2>
             <Bars
+              lang={lang}
               buckets={summary.byMaterial.map((b) => ({ ...b, emoji: MATERIAL_EMOJI[b.material] }))}
-              label={(key) => MATERIAL_LABELS[key as keyof typeof MATERIAL_LABELS]?.pt ?? key}
+              label={(key) => MATERIAL_LABELS[key as keyof typeof MATERIAL_LABELS]?.[lang] ?? key}
             />
           </section>
           <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 font-bold text-slate-900">Por mês</h2>
-            <Bars buckets={summary.byMonth.slice(0, 12)} label={monthLabel} />
+            <h2 className="mb-4 font-bold text-slate-900">{T("Por mês", "By month", "Por mes")}</h2>
+            <Bars lang={lang} buckets={summary.byMonth.slice(0, 12)} label={(key) => monthLabel(key, lang)} />
           </section>
           <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm lg:col-span-2">
-            <h2 className="mb-4 font-bold text-slate-900">Por cidade</h2>
-            <Bars buckets={summary.byCity.slice(0, 15)} label={(key) => key} />
+            <h2 className="mb-4 font-bold text-slate-900">{T("Por cidade", "By city", "Por ciudad")}</h2>
+            <Bars lang={lang} buckets={summary.byCity.slice(0, 15)} label={(key) => placeLabel(key, lang)} />
           </section>
         </div>
       )}
@@ -160,36 +171,44 @@ export function RecyclingTab({
 }
 
 export function DataTab({
+  lang = "pt",
   tables,
   exportBase,
 }: {
+  lang?: Lang;
   tables: Record<DataView, DataTable>;
   exportBase?: string;
 }) {
   const [view, setView] = useState<DataView>("city");
   const table = tables[view];
   const day = new Date().toISOString().slice(0, 10);
-  const firstHeader = view === "city" ? "Cidade" : view === "month" ? "Mês" : view === "category" ? "Categoria" : "Centro da área (lat, lng)";
+  const T = (pt: string, en: string, es: string) => tx(lang, pt, en, es);
+  const firstHeader = view === "city" ? T("Cidade", "City", "Ciudad") : view === "month" ? T("Mês", "Month", "Mes") : view === "category" ? T("Categoria", "Category", "Categoría") : T("Centro da área (lat, lng)", "Area centre (lat, lng)", "Centro del área (lat, lng)");
+  const rowLabel = (row: { key: string; label: string }) =>
+    view === "month" ? monthLabel(row.key, lang) : view === "category" ? (categoryLabels[row.key]?.[lang] ?? row.label) : view === "city" ? placeLabel(row.label, lang) : row.label;
 
   return (
     <div className="grid gap-6" data-testid="data-tab">
       <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-        <p className="font-bold">🔒 Só números agregados e anônimos</p>
+        <p className="font-bold">🔒 {T("Só números agregados e anônimos", "Only aggregated, anonymous numbers", "Solo números agregados y anónimos")}</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs">
-          <li>Nunca nome, e-mail, foto, relato ou a localização de uma pessoa.</li>
+          <li>{T("Nunca nome, e-mail, foto, relato ou a localização de uma pessoa.", "Never a person's name, email, photo, report or location.", "Nunca nombre, e-mail, foto, relato o la ubicación de una persona.")}</li>
           <li>
-            Linhas com <strong>menos de {MIN_PEOPLE_PER_ROW} pessoas diferentes</strong> são ocultadas, para ninguém ser identificado por exclusão.
+            {T("Linhas com menos de ", "Rows with fewer than ", "Las filas con menos de ")}
+            <strong>
+              {MIN_PEOPLE_PER_ROW} {T("pessoas diferentes", "different people", "personas distintas")}
+            </strong>{" "}
+            {T("são ocultadas, para ninguém ser identificado por exclusão.", "are hidden, so nobody can be identified by elimination.", "se ocultan, para que nadie sea identificado por descarte.")}
           </li>
-          <li>O mapa usa o ponto da missão arredondado para uma área de ~1 km. Missões feitas em casa ficam de fora do mapa.</li>
+          <li>{T("O mapa usa o ponto da missão arredondado para uma área de ~1 km. Missões feitas em casa ficam de fora do mapa.", "The map uses the mission point rounded to a ~1 km area. Missions done at home are left off the map.", "El mapa usa el punto de la misión redondeado a un área de ~1 km. Las misiones hechas en casa quedan fuera del mapa.")}</li>
         </ul>
         <p className="mt-2 text-xs">
-          Use para relatórios a prefeituras, universidades e consultorias. Antes de vender, confira se a Política de Privacidade menciona estatísticas
-          anônimas (veja <code>docs/MONETIZACAO.md</code>).
+          {T("Use para relatórios a prefeituras, universidades e consultorias. Antes de compartilhar, confira se a Política de Privacidade menciona estatísticas anônimas.", "Use it for reports to city halls, universities and consultancies. Before sharing, check that the Privacy Policy mentions anonymous statistics.", "Úsalo para informes a municipios, universidades y consultoras. Antes de compartir, revisa que la Política de Privacidad mencione estadísticas anónimas.")}
         </p>
       </section>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-1.5 rounded-2xl bg-slate-100 p-1.5" role="tablist" aria-label="Agrupar por">
+        <div className="flex flex-wrap gap-1.5 rounded-2xl bg-slate-100 p-1.5" role="tablist" aria-label={T("Agrupar por", "Group by", "Agrupar por")}>
           {DATA_VIEWS.map((key) => (
             <button
               key={key}
@@ -202,7 +221,7 @@ export function DataTab({
               }`}
               data-testid={`data-view-${key}`}
             >
-              {DATA_VIEW_LABELS[key]}
+              {VIEW_LABELS[key][lang]}
             </button>
           ))}
         </div>
@@ -215,15 +234,15 @@ export function DataTab({
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <Stat label="Ações verificadas" value={table.totals.people ? String(table.totals.actions) : "—"} />
-        <Stat label="Pessoas" value={table.totals.people ? String(table.totals.people) : `< ${MIN_PEOPLE_PER_ROW}`} />
-        <Stat label="Reciclado" value={table.totals.people ? formatKg(table.totals.kg) : "—"} />
+        <Stat label={T("Ações verificadas", "Verified actions", "Acciones verificadas")} value={table.totals.people ? String(table.totals.actions) : "—"} />
+        <Stat label={T("Pessoas", "People", "Personas")} value={table.totals.people ? String(table.totals.people) : `< ${MIN_PEOPLE_PER_ROW}`} />
+        <Stat label={T("Reciclado", "Recycled", "Reciclado")} value={table.totals.people ? formatKg(table.totals.kg, lang) : "—"} />
       </div>
 
       <section className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
         {table.rows.length === 0 ? (
           <p className="p-8 text-center text-sm text-slate-500">
-            Ainda não há nenhum grupo com {MIN_PEOPLE_PER_ROW} pessoas ou mais nesta visão. Os dados aparecem conforme mais gente participa.
+            {T(`Ainda não há nenhum grupo com ${MIN_PEOPLE_PER_ROW} pessoas ou mais nesta visão. Os dados aparecem conforme mais gente participa.`, `There is no group with ${MIN_PEOPLE_PER_ROW} or more people in this view yet. Data appears as more people take part.`, `Todavía no hay ningún grupo con ${MIN_PEOPLE_PER_ROW} personas o más en esta vista. Los datos aparecen a medida que más gente participa.`)}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -231,18 +250,18 @@ export function DataTab({
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-2.5">{firstHeader}</th>
-                  <th className="px-4 py-2.5 text-right">Ações</th>
-                  <th className="px-4 py-2.5 text-right">Pessoas</th>
-                  <th className="px-4 py-2.5 text-right">Reciclado</th>
+                  <th className="px-4 py-2.5 text-right">{T("Ações", "Actions", "Acciones")}</th>
+                  <th className="px-4 py-2.5 text-right">{T("Pessoas", "People", "Personas")}</th>
+                  <th className="px-4 py-2.5 text-right">{T("Reciclado", "Recycled", "Reciclado")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {table.rows.map((row) => (
                   <tr key={row.key} data-testid="data-row">
-                    <td className="px-4 py-2.5 font-medium text-slate-800">{view === "month" ? monthLabel(row.key) : row.label}</td>
+                    <td className="px-4 py-2.5 font-medium text-slate-800">{rowLabel(row)}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{row.actions}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{row.people}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{row.kg ? formatKg(row.kg) : "—"}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{row.kg ? formatKg(row.kg, lang) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -251,8 +270,8 @@ export function DataTab({
         )}
         {table.hiddenRows > 0 && (
           <p className="border-t border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-500" data-testid="data-hidden">
-            🔒 {table.hiddenRows} {table.hiddenRows === 1 ? "grupo oculto" : "grupos ocultos"} ({table.hiddenActions}{" "}
-            {table.hiddenActions === 1 ? "ação" : "ações"}) por ter menos de {MIN_PEOPLE_PER_ROW} pessoas.
+            🔒 {table.hiddenRows} {table.hiddenRows === 1 ? T("grupo oculto", "hidden group", "grupo oculto") : T("grupos ocultos", "hidden groups", "grupos ocultos")} ({table.hiddenActions}{" "}
+            {table.hiddenActions === 1 ? T("ação", "action", "acción") : T("ações", "actions", "acciones")}) {T("por ter menos de", "with fewer than", "por tener menos de")} {MIN_PEOPLE_PER_ROW} {T("pessoas.", "people.", "personas.")}
           </p>
         )}
       </section>

@@ -52,7 +52,7 @@ export default async function RankingPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold text-slate-900">
-                  {row.name} {isMe && <span className="text-xs font-normal text-emerald-600">(você)</span>}
+                  {row.name} {isMe && <span className="text-xs font-normal text-emerald-600">{t(user.language, "you_suffix")}</span>}
                 </p>
               </div>
               <p className="text-lg font-extrabold text-emerald-700">

@@ -20,6 +20,7 @@ import { WalletsTab } from "@/components/admin/wallets-tab";
 import { AiTab } from "@/components/admin/ai-tab";
 import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
 import { BenefitsTab, type AdminOffer } from "@/components/admin/benefits-tab";
+import { localizeOffer } from "@/lib/benefits";
 import { createOfferAction, regenerateOfferTokenAction, toggleOfferAction } from "@/lib/actions/benefits";
 import { publicBaseUrl } from "@/lib/saas/base-url";
 import { dataTables, recyclingSummary } from "@/lib/impact";
@@ -386,7 +387,7 @@ export default async function AdminPage() {
   const adminOffers: AdminOffer[] = offerRows.map(({ offer, generated, used, used30 }) => ({
     id: offer.id,
     partnerName: offer.partnerName,
-    title: offer.title,
+    title: localizeOffer(offer, user.language).title,
     kind: offer.kind,
     city: offer.city,
     minPoints: offer.minPoints,
@@ -451,6 +452,7 @@ export default async function AdminPage() {
               icon: "🎁",
               content: (
                 <BenefitsTab
+                  lang={user.language}
                   offers={adminOffers}
                   partnerBase={partnerBase}
                   actions={{ createOffer: createOfferAction, toggleOffer: toggleOfferAction, regenerateToken: regenerateOfferTokenAction }}

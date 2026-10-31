@@ -6,7 +6,7 @@ import { LegalPage } from "@/components/legal/legal-page";
 import { TermsContent } from "@/components/legal/terms-content";
 import { t } from "@/lib/i18n";
 
-export const metadata: Metadata = { title: "Termos de Uso · EcoVerify" };
+export const metadata: Metadata = { title: "Terms of Use · EcoVerify" };
 
 export default async function TermsPage() {
   const lang = await guestLang(null, await getCurrentUser());

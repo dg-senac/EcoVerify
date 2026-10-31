@@ -54,7 +54,7 @@ export function ModerationCard({
     return (
       <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-700 animate-fade-in">
         <span className="text-2xl">✅</span>
-        <p className="font-semibold">Comprovação aprovada com sucesso!</p>
+        <p className="font-semibold">{t(lang, "proof_approved_ok")}</p>
       </div>
     );
   }
