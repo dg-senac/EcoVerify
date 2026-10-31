@@ -90,7 +90,6 @@ export function placeholderPhoto(emoji: string, from: string, to: string, captio
 <path d="M0 470 Q200 400 400 460 T800 440 V600 H0Z" fill="#fff" opacity="0.18"/>
 <text x="400" y="320" font-size="160" text-anchor="middle">${emoji}</text>
 <text x="400" y="430" font-size="34" font-family="sans-serif" font-weight="700" fill="#fff" text-anchor="middle">${caption}</text>
-<text x="400" y="560" font-size="22" font-family="sans-serif" fill="#fff" opacity="0.8" text-anchor="middle">Foto ilustrativa · EcoVerify Demo</text>
 </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

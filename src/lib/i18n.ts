@@ -6,6 +6,21 @@ export const LANGS: { value: Lang; label: string; flag: string }[] = [
   { value: "es", label: "Español", flag: "🇪🇸" },
 ];
 
+/** Language of new accounts and of visitors who haven't picked one yet. */
+export const DEFAULT_LANG: Lang = "en";
+
+/** Cookie with the language a visitor picked before signing in (read by src/lib/guest-lang.ts). */
+export const LANG_COOKIE = "ev-lang";
+
+export function isLang(value: unknown): value is Lang {
+  return value === "pt" || value === "en" || value === "es";
+}
+
+/** Browser only: remembers the visitor's choice so the next pages (and the sign-up) use it. */
+export function rememberGuestLang(lang: Lang) {
+  document.cookie = `${LANG_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`;
+}
+
 const dict = {
   appName: { pt: "EcoVerify", en: "EcoVerify", es: "EcoVerify" },
   tagline: {

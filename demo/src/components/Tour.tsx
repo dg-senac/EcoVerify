@@ -77,9 +77,9 @@ const STEPS: Step[] = [
   {
     title: { pt: "3. Moderação", en: "3. Moderation", es: "3. Moderación" },
     text: {
-      pt: "Carlos (moderador) recebe os casos duvidosos e as contestações, já com a sugestão da IA, a foto, o relato e a distância até o local. Ele aprova ou rejeita com um motivo padronizado e, se foi tentativa de trapaça, pode dar cartão amarelo (3 amarelos = 14 dias de suspensão). No app real a moderação começa só com o admin; moderadores são liberados por ele.",
-      en: "Carlos (moderator) gets the doubtful cases and the appeals, with the AI suggestion, photo, report and distance to the place. He approves or rejects with a standard reason and, if it was an attempt to cheat, can give a yellow card (3 yellows = 14-day suspension). In the real app moderation starts admin-only; the admin can turn moderators on.",
-      es: "Carlos (moderador) recibe los casos dudosos y las apelaciones, con la sugerencia de la IA, la foto, el relato y la distancia al lugar. Aprueba o rechaza con un motivo estándar y, si fue un intento de trampa, puede dar tarjeta amarilla (3 amarillas = 14 días de suspensión). En la app real la moderación empieza solo con el admin; él puede habilitar moderadores.",
+      pt: "Carlos (moderador) recebe os casos duvidosos e as contestações, já com a sugestão da IA, a foto, o relato e a distância até o local. Ele aprova ou rejeita com um motivo padronizado e, se foi tentativa de trapaça, pode dar cartão amarelo (3 amarelos = 14 dias de suspensão). Por padrão a moderação começa só com o admin; moderadores são liberados por ele.",
+      en: "Carlos (moderator) gets the doubtful cases and the appeals, with the AI suggestion, photo, report and distance to the place. He approves or rejects with a standard reason and, if it was an attempt to cheat, can give a yellow card (3 yellows = 14-day suspension). By default moderation starts admin-only; the admin can turn moderators on.",
+      es: "Carlos (moderador) recibe los casos dudosos y las apelaciones, con la sugerencia de la IA, la foto, el relato y la distancia al lugar. Aprueba o rechaza con un motivo estándar y, si fue un intento de trampa, puede dar tarjeta amarilla (3 amarillas = 14 días de suspensión). Por defecto la moderación empieza solo con el admin; él puede habilitar moderadores.",
     },
     run: () => {
       // If Ana turned moderators off, the admin reviews (like the real app by default).
@@ -119,21 +119,21 @@ const STEPS: Step[] = [
   {
     title: { pt: "6. Escolas, empresas e prefeituras", en: "6. Schools, companies and city halls", es: "6. Escuelas, empresas y alcaldías" },
     text: {
-      pt: "Para o cidadão é sempre grátis. Quem paga são as organizações: Carlos coordena a Escola Técnica Exemplo, com missões só da escola, ranking da turma, relatório de impacto e certificados. O plano é pago por Pix (QR code) e a Ana confirma em Admin → Negócios. É assim que o EcoVerify se sustenta.",
-      en: "Citizens never pay. Organizations do: Carlos runs the Escola Técnica Exemplo, with school-only missions, class ranking, impact report and certificates. The plan is paid by Pix (QR code) and Ana confirms it in Admin → Business. That's how EcoVerify sustains itself.",
-      es: "Para el ciudadano siempre es gratis. Pagan las organizaciones: Carlos coordina la Escola Técnica Exemplo, con misiones solo de la escuela, ranking del grupo, informe de impacto y certificados. El plan se paga por Pix (código QR) y Ana lo confirma en Admin → Negocios. Así se sostiene EcoVerify.",
+      pt: "Para o cidadão é sempre grátis. Quem paga são as organizações: Carlos coordena a Escola Técnica Horizonte, com missões só da escola, ranking da turma, relatório de impacto e certificados. O plano é pago por Pix (QR code) e a Ana confirma em Admin → Negócios. É assim que o EcoVerify se sustenta.",
+      en: "Citizens never pay. Organizations do: Carlos runs the Escola Técnica Horizonte, with school-only missions, class ranking, impact report and certificates. The plan is paid by Pix (QR code) and Ana confirms it in Admin → Business. That's how EcoVerify sustains itself.",
+      es: "Para el ciudadano siempre es gratis. Pagan las organizaciones: Carlos coordina la Escola Técnica Horizonte, con misiones solo de la escuela, ranking del grupo, informe de impacto y certificados. El plan se paga por Pix (código QR) y Ana lo confirma en Admin → Negocios. Así se sostiene EcoVerify.",
     },
     run: () => {
       loginAs(DEMO_IDS.moderator);
-      navigate("/org/escola-tecnica-exemplo/plan");
+      navigate("/org/escola-tecnica-horizonte/plan");
     },
   },
   {
     title: { pt: "Pronto!", en: "Done!", es: "¡Listo!" },
     text: {
-      pt: "Esta é a página pública de Transparência: impacto, FONE pago e patrocinadores, sem nomes. Agora explore à vontade: troque de perfil no menu, escolha outra cidade em Missões ou envie uma foto de verdade. Tudo fica só neste aparelho.",
-      en: "This is the public Transparency page: impact, FONE paid and sponsors, with no names. Now explore freely: switch profiles from the menu, pick another city in Missions or send a real photo. Everything stays on this device.",
-      es: "Esta es la página pública de Transparencia: impacto, FONE pagado y patrocinadores, sin nombres. Ahora explora libremente: cambia de perfil en el menú, elige otra ciudad en Misiones o envía una foto real. Todo queda solo en este dispositivo.",
+      pt: "Esta é a página pública de Transparência: impacto, FONE pago e patrocinadores, sem nomes. Agora explore à vontade: troque de perfil no menu, escolha outra cidade em Missões ou envie uma foto de verdade.",
+      en: "This is the public Transparency page: impact, FONE paid and sponsors, with no names. Now explore freely: switch profiles from the menu, pick another city in Missions or send a real photo.",
+      es: "Esta es la página pública de Transparencia: impacto, FONE pagado y patrocinadores, sin nombres. Ahora explora libremente: cambia de perfil en el menú, elige otra ciudad en Misiones o envía una foto real.",
     },
     run: () => navigate("/transparencia"),
   },

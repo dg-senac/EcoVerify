@@ -11,7 +11,7 @@ Este projeto usa Capacitor para gerar o APK Android do EcoVerify.
 
 ### O que tem na demo offline
 
-- Perfis prontos: **Maria Cidadã** (cidadão), **Carlos Moderador** e **Ana Admin**. O botão **Trocar perfil** permite testar o ciclo completo: enviar a comprovação como cidadão, aprovar como moderador e ver os pontos no ranking.
+- Perfis prontos: **Maria Santos** (cidadão), **Carlos Mendes** e **Ana Ribeiro**. O botão **Trocar perfil** permite testar o ciclo completo: enviar a comprovação como cidadão, aprovar como moderador e ver os pontos no ranking.
 - As missões do Recife (Boa Viagem, Jaqueira, Marco Zero, Dona Lindu, Capibaribe e Olinda).
 - Foto real da câmera, reduzida para cerca de 1024 px e salva no aparelho.
 - Mesmas regras do servidor: raio de **150 m** e precisão do GPS, 5 envios por dia, foto repetida bloqueada pelo hash SHA-256, moderador não revisa a própria comprovação e pagamento só para quem tem carteira.

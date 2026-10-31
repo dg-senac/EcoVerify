@@ -7,7 +7,7 @@ import { DEFAULT_LEGAL_INFO, TERMS_VERSION } from "@/lib/legal";
 import { t, type Lang } from "@/lib/i18n";
 import { goBack, Link } from "../router";
 import { useLang } from "../store";
-import { DemoBanner } from "../components/Shell";
+import { SafeAreaTop } from "../components/Shell";
 import { card } from "../components/ui";
 
 export type LegalDoc = "terms" | "privacy";
@@ -35,9 +35,7 @@ export function LegalScreen({ doc }: { doc: LegalDoc }) {
   const lang = useLang();
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
-      <div className="sticky top-0 z-40">
-        <DemoBanner />
-      </div>
+      <SafeAreaTop />
       <div className="mx-auto max-w-3xl px-4 py-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <button type="button" onClick={() => goBack("/")} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-600">

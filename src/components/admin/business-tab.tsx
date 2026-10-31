@@ -59,10 +59,9 @@ export interface BusinessActions {
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("pt-BR") : "—");
 
-export function BusinessTab({ data, actions, demoNote }: { data: BusinessData; actions: BusinessActions; demoNote?: string }) {
+export function BusinessTab({ data, actions }: { data: BusinessData; actions: BusinessActions }) {
   return (
     <div className="grid gap-6" data-testid="business-tab">
-      {demoNote && <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">{demoNote}</p>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: "Receita recorrente (MRR)", value: formatBRL(data.mrrCents), hint: "planos ativos, anual ÷ 12" },

@@ -1,8 +1,8 @@
 {
-  "name": "EcoVerify · Demo",
+  "name": "EcoVerify",
   "short_name": "EcoVerify",
-  "description": "Missões sustentáveis perto de você, verificadas por foto, GPS e IA, com recompensas em FONE. Versão de demonstração, sem cadastro.",
-  "lang": "pt-BR",
+  "description": "Sustainable missions near you, verified by photo, GPS and AI, with rewards in FONE.",
+  "lang": "en",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

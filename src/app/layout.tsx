@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
+import { guestLang } from "@/lib/guest-lang";
 import { THEME_COLORS } from "@/lib/theme";
 import { AppSplash, SPLASH_HEAD_SCRIPT } from "@/components/brand/app-splash";
 
@@ -11,13 +12,14 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const HTML_LANG: Record<string, string> = { pt: "pt-BR", en: "en", es: "es" };
 
 export const metadata: Metadata = {
-  title: "EcoVerify — Ações sustentáveis, reconhecidas e recompensadas",
+  title: "EcoVerify — Sustainable actions, verified and rewarded",
   description:
-    "EcoVerify conecta ações sustentáveis do mundo real a recompensas reais: missões, comprovações, pontos e a criptomoeda FONE.",
+    "EcoVerify connects real-world sustainable actions to real rewards: missions, photo proof, points and the FONE cryptocurrency.",
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser().catch(() => null);
+  const lang = await guestLang(null, user);
 
   const fontClass = `font-${user?.fontSize ?? "medium"}`;
   const classes = [
@@ -31,7 +33,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // data-theme drives the CSS color-scheme (see theme.css): no script, so no flash of the wrong theme.
   const theme = user?.theme ?? "system";
   // Screen readers and the browser translator use this: it must follow the language chosen in Settings.
-  const htmlLang = HTML_LANG[user?.language ?? "pt"] ?? "pt-BR";
+  const htmlLang = HTML_LANG[lang] ?? "en";
 
   return (
     <html lang={htmlLang} className={classes} data-theme={theme} suppressHydrationWarning>
@@ -49,7 +51,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       </head>
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         {children}
-        <AppSplash lang={user?.language ?? "pt"} />
+        <AppSplash lang={lang} />
       </body>
     </html>
   );

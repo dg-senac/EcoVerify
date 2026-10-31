@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { FlaskConical, LogOut, Menu, X, Users } from "lucide-react";
+import { LogOut, Menu, X, Users } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { PoweredByFone } from "@/components/brand/fone";
 import { navItemsFor } from "@/lib/nav";
@@ -12,14 +12,9 @@ import { ProfileSwitcher } from "./ProfileSwitcher";
 
 const MOBILE_PRIMARY = ["/missions", "/submissions", "/ranking", "/community", "/moderation"];
 
-export function DemoBanner() {
-  const lang = useLang();
-  return (
-    <div className="flex min-h-9 items-center justify-center gap-2 bg-amber-400 px-3 py-1.5 text-center text-xs font-semibold text-amber-950 pt-[max(0.375rem,env(safe-area-inset-top))]">
-      <FlaskConical className="h-4 w-4 shrink-0" />
-      <span>{dt(lang, "demo_banner")}</span>
-    </div>
-  );
+/** Keeps content clear of the status bar / notch in the Android app (edge-to-edge) and on iPhone. */
+export function SafeAreaTop({ className = "" }: { className?: string }) {
+  return <div aria-hidden className={`h-[env(safe-area-inset-top)] ${className}`} />;
 }
 
 function roleLabel(user: User, lang: ReturnType<typeof useLang>) {
@@ -82,7 +77,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
   return (
     <div className="min-h-screen">
       <div className="sticky top-0 z-40">
-        <DemoBanner />
+        <SafeAreaTop className="bg-white/90 md:hidden" />
         {/* Mobile top bar */}
         <header className="flex items-center justify-between border-b border-black/5 bg-white/90 px-4 py-2.5 backdrop-blur md:hidden">
           <Link to="/missions" className="flex items-center gap-2">
@@ -112,11 +107,10 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
 
       <div className="md:flex">
         {/* Desktop sidebar */}
-        <aside className="hidden border-r border-black/5 bg-white md:sticky md:top-9 md:flex md:h-[calc(100vh-2.25rem)] md:w-72 md:shrink-0 md:flex-col">
+        <aside className="hidden border-r border-black/5 bg-white md:sticky md:top-0 md:flex md:h-screen md:w-72 md:shrink-0 md:flex-col">
           <div className="flex items-center gap-3 px-6 py-6">
             <LogoMark size={40} />
             <span className="text-xl font-extrabold text-slate-900">EcoVerify</span>
-            <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">{dt(lang, "demo_badge")}</span>
           </div>
           <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
             {items.map((item) => (

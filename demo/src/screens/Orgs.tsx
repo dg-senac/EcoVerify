@@ -44,12 +44,6 @@ const TABS = ["overview", "missions", "events", "moderation", "members", "plan",
 type Tab = (typeof TABS)[number];
 const CATEGORIES: Category[] = ["recycling", "planting", "cleanup", "donation", "other"];
 const locale = (lang: Lang) => (lang === "pt" ? "pt-BR" : lang === "es" ? "es-ES" : "en-US");
-const demoNote = (lang: Lang) =>
-  lang === "en"
-    ? "Demo: the Pix code below uses a fake key — don't pay it. In the real app the money goes straight to your account."
-    : lang === "es"
-      ? "Demo: el código Pix usa una clave ficticia — no lo pagues. En la app real el dinero va directo a tu cuenta."
-      : "Demonstração: o código Pix abaixo usa uma chave fictícia — não pague. No app real o dinheiro cai direto na sua conta.";
 
 function errorText(lang: Lang, code?: string) {
   const text = ORG_TEXT[lang];
@@ -128,7 +122,7 @@ export function OrgListScreen({ user }: { user: User }) {
             {text.joinSubmit}
           </button>
         </form>
-        <p className="mt-2 text-xs text-slate-500">Demo: ESCOLA24</p>
+        <p className="mt-2 text-xs text-slate-500">{lang === "en" ? "e.g." : lang === "es" ? "Ej.:" : "Ex.:"} ESCOLA24</p>
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       </div>
     </>
@@ -383,7 +377,6 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
 
         {tab === "events" && manager && (
           <div className="grid gap-4">
-            <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">ℹ️ {demoNote(lang)}</p>
             <EventsPanel
               lang={lang}
               plan={plan}
@@ -477,7 +470,6 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
 
         {tab === "plan" && manager && (
           <div className="grid gap-4">
-            <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">ℹ️ {demoNote(lang)}</p>
             <BillingPanel
               lang={lang}
               orgId={org.id}

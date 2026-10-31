@@ -88,7 +88,6 @@ function DemoBenefitsTab() {
     <BenefitsTab
       offers={offers}
       partnerBase={`${window.location.origin}${window.location.pathname}#/parceiro/`}
-      demoNote="Demonstração: comércios de exemplo. Resgate um benefício como Maria, abra o link de validação do parceiro e digite o código — Maria recebe a notificação."
       actions={{
         createOffer: async (input) => createOffer(input),
         toggleOffer: async (id) => toggleOffer(id),
@@ -105,7 +104,6 @@ function DemoRecyclingTab() {
     <RecyclingTab
       summary={recyclingSummary(all)}
       rows={all}
-      demoNote="Demonstração: entregas de exemplo. Aprove a entrega da Beatriz na Moderação (dá para corrigir o peso) e veja os números mudarem aqui."
     />
   );
 }
@@ -115,7 +113,6 @@ function DemoDataTab() {
   return (
     <DataTab
       tables={tables}
-      demoNote="Demonstração: poucos participantes de exemplo, por isso vários grupos aparecem ocultos (menos de 5 pessoas). É exatamente o que protege a identidade de cada um."
     />
   );
 }
@@ -164,7 +161,6 @@ function DemoBusinessTab() {
   return (
     <BusinessTab
       data={data}
-      demoNote="Demonstração: os valores e o Pix são fictícios. No app real, o dinheiro dos planos cai direto na chave Pix configurada (PIX_KEY) e você confirma aqui."
       actions={{
         confirmInvoice: async (id) => confirmDemoInvoice(id),
         grantPlan: async (orgId, plan, months) => grantDemoPlan(orgId, plan, months),
@@ -550,8 +546,7 @@ function ModeratorsSwitch() {
         <span className="mt-0.5 block text-xs text-slate-500">
           {enabled
             ? "Ligado: quem tem o papel Moderador revisa comprovações e dá cartão amarelo. Vermelho, suspensão, banimento e FONE são só do admin."
-            : "Desligado: só administradores veem a Moderação."}{" "}
-          No app real começa desligado (MODERATORS_ENABLED); na demo começa ligado para você testar o Carlos.
+            : "Desligado: só administradores veem a Moderação."}
         </span>
       </span>
     </label>
@@ -830,7 +825,6 @@ function RewardsTab() {
 
   return (
     <>
-      <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">⚠️ {dt(lang, "wallet_demo_note")}</p>
       <div className={`${card} mb-3 p-4 ${pct !== null && pct >= 100 ? "border-red-200 bg-red-50" : pct !== null && pct >= 80 ? "border-amber-200 bg-amber-50" : ""}`} data-testid="payout-budget">
         <p className="text-xl font-extrabold text-slate-900">
           {centsToFone(used)}

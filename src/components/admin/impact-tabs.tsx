@@ -95,17 +95,14 @@ export function RecyclingTab({
   summary,
   exportBase,
   rows,
-  demoNote,
 }: {
   summary: RecyclingSummary;
   exportBase?: string;
   rows?: ImpactRow[];
-  demoNote?: string;
 }) {
   const day = new Date().toISOString().slice(0, 10);
   return (
     <div className="grid gap-6" data-testid="recycling-tab">
-      {demoNote && <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">{demoNote}</p>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Material recolhido" value={formatKg(summary.totalKg)} hint="declarado e verificado por foto" />
         <Stat label="Entregas aprovadas" value={String(summary.deliveries)} />
@@ -165,11 +162,9 @@ export function RecyclingTab({
 export function DataTab({
   tables,
   exportBase,
-  demoNote,
 }: {
   tables: Record<DataView, DataTable>;
   exportBase?: string;
-  demoNote?: string;
 }) {
   const [view, setView] = useState<DataView>("city");
   const table = tables[view];
@@ -178,7 +173,6 @@ export function DataTab({
 
   return (
     <div className="grid gap-6" data-testid="data-tab">
-      {demoNote && <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">{demoNote}</p>}
       <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
         <p className="font-bold">🔒 Só números agregados e anônimos</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs">

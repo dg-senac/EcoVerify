@@ -53,7 +53,6 @@ function PrivacySection({ user }: { user: User }) {
           <Link to="/transparencia" className="text-emerald-700 underline">{t(lang, "transparency")}</Link>
         </p>
       </div>
-      <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">{dt(lang, "demo_account_note")}</p>
       <div>
         <p className="text-sm font-semibold text-slate-700">{t(lang, "export_title")}</p>
         <p className="mt-1 text-xs text-slate-500">{t(lang, "export_text")}</p>

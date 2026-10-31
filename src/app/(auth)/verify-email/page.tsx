@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { consumeAuthToken } from "@/lib/auth-tokens";
 import { getCurrentUser } from "@/lib/auth";
+import { guestLang } from "@/lib/guest-lang";
 import { promoteOwnerIfNeeded } from "@/lib/admin-bootstrap";
 import { t } from "@/lib/i18n";
 
@@ -12,7 +13,7 @@ export const metadata = { referrer: "no-referrer" as const };
 export default async function VerifyEmailPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
   const { token = "" } = await searchParams;
   const current = await getCurrentUser();
-  const lang = current?.language ?? "pt";
+  const lang = await guestLang(null, current);
 
   let ok = false;
   if (token.length > 0 && token.length <= 128) {

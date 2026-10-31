@@ -5,6 +5,7 @@ import { users } from "@/db/schema";
 import { peekAuthTokenUser } from "@/lib/auth-tokens";
 import { getLegalInfo } from "@/lib/legal-config";
 import { t, tf } from "@/lib/i18n";
+import { guestLang } from "@/lib/guest-lang";
 import { formatDate } from "@/lib/utils";
 import { isSuspended } from "@/lib/cards";
 import { BanAppealForm } from "@/components/auth/ban-appeal-form";
@@ -49,7 +50,7 @@ export default async function BlockedAccountPage({ searchParams }: { searchParam
 
   const suspended = !!user && !user.isBanned && isSuspended(user.suspendedUntil);
   if (!user || (!user.isBanned && !suspended)) {
-    const lang = user?.language ?? "pt";
+    const lang = await guestLang(null, user);
     return (
       <div className={`${box} text-center`}>
         <div className="mb-3 text-4xl">⏳</div>

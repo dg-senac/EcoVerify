@@ -1,5 +1,7 @@
 "use server";
 
+import { isLang } from "@/lib/i18n";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -14,9 +16,9 @@ export async function updateSettingsAction(_prev: ActionState, formData: FormDat
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const languageInput = String(formData.get("language") ?? "pt");
   const fontSizeInput = String(formData.get("fontSize") ?? "medium");
-  const language = (["pt", "en", "es"] as const).find((value) => value === languageInput) ?? "pt";
+  const languageInput = formData.get("language");
+  const language = isLang(languageInput) ? languageInput : user.language;
   const fontSize = (["small", "medium", "large"] as const).find((value) => value === fontSizeInput) ?? "medium";
   const theme = parseTheme(formData.get("theme"));
   const highContrast = formData.get("highContrast") === "on";

@@ -5,7 +5,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { Link, navigate } from "../router";
 import { dt, errorText } from "../i18n";
 import { register, setGuestLanguage, useLang } from "../store";
-import { DemoBanner } from "../components/Shell";
+import { SafeAreaTop } from "../components/Shell";
 import { ProfileList } from "../components/ProfileSwitcher";
 import { btnPrimary, card, input, label, Modal } from "../components/ui";
 import { TourStartButton } from "../components/Tour";
@@ -22,9 +22,7 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
   const lang = useLang();
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
-      <div className="sticky top-0 z-40">
-        <DemoBanner />
-      </div>
+      <SafeAreaTop />
       <div className="mx-auto flex max-w-md flex-col px-4 py-8">
         <div className="mb-6 flex items-center justify-between">
           <LogoHorizontal height={40} />
@@ -114,7 +112,6 @@ export function RegisterScreen() {
             <ArrowLeft className="h-4 w-4" /> {dt(lang, "have_demo_profiles")}
           </Link>
           <h1 className="text-2xl font-extrabold text-slate-900">{t(lang, "register_title")}</h1>
-          <p className="mt-1 text-sm text-slate-500">{dt(lang, "register_demo_note")}</p>
         </div>
         <div>
           <label className={label} htmlFor="name">{t(lang, "register_name")}</label>

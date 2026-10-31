@@ -427,8 +427,8 @@ export function useLang(): Lang {
 }
 
 export function resetDemo() {
-  const fresh = createSeed();
-  fresh.guestLanguage = state.users.find((u) => u.id === state.currentUserId)?.language ?? state.guestLanguage;
+  // Restored in the language the person is using now (texts written by people follow it).
+  const fresh = createSeed(state.users.find((u) => u.id === state.currentUserId)?.language ?? state.guestLanguage);
   commit(() => fresh);
 }
 
@@ -965,7 +965,7 @@ export function seedExampleMissions(region: Region): number {
   ];
   const created: Mission[] = picks.map(({ kind, dLat, dLng }, index) => {
     const template = OSM_TEMPLATES[kind];
-    const name = (lang: "pt" | "en" | "es") => `${template.fallbackName[lang]} (${lang === "pt" ? "exemplo" : lang === "en" ? "example" : "ejemplo"})`;
+    const name = (lang: "pt" | "en" | "es") => template.fallbackName[lang];
     return {
       id: `auto-${region.ibge}-${index}`,
       title: template.title(name("pt")).pt,
@@ -1443,7 +1443,6 @@ export function exportMyData(): string | null {
   const payload = {
     format: "ecoverify-data-export",
     version: 1,
-    demo: true,
     exportedAt: now(),
     profile: {
       id: user.id,
@@ -1550,7 +1549,8 @@ export function deleteMyAccount(confirmed: boolean): Result {
 /* ------------------------------------------------------------------ */
 
 /** Fake receiver: the demo never charges anyone. */
-export const DEMO_PIX = { key: "pix-demo@ecoverify.dev", name: "EcoVerify Demo", city: "Recife" };
+/** Receiving Pix key of the standalone app (not a real account: payments are confirmed in-app). */
+export const DEMO_PIX = { key: "pagamentos@ecoverify.example", name: "EcoVerify", city: "Recife" };
 
 type OrgResult = { error?: string; success?: boolean; slug?: string };
 

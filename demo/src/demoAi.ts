@@ -97,7 +97,7 @@ export function drawSamplePhoto(kind: SampleKind): string {
   }
   ctx.font = "bold 22px sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.fillText("EcoVerify · demo", 400, 570);
+  ctx.fillText("EcoVerify", 400, 570);
   return canvas.toDataURL("image/jpeg", 0.8);
 }
 

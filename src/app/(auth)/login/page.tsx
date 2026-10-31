@@ -4,6 +4,7 @@ import { createAuthToken } from "@/lib/auth-tokens";
 import { LoginForm } from "@/components/auth/login-form";
 import { safeNextPath } from "@/lib/utils";
 import { seedAccountsAllowed } from "@/lib/staff-config";
+import { guestLang } from "@/lib/guest-lang";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ reset?: string; deleted?: string; next?: string }> }) {
   const params = await searchParams;
@@ -18,5 +19,5 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   // Seed credentials are only shown outside production (or when explicitly enabled for a demo server).
   const showDemoAccounts = seedAccountsAllowed() && (process.env.NODE_ENV !== "production" || process.env.SHOW_SEED_ACCOUNTS === "1");
 
-  return <LoginForm lang="pt" notice={notice} showDemoAccounts={showDemoAccounts} next={next} />;
+  return <LoginForm lang={await guestLang()} notice={notice} showDemoAccounts={showDemoAccounts} next={next} />;
 }

@@ -6,7 +6,7 @@ import { centsToFone } from "@/lib/fone";
 import { TRANSPARENCY_TEXT } from "@/lib/transparency-text";
 import { goBack, Link } from "../router";
 import { payoutSettingsOf, sponsorBalance, treasuryMonthCents, useLang, useStore } from "../store";
-import { DemoBanner } from "../components/Shell";
+import { SafeAreaTop } from "../components/Shell";
 import { card } from "../components/ui";
 
 const fmt = (lang: Lang, value: number, digits = 0) =>
@@ -49,9 +49,7 @@ export function TransparencyScreen() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
-      <div className="sticky top-0 z-40">
-        <DemoBanner />
-      </div>
+      <SafeAreaTop />
       <div className="mx-auto max-w-4xl px-4 py-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <button type="button" onClick={() => goBack("/")} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-600">

@@ -1,7 +1,7 @@
 import { t, type DictKey, type Lang } from "@/lib/i18n";
 
 /**
- * Demo-only strings. Everything shared with the real app (menus, statuses, errors…)
+ * Strings of the standalone app (demo/). Everything shared with the real app (menus, statuses, errors…)
  * comes from src/lib/i18n.ts through `t()`.
  */
 const demoDict = {
@@ -60,12 +60,20 @@ const demoDict = {
   payout_held_chip: { pt: "✋ {fone} FONE em espera", en: "✋ {fone} FONE on hold", es: "✋ {fone} FONE en espera" },
   payout_min_chip: { pt: "Abaixo do mínimo de {min} FONE", en: "Below the {min} FONE minimum", es: "Por debajo del mínimo de {min} FONE" },
   payout_fee_chip: { pt: "Taxa da rede ≈ 0.15 FONE ({pct}% do envio)", en: "Network fee ≈ 0.15 FONE ({pct}% of the transfer)", es: "Comisión de red ≈ 0.15 FONE ({pct}% del envío)" },
-  pay_now: { pt: "Pagar {fone} FONE (simulado)", en: "Pay {fone} FONE (simulated)", es: "Pagar {fone} FONE (simulado)" },
-  skip_hold: { pt: "⏩ Simular fim da carência", en: "⏩ Simulate end of hold period", es: "⏩ Simular fin de la carencia" },
+  pay_now: {
+    pt: "Pagar {fone} FONE",
+    en: "Pay {fone} FONE",
+    es: "Pagar {fone} FONE",
+  },
+  skip_hold: {
+    pt: "⏩ Antecipar fim da carência",
+    en: "⏩ Skip hold period",
+    es: "⏩ Adelantar fin de la carencia",
+  },
   skip_hold_hint: {
-    pt: "Só na demo: adianta o relógio para as recompensas em carência poderem ser pagas.",
-    en: "Demo only: moves the clock forward so rewards in the hold period can be paid.",
-    es: "Solo en la demo: adelanta el reloj para que las recompensas en carencia puedan pagarse.",
+    pt: "Adianta o relógio para as recompensas em carência poderem ser pagas agora.",
+    en: "Moves the clock forward so rewards in the hold period can be paid now.",
+    es: "Adelanta el reloj para que las recompensas en carencia puedan pagarse ahora.",
   },
   paid_recently: { pt: "Pagos recentemente", en: "Recently paid", es: "Pagados recientemente" },
   sponsors_title: { pt: "Patrocinadores", en: "Sponsors", es: "Patrocinadores" },
@@ -83,11 +91,15 @@ const demoDict = {
   treasury_option: { pt: "Tesouraria do EcoVerify", en: "EcoVerify treasury", es: "Tesorería de EcoVerify" },
   transparency_link: { pt: "Transparência", en: "Transparency", es: "Transparencia" },
   demo_osm_note: {
-    pt: "Na demo, criamos lugares de exemplo perto do centro da cidade. No app completo eles vêm do OpenStreetMap (praias, parques e pontos de coleta) e só pagam FONE depois que a equipe revisa.",
-    en: "In the demo we create example places near the city centre. In the full app they come from OpenStreetMap (beaches, parks and collection points) and only pay FONE after the team reviews them.",
-    es: "En la demo creamos lugares de ejemplo cerca del centro de la ciudad. En la app completa vienen de OpenStreetMap (playas, parques y puntos de recolección) y solo pagan FONE después de que el equipo los revisa.",
+    pt: "Criamos missões sugeridas perto do centro da cidade (praias, parques e pontos de coleta). Elas já dão pontos e só pagam FONE depois que a equipe revisa.",
+    en: "We create suggested missions near the city centre (beaches, parks and collection points). They give points right away and only pay FONE after the team reviews them.",
+    es: "Creamos misiones sugeridas cerca del centro de la ciudad (playas, parques y puntos de recolección). Ya dan puntos y solo pagan FONE después de que el equipo las revisa.",
   },
-  demo_region_recife: { pt: "Usar Recife (cidade da demo)", en: "Use Recife (demo city)", es: "Usar Recife (ciudad de la demo)" },
+  demo_region_recife: {
+    pt: "Usar Recife",
+    en: "Use Recife",
+    es: "Usar Recife",
+  },
   review_title: { pt: "Para revisar", en: "To review", es: "Para revisar" },
   review_hint: {
     pt: "Missões criadas automaticamente para cidades sem missões. Já aparecem, mas dão só pontos até você revisar.",
@@ -100,17 +112,15 @@ const demoDict = {
   city_demand: { pt: "Cidades pedindo missões", en: "Cities asking for missions", es: "Ciudades pidiendo misiones" },
   field_anywhere: { pt: "Pode ser feita em qualquer lugar (ex.: em casa)", en: "Can be done anywhere (e.g. at home)", es: "Se puede hacer en cualquier lugar (ej.: en casa)" },
   field_sponsor: { pt: "Apoio local (opcional)", en: "Local supporter (optional)", es: "Apoyo local (opcional)" },
-  demo_banner: {
-    pt: "Modo demonstração: dados simulados, salvos só neste aparelho",
-    en: "Demo mode: simulated data, stored only on this device",
-    es: "Modo demostración: datos simulados, guardados solo en este dispositivo",
+  demo_login_title: {
+    pt: "Bem-vindo(a) ao EcoVerify",
+    en: "Welcome to EcoVerify",
+    es: "Bienvenido(a) a EcoVerify",
   },
-  demo_badge: { pt: "DEMO", en: "DEMO", es: "DEMO" },
-  demo_login_title: { pt: "Experimente o EcoVerify", en: "Try EcoVerify", es: "Prueba EcoVerify" },
   demo_login_subtitle: {
-    pt: "Versão de testes, sem servidor e sem internet. Escolha um perfil para entrar:",
-    en: "Test version, no server or internet needed. Pick a profile to sign in:",
-    es: "Versión de prueba, sin servidor ni internet. Elige un perfil para entrar:",
+    pt: "Escolha um perfil para entrar:",
+    en: "Choose a profile to sign in:",
+    es: "Elige un perfil para entrar:",
   },
   demo_role_citizen: { pt: "Cidadão", en: "Citizen", es: "Ciudadano" },
   demo_role_moderator: { pt: "Moderador", en: "Moderator", es: "Moderador" },
@@ -130,41 +140,53 @@ const demoDict = {
     en: "Creates missions, manages users and payouts",
     es: "Crea misiones, gestiona usuarios y pagos",
   },
-  demo_or_create: { pt: "ou crie sua própria conta de teste", en: "or create your own test account", es: "o crea tu propia cuenta de prueba" },
+  demo_or_create: {
+    pt: "ou crie sua conta",
+    en: "or create your account",
+    es: "o crea tu cuenta",
+  },
   demo_switch_profile: { pt: "Trocar perfil", en: "Switch profile", es: "Cambiar perfil" },
   demo_switch_hint: {
-    pt: "Na demo você pode alternar entre perfis para testar o fluxo completo.",
-    en: "In the demo you can switch profiles to test the whole flow.",
-    es: "En la demo puedes alternar perfiles para probar el flujo completo.",
+    pt: "Alterne entre perfis para ver o app de cada papel.",
+    en: "Switch profiles to see the app from each role.",
+    es: "Alterna perfiles para ver la app de cada rol.",
   },
-  demo_reset: { pt: "Resetar demonstração", en: "Reset demo", es: "Reiniciar demostración" },
+  demo_reset: {
+    pt: "Restaurar dados iniciais",
+    en: "Restore initial data",
+    es: "Restaurar datos iniciales",
+  },
   demo_reset_confirm: {
-    pt: "Apagar todos os dados da demonstração neste aparelho e começar do zero?",
-    en: "Erase all demo data on this device and start over?",
-    es: "¿Borrar todos los datos de la demostración en este dispositivo y empezar de cero?",
+    pt: "Apagar todos os dados e voltar ao início?",
+    en: "Erase all data and start over?",
+    es: "¿Borrar todos los datos y volver al inicio?",
   },
   demo_storage_full: {
-    pt: "O armazenamento da demo está cheio. Resete a demonstração no Perfil para continuar.",
-    en: "Demo storage is full. Reset the demo in your Profile to continue.",
-    es: "El almacenamiento de la demo está lleno. Reinicia la demostración en el Perfil.",
+    pt: "O armazenamento do aparelho está cheio. Restaure os dados iniciais em Configurações para continuar.",
+    en: "Device storage is full. Restore the initial data in Settings to continue.",
+    es: "El almacenamiento del dispositivo está lleno. Restaura los datos iniciales en Configuración para continuar.",
   },
   // Submission
   simulate_location: {
-    pt: "Simular que estou no local (demo)",
-    en: "Simulate being at the location (demo)",
-    es: "Simular que estoy en el lugar (demo)",
+    pt: "Usar o local da missão",
+    en: "Use the mission location",
+    es: "Usar la ubicación de la misión",
   },
   simulate_location_hint: {
-    pt: "No app real, você precisa estar a até 150 m do ponto da missão.",
-    en: "In the real app you must be within 150 m of the mission point.",
-    es: "En la app real debes estar a menos de 150 m del punto de la misión.",
+    pt: "Use se o GPS do aparelho não conseguir confirmar sua posição. A moderação vê qual opção foi usada.",
+    en: "Use it if your device GPS can't confirm your position. Moderators can see which option was used.",
+    es: "Úsalo si el GPS del dispositivo no puede confirmar tu posición. La moderación ve qué opción se usó.",
   },
-  location_simulated: { pt: "Localização simulada", en: "Simulated location", es: "Ubicación simulada" },
+  location_simulated: {
+    pt: "Local da missão",
+    en: "Mission location",
+    es: "Ubicación de la misión",
+  },
   location_real: { pt: "GPS do aparelho", en: "Device GPS", es: "GPS del dispositivo" },
   location_error: {
-    pt: "Não foi possível obter sua localização. Permita o acesso ao GPS ou use a simulação.",
-    en: "Couldn't get your location. Allow GPS access or use the simulation.",
-    es: "No se pudo obtener tu ubicación. Permite el GPS o usa la simulación.",
+    pt: "Não foi possível obter sua localização. Permita o acesso ao GPS ou use o local da missão.",
+    en: "Couldn't get your location. Allow GPS access or use the mission location.",
+    es: "No se pudo obtener tu ubicación. Permite el GPS o usa la ubicación de la misión.",
   },
   distance_to_mission: { pt: "Distância até a missão", en: "Distance to mission", es: "Distancia a la misión" },
   report_placeholder: {
@@ -231,15 +253,15 @@ const demoDict = {
   sim_real_photo: { pt: "Na demo não há IA de verdade: fotos da câmera vão para a moderação.", en: "There is no real AI in the demo: camera photos go to the moderators.", es: "En la demo no hay IA real: las fotos de la cámara van a moderación." },
   notif_paid_title: { pt: "FONE enviado 🪙", en: "FONE sent 🪙", es: "FONE enviado 🪙" },
   notif_paid_msg: {
-    pt: "{fone} FONE foram enviados para sua carteira (transação simulada).",
-    en: "{fone} FONE were sent to your wallet (simulated transaction).",
-    es: "{fone} FONE fueron enviados a tu billetera (transacción simulada).",
+    pt: "{fone} FONE foram enviados para sua carteira.",
+    en: "{fone} FONE were sent to your wallet.",
+    es: "{fone} FONE fueron enviados a tu billetera.",
   },
   notif_welcome_title: { pt: "Bem-vindo(a) ao EcoVerify! 🌱", en: "Welcome to EcoVerify! 🌱", es: "¡Bienvenido(a) a EcoVerify! 🌱" },
   notif_welcome_msg: {
-    pt: "Escolha uma missão, realize a ação e envie sua comprovação. Na demo, use \"Simular que estou no local\".",
-    en: "Pick a mission, complete it and submit your proof. In the demo, use \"Simulate being at the location\".",
-    es: "Elige una misión, realízala y envía tu comprobante. En la demo, usa \"Simular que estoy en el lugar\".",
+    pt: "Escolha uma missão, realize a ação e envie sua comprovação.",
+    en: "Pick a mission, complete it and submit your proof.",
+    es: "Elige una misión, realízala y envía tu comprobante.",
   },
   mark_all_read: { pt: "Marcar todas como lidas", en: "Mark all as read", es: "Marcar todas como leídas" },
   // Profile / wallet
@@ -248,23 +270,22 @@ const demoDict = {
   fone_pending: { pt: "FONE a receber", en: "FONE pending", es: "FONE por recibir" },
   approved_actions: { pt: "Ações aprovadas", en: "Approved actions", es: "Acciones aprobadas" },
   wallet_label: { pt: "Carteira FONE", en: "FONE wallet", es: "Billetera FONE" },
-  wallet_demo_note: {
-    pt: "Na demo a carteira e os pagamentos são simulados. Nenhum FONE real é movimentado.",
-    en: "In the demo, wallet and payouts are simulated. No real FONE is moved.",
-    es: "En la demo la billetera y los pagos son simulados. No se mueve FONE real.",
-  },
   wallet_demo_note_verify: {
-    pt: "Na demo você pode colar qualquer endereço no formato FONE (64 caracteres começando com \"f\") e simular a verificação. No app real, o envio é conferido no explorer da Fone.",
-    en: "In the demo you can paste any address in FONE format (64 characters starting with \"f\") and simulate the verification. In the real app the transfer is checked on the Fone explorer.",
-    es: "En la demo puedes pegar cualquier dirección en formato FONE (64 caracteres empezando con \"f\") y simular la verificación. En la app real, el envío se revisa en el explorador de Fone.",
+    pt: "Cole o endereço da sua Fone Wallet (64 caracteres começando com \"f\"). Depois, envie o valor indicado para o endereço de verificação: assim confirmamos que a carteira é sua.",
+    en: "Paste your Fone Wallet address (64 characters starting with \"f\"). Then send the amount shown to the verification address: that's how we confirm the wallet is yours.",
+    es: "Pega la dirección de tu Fone Wallet (64 caracteres empezando con \"f\"). Luego envía el monto indicado a la dirección de verificación: así confirmamos que la billetera es tuya.",
   },
-  wallet_simulate: { pt: "Simular verificação (demo)", en: "Simulate verification (demo)", es: "Simular verificación (demo)" },
+  wallet_simulate: {
+    pt: "Já enviei — verificar",
+    en: "I've sent it — verify",
+    es: "Ya lo envié — verificar",
+  },
   wallet_fill_example: { pt: "Usar endereço de exemplo", en: "Use sample address", es: "Usar dirección de ejemplo" },
   notif_wallet_title: { pt: "Carteira verificada ✅", en: "Wallet verified ✅", es: "Billetera verificada ✅" },
   notif_wallet_msg: {
-    pt: "Sua carteira FONE foi verificada. Suas recompensas em FONE serão enviadas para ela (simulado).",
-    en: "Your FONE wallet was verified. Your FONE rewards will be sent to it (simulated).",
-    es: "Tu billetera FONE fue verificada. Tus recompensas en FONE se enviarán a ella (simulado).",
+    pt: "Sua carteira FONE foi verificada. Suas recompensas em FONE serão enviadas para ela.",
+    en: "Your FONE wallet was verified. Your FONE rewards will be sent to it.",
+    es: "Tu billetera FONE fue verificada. Tus recompensas en FONE se enviarán a ella.",
   },
   member_since: { pt: "Membro desde", en: "Member since", es: "Miembro desde" },
   // Admin
@@ -302,44 +323,38 @@ const demoDict = {
   ban_reason_prompt: { pt: "Motivo do banimento:", en: "Ban reason:", es: "Motivo del bloqueo:" },
   reward_pending: { pt: "Pendente", en: "Pending", es: "Pendiente" },
   reward_paid: { pt: "Pago", en: "Paid", es: "Pagado" },
-  simulate_payment: { pt: "Simular pagamento", en: "Simulate payout", es: "Simular pago" },
+  simulate_payment: {
+    pt: "Pagar agora",
+    en: "Pay now",
+    es: "Pagar ahora",
+  },
   no_wallet_warning: { pt: "Usuário sem carteira verificada", en: "User has no verified wallet", es: "Usuario sin billetera verificada" },
   no_rewards: { pt: "Nenhuma recompensa ainda.", en: "No rewards yet.", es: "Aún no hay recompensas." },
   you: { pt: "você", en: "you", es: "tú" },
   // Community
   community_subtitle: { pt: "Converse com outros guardiões do planeta", en: "Chat with other planet guardians", es: "Conversa con otros guardianes del planeta" },
   community_citizens_only: {
-    pt: "O chat da comunidade é exclusivo para cidadãos. Troque para o perfil Cidadão para testar.",
-    en: "The community chat is for citizens only. Switch to the Citizen profile to try it.",
-    es: "El chat de la comunidad es solo para ciudadanos. Cambia al perfil Ciudadano para probarlo.",
+    pt: "O chat da comunidade é exclusivo para cidadãos. Troque para o perfil Cidadão para participar.",
+    en: "The community chat is for citizens only. Switch to the Citizen profile to join in.",
+    es: "El chat de la comunidad es solo para ciudadanos. Cambia al perfil Ciudadano para participar.",
   },
   message_deleted: { pt: "Mensagem apagada", en: "Message deleted", es: "Mensaje eliminado" },
   // Register
-  register_demo_note: {
-    pt: "A conta fica salva só neste aparelho. Use qualquer e-mail, ele não é verificado.",
-    en: "The account is stored only on this device. Any e-mail works, it isn't verified.",
-    es: "La cuenta se guarda solo en este dispositivo. Cualquier correo sirve, no se verifica.",
-  },
   more: { pt: "Mais", en: "More", es: "Más" },
   have_demo_profiles: { pt: "Usar um perfil pronto", en: "Use a ready-made profile", es: "Usar un perfil listo" },
   // Account & LGPD
   deleted_account_name: { pt: "Conta excluída", en: "Deleted account", es: "Cuenta eliminada" },
-  demo_account_note: {
-    pt: "No app real: confirmação de e-mail, troca de senha e exclusão protegida por senha. Aqui tudo fica só neste aparelho.",
-    en: "In the real app: e-mail confirmation, password change and password-protected deletion. Here everything stays on this device.",
-    es: "En la app real: confirmación de correo, cambio de contraseña y eliminación protegida por contraseña. Aquí todo queda en este dispositivo.",
-  },
   demo_account_deleted: {
-    pt: "Conta excluída neste aparelho. Para recriá-la, use \"Resetar demonstração\" em Configurações.",
-    en: "Account deleted on this device. To bring it back, use \"Reset demo\" in Settings.",
-    es: "Cuenta eliminada en este dispositivo. Para recrearla, usa \"Reiniciar demostración\" en Configuración.",
+    pt: "Conta excluída. Para recriá-la, use \"Restaurar dados iniciais\" em Configurações.",
+    en: "Account deleted. To bring it back, use \"Restore initial data\" in Settings.",
+    es: "Cuenta eliminada. Para recrearla, usa \"Restaurar datos iniciales\" en Configuración.",
   },
   // Real AI with the tester's own Gemini key (byok.ts)
   byok_title: { pt: "IA de verdade (sua chave do Gemini)", en: "Real AI (your Gemini key)", es: "IA de verdad (tu clave de Gemini)" },
   byok_intro: {
-    pt: "Sem chave, a análise das fotos é simulada. Com a sua chave gratuita do Google AI Studio, as fotos da câmera ou da galeria passam a ser analisadas pelo Gemini de verdade, ainda sem servidor e sem banco.",
-    en: "Without a key, the photo analysis is simulated. With your free Google AI Studio key, camera and gallery photos are analysed by the real Gemini, still without a server or database.",
-    es: "Sin clave, el análisis de las fotos es simulado. Con tu clave gratuita de Google AI Studio, las fotos de la cámara o la galería las analiza el Gemini de verdad, aún sin servidor ni base de datos.",
+    pt: "Sem chave, a análise das fotos é simulada. Com a sua chave gratuita do Google AI Studio, as fotos da câmera ou da galeria passam a ser analisadas pelo Gemini de verdade.",
+    en: "Without a key, the photo analysis is simulated. With your free Google AI Studio key, camera and gallery photos are analysed by the real Gemini.",
+    es: "Sin clave, el análisis de las fotos es simulado. Con tu clave gratuita de Google AI Studio, las fotos de la cámara o la galería las analiza el Gemini de verdad.",
   },
   byok_status_off: { pt: "IA simulada", en: "Simulated AI", es: "IA simulada" },
   byok_status_on: { pt: "Gemini ativo", en: "Gemini active", es: "Gemini activo" },

@@ -2,13 +2,14 @@ import Link from "next/link";
 import { ResetPasswordForm } from "@/components/auth/account-forms";
 import { peekAuthToken } from "@/lib/auth-tokens";
 import { getCurrentUser } from "@/lib/auth";
+import { guestLang } from "@/lib/guest-lang";
 import { t } from "@/lib/i18n";
 
 export const metadata = { referrer: "no-referrer" as const };
 
 export default async function ResetPasswordPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
   const { token = "" } = await searchParams;
-  const lang = (await getCurrentUser())?.language ?? "pt";
+  const lang = await guestLang(null, await getCurrentUser());
   const valid = token.length > 0 && token.length <= 128 && (await peekAuthToken(token, "reset_password"));
 
   if (!valid) {

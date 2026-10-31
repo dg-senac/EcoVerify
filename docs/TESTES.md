@@ -27,7 +27,9 @@ Marque cada item com `[x]` quando passar. Se algo der errado, anote no modelo do
 
 ### 1.2 Antes de começar
 
-- **Perfis prontos:** Maria Cidadã (cidadã), Carlos Moderador e Ana Admin. Dá para trocar de perfil no menu (*Trocar perfil*) sem sair.
+- **Perfis prontos:** Maria Santos (cidadã), Carlos Mendes e Ana Ribeiro. Dá para trocar de perfil no menu (*Trocar perfil*) sem sair.
+- **Idioma:** o app abre sempre em **inglês**; troque para Português ou Español no seletor da tela de entrada ou em Configurações. *Restaurar dados iniciais* recria os textos no idioma em uso.
+- **Telas sem aviso de demo:** o app não mostra faixa de "demonstração", "simulado" ou "sem banco". Só os avisos da IA (foto de exemplo, "análise simulada", chave do Gemini) continuam, para testar a API.
 - **Cidade da demo:** Recife (há missões também em Olinda).
 - **Começar do zero:** *Configurações › Resetar demonstração*.
 - **Cada aparelho é um mundo separado.** O que a Maria faz no seu celular não aparece no celular de outra pessoa (isso só existe com o banco).
@@ -83,7 +85,7 @@ Sem chave, a IA da demo é **simulada** pela foto de exemplo escolhida (para a I
 Também conferir:
 - [ ] Abaixo da foto aparece o aviso "Fotos copiadas da internet são detectadas e analisadas pela equipe".
 - [ ] Relato com **menos de 50 caracteres** → o contador "Faltam N caracteres" impede o envio.
-- [ ] Missão **local** (ex.: Praia de Boa Viagem) longe do local → o app mostra a distância. **Simular que estou no local (demo)** libera o envio (no app real, é preciso estar a até 150 m).
+- [ ] Missão **local** (ex.: Praia de Boa Viagem) longe do local → o app mostra a distância. **Usar o local da missão** libera o envio (a moderação vê o selo "Local da missão") (no app real, é preciso estar a até 150 m).
 - [ ] Em **Minhas Submissões**, abrir a comprovação rejeitada automaticamente › **Contestar** › escrever o motivo › *Enviar contestação* → status "Contestação em análise". Tentar contestar de novo → "Você já contestou esta decisão".
 - [ ] As **Notificações** mostram cada aprovação/rejeição com o motivo, e *Marcar todas como lidas* zera o contador.
 
@@ -152,7 +154,7 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 
 **Recompensas (FONE simulado)**
 - [ ] A fila mostra os FONE "em carência" (7 dias) e o aviso de mínimo de 5 FONE e da taxa da rede (≈ 0,15 FONE).
-- [ ] **⏩ Simular fim da carência** → *Pagar N FONE (simulado)* → vai para "Pagos recentemente". A Maria recebe a notificação "FONE enviado 🪙" e vê o valor no Perfil.
+- [ ] **⏩ Antecipar fim da carência** → *Pagar N FONE* → vai para "Pagos recentemente". A Maria recebe a notificação "FONE enviado 🪙" e vê o valor no Perfil.
 - [ ] Recompensa de alguém **sem carteira verificada** → aviso "Usuário sem carteira verificada" e não paga.
 - [ ] **Regras de pagamento:** baixar o orçamento mensal para um valor pequeno e salvar → novas aprovações com FONE ficam **em espera** (os pontos continuam valendo). Depois, **Liberar** → voltam para a fila.
 - [ ] **Patrocinadores:** criar um patrocinador com orçamento, criar uma missão paga por ele, aprovar comprovações até o saldo acabar → o FONE fica em espera. *Recarregar* → libera.
@@ -166,7 +168,7 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 - [ ] Sem marcar "Declaro que tenho 18 anos ou mais" → não deixa vincular.
 - [ ] *Usar endereço de exemplo* → o app mostra o **valor exato** a enviar (ex.: 1.37 FONE).
 - [ ] Endereço `0x…` ou com tamanho errado → erro de formato.
-- [ ] *Simular verificação (demo)* → "Carteira verificada ✅".
+- [ ] *Já enviei — verificar* → "Carteira verificada ✅".
 - [ ] **Menor de idade:** uma conta que nunca marca a declaração de 18+ continua ganhando **pontos e ranking**, mas o FONE não é pago.
 
 **Perfil e ranking**
@@ -190,8 +192,8 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 
 ### 3.8 Organizações (escolas, empresas, prefeituras)
 
-**Como gestor (Carlos, dono da "Escola Técnica Exemplo")**
-- [ ] Menu **Organizações** › Escola Técnica Exemplo → abas Visão geral, Missões, Moderação, Membros, Plano e Relatório.
+**Como gestor (Carlos, dono da "Escola Técnica Horizonte")**
+- [ ] Menu **Organizações** › Escola Técnica Horizonte → abas Visão geral, Missões, Moderação, Membros, Plano e Relatório.
 - [ ] **Missões:** criar uma missão só da escola (dá **só pontos**). Aparece o limite do plano (ex.: "3 de N missões").
 - [ ] **Moderação:** aprovar/rejeitar comprovações das missões da escola.
 - [ ] **Membros:** ver o código de convite `ESCOLA24`, gerar um novo e ver o ranking interno.

@@ -125,7 +125,7 @@ export function ProfileScreen({ user }: { user: User }) {
             <WalletForm onDone={() => setEditingWallet(false)} onCancel={user.walletAddress && !user.pendingWallet ? () => setEditingWallet(false) : undefined} />
           </>
         )}
-        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">⚠️ {dt(lang, "wallet_demo_note")} {dt(lang, "wallet_demo_note_verify")}</p>
+        <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">{dt(lang, "wallet_demo_note_verify")}</p>
       </div>
 
       <div className="mt-4">
