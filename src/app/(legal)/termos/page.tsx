@@ -12,7 +12,7 @@ export default async function TermsPage() {
   const lang = await guestLang(null, await getCurrentUser());
   return (
     <LegalPage lang={lang} title={t(lang, "terms_of_use")}>
-      <TermsContent info={getLegalInfo()} />
+      <TermsContent info={getLegalInfo()} lang={lang} />
     </LegalPage>
   );
 }

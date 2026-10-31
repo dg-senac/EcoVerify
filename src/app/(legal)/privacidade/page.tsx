@@ -12,7 +12,7 @@ export default async function PrivacyPage() {
   const lang = await guestLang(null, await getCurrentUser());
   return (
     <LegalPage lang={lang} title={t(lang, "privacy_policy")}>
-      <PrivacyContent info={getLegalInfo()} />
+      <PrivacyContent info={getLegalInfo()} lang={lang} />
     </LegalPage>
   );
 }

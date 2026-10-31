@@ -770,8 +770,8 @@ const dict = {
   },
   legal_pt_only: {
     pt: "",
-    en: "This document is available in Portuguese, which is the version that applies.",
-    es: "Este documento está disponible en portugués, que es la versión que se aplica.",
+    en: "Translation provided for convenience. If there is any difference, the Portuguese version prevails.",
+    es: "Traducción ofrecida por comodidad. Si hay alguna diferencia, prevalece la versión en portugués.",
   },
   legal_version: { pt: "Versão de {date}", en: "Version of {date}", es: "Versión del {date}" },
   back: { pt: "Voltar", en: "Back", es: "Volver" },

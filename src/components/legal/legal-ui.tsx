@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { Lang } from "@/lib/i18n";
 
 /** Plain building blocks for the legal documents (no Next.js imports: also used by the offline demo). */
 
@@ -23,12 +24,12 @@ export function LegalList({ items }: { items: ReactNode[] }) {
   );
 }
 
-export function contactText(contactEmail: string | null) {
+export function contactText(contactEmail: string | null, lang: Lang = "pt") {
   return contactEmail ? (
     <a className="font-semibold text-emerald-700 underline" href={`mailto:${contactEmail}`}>
       {contactEmail}
     </a>
   ) : (
-    "pelos canais de contato informados no aplicativo"
+    { pt: "pelos canais de contato informados no aplicativo", en: "through the contact channels shown in the app", es: "por los canales de contacto indicados en la aplicación" }[lang]
   );
 }

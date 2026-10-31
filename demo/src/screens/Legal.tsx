@@ -12,7 +12,7 @@ import { card } from "../components/ui";
 
 export type LegalDoc = "terms" | "privacy";
 
-/** Same documents as /termos and /privacidade in the web app (Portuguese is the binding version). */
+/** Same documents as /termos and /privacidade in the web app (translated; Portuguese is the binding version). */
 export function LegalDocument({ doc, lang }: { doc: LegalDoc; lang: Lang }) {
   const note = t(lang, "legal_pt_only");
   const date = new Date(`${TERMS_VERSION}T12:00:00Z`).toLocaleDateString(lang === "pt" ? "pt-BR" : lang === "es" ? "es-ES" : "en-US", {
@@ -25,7 +25,7 @@ export function LegalDocument({ doc, lang }: { doc: LegalDoc; lang: Lang }) {
       <p className="text-xs text-slate-500">{t(lang, "legal_version").replace("{date}", date)}</p>
       {note && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">{note}</p>}
       <div className="mt-4">
-        {doc === "terms" ? <TermsContent info={DEFAULT_LEGAL_INFO} /> : <PrivacyContent info={DEFAULT_LEGAL_INFO} />}
+        {doc === "terms" ? <TermsContent info={DEFAULT_LEGAL_INFO} lang={lang} /> : <PrivacyContent info={DEFAULT_LEGAL_INFO} lang={lang} />}
       </div>
     </div>
   );
