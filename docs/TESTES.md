@@ -186,7 +186,7 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 ### 3.7 Configurações, acessibilidade e LGPD
 
 - [ ] **Idioma** PT/EN/ES → o app inteiro muda, inclusive missões e notificações.
-- [ ] **Tema** claro/escuro/sistema → o modo noturno fica legível em todas as telas: missões, comprovação, moderação, admin, organizações, relatório.
+- [ ] **Tema**: o app abre sempre no **modo claro**, mesmo com o celular no modo escuro. Em Configurações, troque para escuro ou automático → o modo noturno fica legível em todas as telas: missões, comprovação, moderação, admin, organizações, relatório.
 - [ ] **Tamanho da fonte**, **Alto contraste** e **Reduzir animações** funcionam e continuam valendo depois de fechar e abrir.
 - [ ] **Exportar meus dados** → baixa um JSON com os dados da conta.
 - [ ] **Excluir minha conta** (numa conta de teste) → pede confirmação, apaga e volta para o login. Nas mensagens, o nome vira "Conta excluída".

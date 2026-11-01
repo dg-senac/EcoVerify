@@ -8,7 +8,7 @@ import { createSeed, STATE_VERSION } from "./seed";
 import { hasSeedTexts, seedText } from "./seed-text";
 import { centsToFone, foneToCents, isValidFoneAddress, normalizeHex, pickChallengeCents } from "@/lib/fone";
 import { TERMS_VERSION } from "@/lib/legal";
-import type { Theme } from "@/lib/theme";
+import { DEFAULT_THEME, type Theme } from "@/lib/theme";
 import { distanceMeters, fakeTxHash, MAX_DISTANCE_METERS, MAX_GPS_ACCURACY_METERS, uid } from "./media";
 import {
   composeRejectionMessage,
@@ -164,7 +164,7 @@ export type User = {
   isDemoProfile?: boolean;
   language: Lang;
   fontSize: FontSize;
-  /** Colour theme (missing in older saved demos = "system"). */
+  /** Colour theme (missing = DEFAULT_THEME, light). */
   theme?: Theme;
   highContrast: boolean;
   reducedMotion: boolean;
@@ -2139,7 +2139,7 @@ export function exportMyData(): string | null {
       language: user.language,
       preferences: {
         fontSize: user.fontSize,
-        theme: user.theme ?? "system",
+        theme: user.theme ?? DEFAULT_THEME,
         highContrast: user.highContrast,
         reducedMotion: user.reducedMotion,
         notificationsEnabled: user.notificationsEnabled,

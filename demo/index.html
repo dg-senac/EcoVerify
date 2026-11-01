@@ -6,12 +6,13 @@
     <meta name="theme-color" content="#f7f8f7" />
     <script>
       // Apply the saved theme before the first paint (no flash). Same storage key as src/store.ts.
+      // Default: light (src/lib/theme.ts DEFAULT_THEME).
       try {
         var s = JSON.parse(localStorage.getItem("ecoverify-demo") || "null");
         var u = s && s.users && s.users.find(function (x) { return x.id === s.currentUserId; });
-        document.documentElement.dataset.theme = (u && u.theme) || "system";
+        document.documentElement.dataset.theme = (u && u.theme) || "light";
       } catch (e) {
-        document.documentElement.dataset.theme = "system";
+        document.documentElement.dataset.theme = "light";
       }
     </script>
     <meta name="format-detection" content="telephone=no" />

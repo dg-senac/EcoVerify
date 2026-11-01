@@ -29,7 +29,7 @@ import { DumpsScreen } from "./screens/Dumps";
 import { MapScreenDemo } from "./screens/Map";
 import { CertificateScreen, EventCertificateScreen, EventReportScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
 
-import { THEME_COLORS } from "@/lib/theme";
+import { DEFAULT_THEME, THEME_COLORS } from "@/lib/theme";
 
 /** Applies the user's accessibility settings to <html>, like src/app/layout.tsx. */
 function useHtmlSettings(user: User | null) {
@@ -44,7 +44,7 @@ function useHtmlSettings(user: User | null) {
   }, [lang, user?.fontSize, user?.highContrast, user?.reducedMotion]);
 
   // Theme: data-theme drives the CSS color-scheme (see src/app/theme.css); index.html applies it before the first paint.
-  const theme = user?.theme ?? "system";
+  const theme = user?.theme ?? DEFAULT_THEME;
   useEffect(() => {
     const html = document.documentElement;
     html.dataset.theme = theme;

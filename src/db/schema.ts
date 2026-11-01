@@ -105,8 +105,8 @@ export const users = pgTable("users", {
   language: languageEnum("language").notNull().default("en"),
   fontSize: fontSizeEnum("font_size").notNull().default("medium"),
   highContrast: boolean("high_contrast").notNull().default(false),
-  /** Colour theme: "system" follows the device setting. */
-  theme: themeEnum("theme").notNull().default("system"),
+  /** Colour theme: light by default; "system" follows the device setting. */
+  theme: themeEnum("theme").notNull().default("light"),
   reducedMotion: boolean("reduced_motion").notNull().default(false),
   notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
