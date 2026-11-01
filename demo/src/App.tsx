@@ -23,6 +23,9 @@ import { SettingsScreen } from "./screens/Settings";
 import { LegalScreen } from "./screens/Legal";
 import { TransparencyScreen } from "./screens/Transparency";
 import { BenefitsScreen, PartnerScreen } from "./screens/Benefits";
+import { PointScreen } from "./screens/Point";
+import { QuizScreen } from "./screens/Quiz";
+import { DumpsScreen } from "./screens/Dumps";
 import { CertificateScreen, EventCertificateScreen, EventReportScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
 
 import { THEME_COLORS } from "@/lib/theme";
@@ -82,7 +85,7 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
   const home = useStore((s) => homeFor(user.role, moderatorsOn(s)));
   // Staff (active moderators and admins) have their own app: citizen screens send them home.
   const staffApp = useStore((s) => isStaffExperience(user.role, moderatorsOn(s)));
-  const citizenOnly = path.startsWith("/missions") || path.startsWith("/org") || ["/submissions", "/ranking", "/beneficios", "/community", "/wallet"].includes(path);
+  const citizenOnly = path.startsWith("/missions") || path.startsWith("/org") || ["/submissions", "/ranking", "/beneficios", "/community", "/wallet", "/quiz", "/lixo"].includes(path);
   if (staffApp && citizenOnly) return <Redirect to={home} />;
   const submit = matchRoute("/missions/:id/submit", path);
   if (submit) return <SubmitScreen key={submit.id} missionId={submit.id} />;
@@ -106,6 +109,10 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
       return <SubmissionsScreen user={user} />;
     case "/ranking":
       return <RankingScreen user={user} />;
+    case "/quiz":
+      return <QuizScreen key={user.id} user={user} />;
+    case "/lixo":
+      return <DumpsScreen key={user.id} user={user} />;
     case "/beneficios":
       return <BenefitsScreen user={user} />;
     case "/community":
@@ -137,11 +144,15 @@ export function App() {
   }, [lang]);
   // Partner page: public (no login), like /parceiro/<token> on the web.
   const partner = matchRoute("/parceiro/:token", path);
+  // Collection point page: public too, like /ponto/<token>.
+  const point = matchRoute("/ponto/:token", path);
 
   return (
     <>
       {partner ? (
         <PartnerScreen key={partner.token} token={partner.token} />
+      ) : point ? (
+        <PointScreen key={point.token} token={point.token} />
       ) : path === "/termos" || path === "/privacidade" ? (
         <LegalScreen doc={path === "/termos" ? "terms" : "privacy"} />
       ) : path === "/transparencia" ? (
@@ -155,7 +166,7 @@ export function App() {
       )}
       <TourPanel />
       <Toaster />
-      {!partner && <AppSplash lang={lang} onboarding={!OPENED_WITH_TOUR} />}
+      {!partner && !point && <AppSplash lang={lang} onboarding={!OPENED_WITH_TOUR} />}
     </>
   );
 }

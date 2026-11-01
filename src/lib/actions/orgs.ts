@@ -3,9 +3,9 @@
 import { randomInt } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { missions, organizationMembers, organizations } from "@/db/schema";
+import { collectionPoints, missions, organizationMembers, organizations } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { isUniqueViolation } from "@/lib/utils";
@@ -25,6 +25,7 @@ import {
 } from "@/lib/saas/org-rules";
 import { activeMissionCount, memberCount, membershipRole, orgById, orgEventAllowance } from "@/lib/saas/orgs";
 import { parseEventWindow } from "@/lib/saas/events";
+import { parseProofFields } from "@/lib/proof";
 
 export type OrgActionState = { error?: string; success?: boolean };
 
@@ -203,6 +204,18 @@ export async function createOrgMissionAction(_prev: OrgActionState, formData: Fo
     if ("error" in parsed) return { error: parsed.error };
     window = parsed;
   }
+  const proof = parseProofFields((name) => formData.get(name));
+  if (proof.error) return { error: "invalid" };
+  // Collection point: a public point or one run by this organization.
+  if (proof.collectionPointId) {
+    if (scope !== "local" || !/^[0-9a-f-]{36}$/i.test(proof.collectionPointId)) return { error: "invalid" };
+    const [point] = await db
+      .select({ id: collectionPoints.id })
+      .from(collectionPoints)
+      .where(and(eq(collectionPoints.id, proof.collectionPointId), eq(collectionPoints.isActive, true), or(isNull(collectionPoints.organizationId), eq(collectionPoints.organizationId, orgId))))
+      .limit(1);
+    if (!point) return { error: "invalid" };
+  }
   const limit = canActivateMission(managed.org, await activeMissionCount(orgId));
   if (limit) return { error: limit };
 
@@ -212,6 +225,10 @@ export async function createOrgMissionAction(_prev: OrgActionState, formData: Fo
     title,
     description,
     category,
+    proofType: proof.proofType,
+    countItem: proof.countItem,
+    countTarget: proof.countTarget,
+    collectionPointId: proof.collectionPointId,
     pointsReward: points,
     foneReward: "0",
     scope,

@@ -11,6 +11,11 @@ import { EmptyState, PageHeader, StatusBadge, card, toast } from "../components/
 import { PhotoViewer } from "../components/PhotoViewer";
 import { FoneAmount } from "@/components/brand/fone";
 import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS } from "@/lib/impact";
+import { COUNT_ITEM_INFO, countItemName, isCountItem, weightSourceLabel } from "@/lib/proof";
+import { pendingStage } from "@/lib/verification";
+import { ExtraProofBox } from "@/components/submissions/extra-proof-box";
+import { ExtraProofUploader } from "../components/ExtraProofUploader";
+import { DeliveryBox } from "@/components/submissions/delivery-box";
 
 export function SubmissionsScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -18,6 +23,7 @@ export function SubmissionsScreen({ user }: { user: User }) {
   const submissions = useStore((s) => s.submissions);
   const missions = useStore((s) => s.missions);
   const rewards = useStore((s) => s.rewards);
+  const points = useStore((s) => s.collectionPoints ?? []);
   const mine = submissions.filter((s) => s.userId === user.id).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
   // A rejected submission can be resent if there's no newer one for the same mission.
   const hasOpen = (missionId: string) => mine.some((s) => s.missionId === missionId && s.status !== "rejected");
@@ -55,13 +61,42 @@ export function SubmissionsScreen({ user }: { user: User }) {
                   </div>
                   <p className="mt-0.5 text-xs text-slate-400">{dt(lang, "submitted_at")} {formatDate(sub.submittedAt, lang)}</p>
                   <p className="mt-1.5 line-clamp-2 text-sm text-slate-600">{sub.report}</p>
-                  {sub.material && (
+                  {sub.itemCount != null && mission && isCountItem(mission.countItem) && (
+                    <p className="mt-1 text-xs font-semibold text-emerald-700" data-testid="delivery">
+                      {COUNT_ITEM_INFO[mission.countItem].emoji} {sub.itemCount} · {countItemName(mission.countItem, lang)}
+                      {(sub.weightKg ?? 0) > 0 && (
+                        <span className="font-normal text-slate-500">
+                          {" "}
+                          · ≈ {formatKg(sub.weightKg ?? 0, lang)} ({weightSourceLabel(sub.weightSource, lang)})
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {sub.material && sub.itemCount == null && (
                     <p className="mt-1 text-xs font-semibold text-emerald-700" data-testid="delivery">
                       {MATERIAL_EMOJI[sub.material]} {MATERIAL_LABELS[sub.material][lang]} · {formatKg(sub.weightKg ?? 0, lang)}
                       {sub.declaredWeightKg != null && sub.weightKg != null && sub.declaredWeightKg !== sub.weightKg && (
                         <span className="font-normal text-slate-400"> ({t(lang, "recycling_weight_corrected")})</span>
                       )}
                     </p>
+                  )}
+                  {(() => {
+                    const point = sub.deliveryCode && mission ? points.find((p) => p.id === mission.collectionPointId) : null;
+                    return point && (sub.partnerConfirmedAt || sub.status === "pending") ? (
+                      <DeliveryBox
+                        lang={lang}
+                        code={sub.deliveryCode!}
+                        pointName={point.name}
+                        pointAddress={[point.address, point.city].filter(Boolean).join(" · ") || null}
+                        confirmedKg={sub.partnerConfirmedAt ? Number(sub.weightKg ?? 0) : null}
+                        dueAt={sub.verifyBy}
+                      />
+                    ) : null;
+                  })()}
+                  {sub.status === "pending" && mission && !(sub.deliveryCode && !sub.partnerConfirmedAt) && (
+                    <ExtraProofBox lang={lang} stage={pendingStage(sub)} code={sub.extraProofCode} dueAt={sub.extraProofDueAt}>
+                      <ExtraProofUploader lang={lang} sub={sub} mission={mission} />
+                    </ExtraProofBox>
                   )}
                   {sub.status === "approved" && mission && (
                     <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">

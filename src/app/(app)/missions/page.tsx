@@ -3,7 +3,11 @@ import { EVENT_GRACE_HOURS } from "@/lib/saas/events";
 import { after } from "next/server";
 import Link from "next/link";
 import { db } from "@/db";
-import { missionRequests, missions, organizations, submissions } from "@/db/schema";
+import { missionRequests, missions, organizations, quizAttempts, submissions } from "@/db/schema";
+import { quizDay, quizText } from "@/lib/quiz";
+import { QuizCard, QUIZ_CARD_BUTTON } from "@/components/quiz/quiz-view";
+import { DumpCta, DUMP_CTA_BUTTON } from "@/components/dumps/dump-cta";
+import { dumpText } from "@/lib/dumps";
 import { myOrganizationIds } from "@/lib/saas/orgs";
 import { ORG_TEXT } from "@/lib/saas/org-text";
 import { getCurrentUser } from "@/lib/auth";
@@ -125,6 +129,35 @@ export default async function MissionsPage() {
   }
 
   const region = await getRegion();
+  const [quizToday] = await db
+    .select({ points: quizAttempts.points, finishedAt: quizAttempts.finishedAt })
+    .from(quizAttempts)
+    .where(and(eq(quizAttempts.userId, user.id), eq(quizAttempts.day, quizDay())))
+    .limit(1);
+  const quizDone = quizToday?.finishedAt ? quizToday.points : null;
+  const extras = (
+    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="mission-extras">
+      <QuizCard
+        lang={lang}
+        donePoints={quizDone}
+        action={
+          quizDone === null ? (
+            <Link href="/quiz" className={QUIZ_CARD_BUTTON}>
+              {quizText(lang).play}
+            </Link>
+          ) : null
+        }
+      />
+      <DumpCta
+        lang={lang}
+        action={
+          <Link href="/lixo" className={DUMP_CTA_BUTTON}>
+            {dumpText(lang).cardAction}
+          </Link>
+        }
+      />
+    </div>
+  );
   const header = (
     <>
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -140,6 +173,7 @@ export default async function MissionsPage() {
         </Link>
       </div>
       <RegionBar lang={lang} region={region} />
+      {extras}
     </>
   );
 

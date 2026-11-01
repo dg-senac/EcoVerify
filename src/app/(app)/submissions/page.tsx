@@ -1,8 +1,10 @@
 import { desc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { sweepVerifications } from "@/lib/verification-server";
 import { citizenOnly } from "@/lib/role-guard";
 import { db } from "@/db";
-import { missions, submissions } from "@/db/schema";
+import { collectionPoints, missions, submissions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { t } from "@/lib/i18n";
 import { SubmissionCard } from "@/components/submissions/submission-card";
@@ -12,6 +14,8 @@ export default async function SubmissionsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   citizenOnly(user.role);
+  // Keeps the verification window moving even without a scheduler (throttled inside).
+  after(() => sweepVerifications().catch((error) => console.error("[verify] sweep failed:", error)));
 
   const rows = await db
     .select({
@@ -21,18 +25,30 @@ export default async function SubmissionsPage() {
       material: submissions.material,
       weightKg: submissions.weightKg,
       declaredWeightKg: submissions.declaredWeightKg,
+      itemCount: submissions.itemCount,
+      weightSource: submissions.weightSource,
+      countItem: missions.countItem,
       status: submissions.status,
       rejectionReason: submissions.rejectionReason,
       rejectionCode: submissions.rejectionCode,
       decidedBy: submissions.decidedBy,
       aiStatus: submissions.aiStatus,
       appealedAt: submissions.appealedAt,
+      extraProofStatus: submissions.extraProofStatus,
+      extraProofCode: submissions.extraProofCode,
+      extraProofDueAt: submissions.extraProofDueAt,
+      verifyBy: submissions.verifyBy,
+      deliveryCode: submissions.deliveryCode,
+      partnerConfirmedAt: submissions.partnerConfirmedAt,
+      pointName: collectionPoints.name,
+      pointAddress: collectionPoints.address,
       submittedAt: submissions.submittedAt,
       missionTitle: missions.title,
       missionCategory: missions.category,
     })
     .from(submissions)
     .innerJoin(missions, eq(submissions.missionId, missions.id))
+    .leftJoin(collectionPoints, eq(collectionPoints.id, missions.collectionPointId))
     .where(eq(submissions.userId, user.id))
     .orderBy(desc(submissions.submittedAt));
 

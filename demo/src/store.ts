@@ -19,7 +19,7 @@ import {
   rejectionReasonText,
   validateRejection,
   type AiAnalysis, type AiChecks, type AiVerdict, type RejectionCode } from "@/lib/ai/decision";
-import { simulateAnalysis, simulateWebSearch, type SampleKind } from "./demoAi";
+import { simulateAnalysis, simulateExtraAnalysis, simulateWebSearch, type SampleKind } from "./demoAi";
 import { webVerdict } from "@/lib/ai/web-detection-core";
 import {
   CARD_APPEAL_MIN,
@@ -35,7 +35,7 @@ import {
   type CardReason,
   type CardType,
 } from "@/lib/cards";
-import { canReview } from "@/lib/nav";
+import { canReview, isStaffExperience } from "@/lib/nav";
 import { formatDate } from "@/lib/utils";
 import type { Region, RegionRadius } from "@/lib/region";
 import { OSM_TEMPLATES, type OsmKind } from "@/lib/regional/templates";
@@ -68,7 +68,48 @@ import {
   type RedeemError,
   type ValidateError,
 } from "@/lib/benefits";
-import { checkRecyclingInput, parseWeightKg, type ImpactRow, type Material } from "@/lib/impact";
+import { parseWeightKg, type ImpactRow, type Material } from "@/lib/impact";
+import { checkCountInput, countCheck, countRule, estimatedKg, MAX_ITEM_COUNT, proofTypeOf, type CountItem, type ProofType, type WeightSource } from "@/lib/proof";
+import { MAX_AUTO_APPROVE_KG } from "@/lib/impact";
+import { deliveryError, newDeliveryCode, parseDeliveryInput, parseDeliveryQr, PARTNER_CONFIRM_HOURS, pointText, type DeliveryError } from "@/lib/partner";
+import { checkinCode, checkinCodeExpiresAt, checkinPhase, checkinQrPayload, checkinWindow, isValidCheckinCode, parseCheckinQr, type CheckinError } from "@/lib/saas/checkin";
+import { formatKg } from "@/lib/impact";
+import { QUIZ_SIZE, checkQuizAnswer, quizDay, quizPoints, type QuizAnswerResponse } from "@/lib/quiz";
+import {
+  CLEANUP_POINTS,
+  DUMP_CONFIRM_DAILY_LIMIT,
+  DUMP_CONFIRM_POINTS,
+  DUMP_CONFIRM_RADIUS_M,
+  DUMP_DAILY_LIMIT,
+  DUMP_DEDUPE_M,
+  DUMP_MAX_ACCURACY_M,
+  DUMP_NEARBY_KM,
+  DUMP_REPORT_POINTS,
+  cleanupMission,
+  distanceMeters as dumpDistance,
+  dumpOutcome,
+  dumpText,
+  isDumpOverdue,
+  type DumpError,
+  type DumpItem,
+  type DumpRejection,
+  type DumpSize,
+  type DumpStatus,
+} from "@/lib/dumps";
+import { placeOf } from "./municipalities";
+import {
+  addHours,
+  EXTRA_PROOF_HOURS,
+  extraProofVerdict,
+  newChallengeCode,
+  planVerification,
+  shouldAudit,
+  trustScore,
+  VERIFY_WINDOW_HOURS,
+  type ExtraProofStatus,
+  type TrustInput,
+  type VerificationPlan,
+} from "@/lib/verification";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -149,6 +190,10 @@ export type Mission = {
   sponsorName?: string | null;
   /** Sponsor whose FONE budget pays this mission (null = EcoVerify treasury). */
   sponsorId?: string | null;
+  /** How the mission is proven (src/lib/proof.ts): photo, before/after photos or counted items. */
+  proofType?: ProofType;
+  countItem?: CountItem | null;
+  countTarget?: number | null;
   /** Private mission of an organization (points only, members only). */
   organizationId?: string | null;
   /** Events (mutirões): proofs only inside this window; one-off payment (src/lib/saas/events.ts). */
@@ -156,7 +201,26 @@ export type Mission = {
   endsAt?: string | null;
   eventPackage?: EventPackage | null;
   eventPaidAt?: string | null;
+  /** "partner" missions: the collection point that weighs the delivery. */
+  collectionPointId?: string | null;
+  /** Events: secret of the rotating check-in code (created when the organizer first shows the QR). */
+  checkinSecret?: string | null;
 };
+
+/** Cooperativa / ecoponto that weighs deliveries through a secret link (src/db/schema.ts collectionPoints). */
+export type DemoPoint = {
+  id: string;
+  name: string;
+  address: string | null;
+  city: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  token: string;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type DemoCheckin = { id: string; missionId: string; userId: string; createdAt: string };
 
 export type MissionRequest = { userId: string; ibge: number; city: string; uf: string; createdAt: string };
 
@@ -173,10 +237,16 @@ export type Submission = {
   longitude: number;
   accuracy: number;
   simulatedLocation: boolean;
-  /** Recycling missions: material and weight in kg (src/lib/impact.ts). */
+  /** Material and weight in kg (src/lib/impact.ts). Count proofs: estimated from the items. */
   material?: Material | null;
   weightKg?: number | null;
   declaredWeightKg?: number | null;
+  /** Count missions: how many items the person declared (the AI count is in aiChecks.itemCount). */
+  itemCount?: number | null;
+  weightSource?: WeightSource | null;
+  /** Before/after missions: the "before" photo. */
+  photoBefore?: string | null;
+  photoBeforeHash?: string | null;
   status: SubmissionStatus;
   reviewedBy: string | null;
   rejectionReason: string | null;
@@ -195,6 +265,22 @@ export type Submission = {
   rejectionCode?: RejectionCode | null;
   appealedAt?: string | null;
   appealMessage?: string | null;
+  /* Verification window (src/lib/verification.ts). */
+  trustScore?: number | null;
+  verifyBy?: string | null;
+  extraProofStatus?: ExtraProofStatus | null;
+  extraProofCode?: string | null;
+  extraProofDueAt?: string | null;
+  extraPhoto?: string | null;
+  extraPhotoHash?: string | null;
+  /** Sample audit of an automatic approval. */
+  auditStatus?: "pending" | "ok" | "revoked" | null;
+  auditedBy?: string | null;
+  auditedAt?: string | null;
+  /** "partner" missions: code shown at the collection point, then the point's confirmation. */
+  deliveryCode?: string | null;
+  partnerConfirmedAt?: string | null;
+  partnerPointId?: string | null;
 };
 
 export type Reward = {
@@ -276,7 +362,40 @@ export type State = {
   /** Local business benefits (src/lib/benefits.ts) and the codes people redeemed. */
   offers?: DemoOffer[];
   redemptions?: DemoRedemption[];
+  /** Collection points that weigh deliveries and event check-ins (src/lib/partner.ts, src/lib/saas/checkin.ts). */
+  collectionPoints?: DemoPoint[];
+  checkins?: DemoCheckin[];
+  /** Daily quiz attempts (src/lib/quiz.ts). */
+  quiz?: DemoQuizAttempt[];
+  /** Irregular dumping spots and their confirmations (src/lib/dumps.ts). */
+  dumps?: DemoDump[];
+  dumpConfirmations?: DemoDumpConfirmation[];
 };
+
+export type DemoDump = {
+  id: string;
+  userId: string;
+  photoUrl: string;
+  photoHash: string;
+  latitude: number;
+  longitude: number;
+  accuracyM: number | null;
+  city: string | null;
+  stateCode: string | null;
+  size: DumpSize;
+  note: string | null;
+  status: DumpStatus;
+  needsReview: boolean;
+  aiReason: string | null;
+  rejectionCode: DumpRejection | null;
+  missionId: string | null;
+  createdAt: string;
+  confirmedAt: string | null;
+  resolvedAt: string | null;
+};
+export type DemoDumpConfirmation = { id: string; reportId: string; userId: string; photoUrl: string; photoHash: string; latitude: number; longitude: number; createdAt: string };
+
+export type DemoQuizAttempt = { userId: string; day: string; answers: number[]; correct: number; points: number; finishedAt: string | null };
 
 export type DemoOffer = {
   id: string;
@@ -672,9 +791,11 @@ export type NewSubmission = {
   longitude: number;
   accuracy: number;
   simulatedLocation: boolean;
-  /** Recycling missions: raw values typed on the form. */
-  material?: string | null;
-  weight?: string | null;
+  /** Count missions: the number typed on the form. */
+  itemCount?: string | null;
+  /** Before/after missions: the "before" photo. */
+  photoBefore?: string | null;
+  photoBeforeHash?: string | null;
   /** Sample photo picked in the demo (drives the simulated AI). null = camera/gallery photo. */
   sample?: SampleKind | null;
   /** Real analysis of a camera/gallery photo with the tester's own Gemini key (see byok.ts). */
@@ -697,8 +818,13 @@ export function checkProof(input: NewSubmission): Result {
   if (!input.photo) return { error: "error_photo_required" };
   const report = input.report.trim();
   if (report.length < 50 || report.length > 1000) return { error: "error_report_length" };
-  const recycling = checkRecyclingInput(mission.category, input.material, input.weight);
-  if (recycling.error) return { error: `error_${recycling.error}` };
+  const counted = checkCountInput(mission, input.itemCount);
+  if (counted.error) return { error: `error_${counted.error}` };
+  if (proofTypeOf(mission) === "partner" && !(state.collectionPoints ?? []).some((p) => p.id === mission.collectionPointId && p.isActive)) return { error: "error_generic" };
+  if (proofTypeOf(mission) === "before_after") {
+    if (!input.photoBefore || !input.photoBeforeHash) return { error: "error_photo_before_required" };
+    if (input.photoBeforeHash === input.photoHash) return { error: "error_before_after_same_photo" };
+  }
 
   if (!(input.accuracy <= MAX_GPS_ACCURACY_METERS)) return { error: "error_location_inaccurate" };
   if (
@@ -715,7 +841,8 @@ export function checkProof(input: NewSubmission): Result {
   if (mine.filter((s) => new Date(s.submittedAt) >= startOfToday).length >= DAILY_SUBMISSION_LIMIT) {
     return { error: "error_daily_limit" };
   }
-  if (state.submissions.some((s) => s.photoHash === input.photoHash)) return { error: "error_duplicate_photo" };
+  const used = (hash: string) => state.submissions.some((s) => s.photoHash === hash || s.photoBeforeHash === hash || s.extraPhotoHash === hash);
+  if (used(input.photoHash) || (input.photoBeforeHash && used(input.photoBeforeHash))) return { error: "error_duplicate_photo" };
   return {};
 }
 
@@ -731,19 +858,52 @@ export function submitProof(input: NewSubmission): Result {
   const lang = user.language;
   const real = input.sample ? null : (input.realAi ?? null);
   const realAnalysis = real && "analysis" in real ? real : null;
-  const analysis = input.sample ? simulateAnalysis(input.sample, mission.category, lang) : (realAnalysis?.analysis ?? null);
+  const proofType = proofTypeOf(mission);
+  const counted = checkCountInput(mission, input.itemCount);
+  const analysis = input.sample
+    ? simulateAnalysis(input.sample, mission.category, lang, { proofType, declaredCount: counted.count })
+    : (realAnalysis?.analysis ?? null);
   const aiFailed = !!real && "failed" in real;
   const web = simulateWebSearch(input.sample ?? null);
-  const recycling = checkRecyclingInput(mission.category, input.material, input.weight);
   const decision = decideProof({
     settings: DEFAULT_AI_SETTINGS,
     analysis,
     similar: null,
     foneReward: Number(mission.foneReward),
     web: webVerdict(web),
-    weightKg: recycling.weightKg,
+    weightKg: counted.weightKg,
+    declaredCount: counted.count,
   });
   const webChecks = web ? { webChecked: true, webFullMatches: web.fullMatches, webPages: web.pages, webPartialCount: web.partialCount, webBestGuess: web.bestGuess } : {};
+  // Same as planAfterAnalysis (src/lib/verification-server.ts). There is no retry in the app, so a
+  // proof without analysis is planned as if its window were over.
+  const trust = trustScore({
+    analysis,
+    proofType,
+    declaredCount: counted.count,
+    location: { accuracy: input.accuracy, simulated: input.simulatedLocation, anywhere: mission.scope === "anywhere" },
+    history: historyFor(state, user.id, ""),
+    web: webVerdict(web),
+    partnerConfirmed: false,
+    checkedIn: hasCheckedIn(state, mission, user.id),
+  });
+  const isPartner = proofType === "partner";
+  let deliveryCode: string | null = null;
+  if (isPartner) {
+    deliveryCode = newDeliveryCode();
+    while (state.submissions.some((x) => x.deliveryCode === deliveryCode)) deliveryCode = newDeliveryCode();
+  }
+  const plan = planVerification({
+    mode: DEFAULT_AI_SETTINGS.mode,
+    decision,
+    analyzed: !!analysis,
+    aiExpected: false,
+    score: trust.score,
+    extraProofAsked: false,
+    windowClosed: true,
+    capExceeded: capExceeded(mission, counted.weightKg),
+    awaitingPartner: isPartner,
+  });
   const submission: Submission = {
     id: uid(),
     userId: user.id,
@@ -755,9 +915,12 @@ export function submitProof(input: NewSubmission): Result {
     longitude: input.longitude,
     accuracy: input.accuracy,
     simulatedLocation: input.simulatedLocation,
-    material: recycling.material,
-    weightKg: recycling.weightKg,
-    declaredWeightKg: recycling.weightKg,
+    material: counted.material,
+    weightKg: counted.weightKg,
+    itemCount: counted.count,
+    weightSource: counted.count !== null ? "estimated" : null,
+    photoBefore: proofType === "before_after" ? (input.photoBefore ?? null) : null,
+    photoBeforeHash: proofType === "before_after" ? (input.photoBeforeHash ?? null) : null,
     status: "pending",
     reviewedBy: null,
     rejectionReason: null,
@@ -769,12 +932,14 @@ export function submitProof(input: NewSubmission): Result {
     aiConfidence: analysis ? decision.confidence : null,
     aiReasonCode: decision.reasonCode,
     aiSummary: analysis ? analysis.explanation : null,
-    aiChecks: analysis ? { ...analysis, ...webChecks } : null,
+    aiChecks: analysis ? { ...analysis, ...webChecks, trustFactors: trust.factors } : { trustFactors: trust.factors },
+    trustScore: trust.score,
+    verifyBy: plan.action === "review" ? now() : addHours(new Date(), isPartner ? PARTNER_CONFIRM_HOURS : VERIFY_WINDOW_HOURS).toISOString(),
+    deliveryCode,
   };
   const ok = commit((s) => {
     const next: State = { ...s, submissions: [submission, ...s.submissions] };
-    if (decision.action === "approve") return applyApproval(next, submission.id, null);
-    if (decision.action === "reject" && decision.reasonCode) return applyRejection(next, submission.id, null, decision.reasonCode, "");
+    if (plan.action === "approve" || plan.action === "reject" || plan.action === "extra_proof") return applyPlan(next, plan, submission.id);
     // Possible copy from the internet: never decided by the AI, the staff is alerted.
     if (decision.reasonCode === "internet_copy") {
       return {
@@ -791,11 +956,298 @@ export function submitProof(input: NewSubmission): Result {
 }
 
 /* ------------------------------------------------------------------ */
+/* Verification window: score, extra proof, sample audit               */
+/* (same rules as src/lib/verification-server.ts)                      */
+/* ------------------------------------------------------------------ */
+
+function patchSubmission(s: State, id: string, patch: Partial<Submission>): State {
+  return { ...s, submissions: s.submissions.map((x) => (x.id === id ? { ...x, ...patch } : x)) };
+}
+
+function historyFor(s: State, userId: string, exceptId: string): TrustInput["history"] {
+  const mine = s.submissions.filter((x) => x.userId === userId && x.id !== exceptId);
+  const author = userById(userId, s);
+  return {
+    approved: mine.filter((x) => x.status === "approved").length,
+    rejected: mine.filter((x) => x.status === "rejected").length,
+    activeCards: cardsOf(s, userId).filter((card) => isCardActive(card)).length,
+    accountAgeDays: author ? Math.floor((Date.now() - new Date(author.createdAt).getTime()) / 86_400_000) : 0,
+  };
+}
+
+function capExceeded(mission: Mission, weightKg: number | null | undefined, weightSource?: WeightSource | null) {
+  // A scale weight from the collection point is not an estimate: the kg cap does not apply.
+  return Number(mission.foneReward) > DEFAULT_AI_SETTINGS.maxAutoApproveFone || (weightSource !== "partner" && Number(weightKg ?? 0) > MAX_AUTO_APPROVE_KG);
+}
+
+/** Presence confirmed with the organizer's QR (same as checkedInAt in verification-server.ts). */
+function hasCheckedIn(s: State, mission: Mission, userId: string): boolean {
+  return !!mission.startsAt && (s.checkins ?? []).some((c) => c.missionId === mission.id && c.userId === userId);
+}
+
+/** Same as planAfterPartner: the point weighed the delivery, decide with the stored AI result. */
+function planAfterPartner(s: State, submissionId: string): State {
+  const sub = s.submissions.find((x) => x.id === submissionId);
+  const mission = sub && s.missions.find((m) => m.id === sub.missionId);
+  if (!sub || !mission || sub.status !== "pending" || !sub.partnerConfirmedAt) return s;
+  const checks = sub.aiChecks ?? {};
+  const analysis = checks.verdict ? (checks as AiAnalysis) : null;
+  const reasonCode = sub.aiReasonCode ?? null;
+  const trust = trustScore({
+    analysis,
+    proofType: "partner",
+    declaredCount: null,
+    location: { accuracy: sub.accuracy, simulated: sub.simulatedLocation, anywhere: mission.scope === "anywhere" },
+    history: historyFor(s, sub.userId, sub.id),
+    partnerConfirmed: true,
+    checkedIn: hasCheckedIn(s, mission, sub.userId),
+  });
+  const plan = planVerification({
+    mode: DEFAULT_AI_SETTINGS.mode,
+    decision: { action: sub.aiVerdict === "approve" && !reasonCode ? "approve" : "review", verdict: sub.aiVerdict ?? "review", confidence: sub.aiConfidence ?? 0, reasonCode },
+    analyzed: !!analysis,
+    aiExpected: false,
+    score: trust.score,
+    extraProofAsked: !!sub.extraProofStatus,
+    windowClosed: true,
+    capExceeded: capExceeded(mission, sub.weightKg, sub.weightSource),
+    partnerConfirmed: true,
+  });
+  const next = patchSubmission(s, sub.id, { trustScore: trust.score, aiChecks: { ...checks, trustFactors: trust.factors }, verifyBy: plan.action === "review" ? now() : sub.verifyBy });
+  return applyPlan(next, plan, sub.id);
+}
+
+/** Pending proofs the automatic verification is still handling (hidden from moderation), like inAutomaticVerification. */
+export function inDemoVerification(x: Submission, at: Date = new Date()): boolean {
+  if (x.status !== "pending") return false;
+  if (x.extraProofStatus === "requested") return true;
+  return !!x.deliveryCode && !x.partnerConfirmedAt && !x.appealedAt && !!x.verifyBy && new Date(x.verifyBy) > at;
+}
+
+function applyPlan(s: State, plan: VerificationPlan, submissionId: string): State {
+  const sub = s.submissions.find((x) => x.id === submissionId);
+  const mission = sub && s.missions.find((m) => m.id === sub.missionId);
+  if (!sub || !mission) return s;
+  switch (plan.action) {
+    case "approve": {
+      const approvedBefore = historyFor(s, sub.userId, sub.id).approved;
+      const next = applyApproval(s, sub.id, null);
+      return shouldAudit({ approvedBefore, forced: plan.forceAudit, random: Math.random() }) ? patchSubmission(next, sub.id, { auditStatus: "pending" }) : next;
+    }
+    case "reject":
+      return applyRejection(s, sub.id, null, plan.reasonCode, "");
+    case "extra_proof": {
+      const code = newChallengeCode();
+      const next = patchSubmission(s, sub.id, { extraProofStatus: "requested", extraProofCode: code, extraProofDueAt: addHours(new Date(), EXTRA_PROOF_HOURS).toISOString() });
+      return {
+        ...next,
+        notifications: notify(next, sub.userId, (l) => ({
+          title: tx(l, "📸 Falta uma prova extra", "📸 One extra proof needed", "📸 Falta una prueba extra"),
+          message: tx(
+            l,
+            `Para concluir a verificação de "${localizedTitle(mission, l)}", escreva o código ${code} num papel e tire uma foto dele junto do local ou dos itens. Envie em "Minhas Submissões" em até ${EXTRA_PROOF_HOURS} horas.`,
+            `To finish checking "${localizedTitle(mission, l)}", write the code ${code} on a piece of paper and take a photo of it next to the place or the items. Send it in "My Submissions" within ${EXTRA_PROOF_HOURS} hours.`,
+            `Para terminar la verificación de "${localizedTitle(mission, l)}", escribe el código ${code} en un papel y toma una foto junto al lugar o los artículos. Envíala en "Mis Envíos" en hasta ${EXTRA_PROOF_HOURS} horas.`,
+          ),
+        })),
+      };
+    }
+    default:
+      return s;
+  }
+}
+
+/** Same as planAfterExtraProof: the AI compared the extra photo (with the code) with the original. */
+function finishExtraProof(s: State, submissionId: string, extra: AiAnalysis | null): State {
+  const sub = s.submissions.find((x) => x.id === submissionId);
+  const mission = sub && s.missions.find((m) => m.id === sub.missionId);
+  if (!sub || !mission) return s;
+  // Nobody could look at the extra photo (no AI for this camera photo): a person decides.
+  if (!extra) return patchSubmission(s, sub.id, { extraProofStatus: "failed", verifyBy: now() });
+  const verdict = extraProofVerdict(extra);
+  const checks = sub.aiChecks ?? {};
+  const original = checks.verdict ? (checks as AiAnalysis) : null;
+  const proofType = proofTypeOf(mission);
+  const extraCountOk = proofType === "count" && countCheck(sub.itemCount, extra.itemCount) === "ok";
+  const analysis = original ? { ...original, itemCount: extraCountOk ? extra.itemCount : original.itemCount } : null;
+  const trust = trustScore({
+    analysis,
+    proofType,
+    declaredCount: sub.itemCount,
+    location: { accuracy: sub.accuracy, simulated: sub.simulatedLocation, anywhere: mission.scope === "anywhere" },
+    history: historyFor(s, sub.userId, sub.id),
+    extraProofOk: verdict === "ok",
+    checkedIn: hasCheckedIn(s, mission, sub.userId),
+  });
+  let plan: VerificationPlan;
+  if (verdict === "failed") {
+    const extraDecision = decideProof({ settings: DEFAULT_AI_SETTINGS, analysis: extra, similar: null, foneReward: Number(mission.foneReward) });
+    plan = extraDecision.action === "reject" && extraDecision.reasonCode ? { action: "reject", reasonCode: extraDecision.reasonCode } : { action: "review" };
+  } else {
+    const reasonCode = sub.aiReasonCode === "count_mismatch" && extraCountOk ? null : (sub.aiReasonCode ?? null);
+    plan = planVerification({
+      mode: DEFAULT_AI_SETTINGS.mode,
+      decision: {
+        action: "review",
+        verdict: reasonCode ? (sub.aiVerdict ?? "review") : sub.aiVerdict === "reject" && !extraCountOk ? "reject" : "approve",
+        confidence: sub.aiConfidence ?? 0,
+        reasonCode,
+      },
+      analyzed: true,
+      aiExpected: true,
+      score: trust.score,
+      extraProofAsked: true,
+      windowClosed: false,
+      capExceeded: capExceeded(mission, sub.weightKg),
+      extraProofOk: true,
+    });
+  }
+  const next = patchSubmission(s, sub.id, {
+    extraProofStatus: verdict,
+    trustScore: trust.score,
+    aiChecks: { ...checks, trustFactors: trust.factors, extra },
+    verifyBy: plan.action === "review" ? now() : sub.verifyBy,
+  });
+  return applyPlan(next, plan, sub.id);
+}
+
+export type ExtraProofInput = {
+  submissionId: string;
+  photo: string;
+  photoHash: string;
+  /** The sample photo with the code (simulated analysis). */
+  sample?: boolean;
+  /** Camera/gallery photo analysed with the tester's own Gemini key. */
+  realAi?: { analysis: AiAnalysis; model: string } | { failed: true } | null;
+};
+
+/** Error codes: extra_proof_not_open, photo_required, duplicate_photo, storage. */
+export function submitExtraProof(input: ExtraProofInput): Result {
+  const user = me();
+  if (!user) return { error: "extra_proof_not_open" };
+  const sub = state.submissions.find((x) => x.id === input.submissionId && x.userId === user.id);
+  if (!sub || sub.status !== "pending" || sub.extraProofStatus !== "requested") return { error: "extra_proof_not_open" };
+  if (sub.extraProofDueAt && new Date(sub.extraProofDueAt) < new Date()) return { error: "extra_proof_not_open" };
+  if (!input.photo) return { error: "photo_required" };
+  const used = state.submissions.some((x) => x.photoHash === input.photoHash || x.photoBeforeHash === input.photoHash || x.extraPhotoHash === input.photoHash);
+  if (used) return { error: "duplicate_photo" };
+  const mission = state.missions.find((m) => m.id === sub.missionId);
+  if (!mission) return { error: "extra_proof_not_open" };
+  const real = input.sample ? null : (input.realAi ?? null);
+  const extra = input.sample
+    ? simulateExtraAnalysis(user.language, { proofType: proofTypeOf(mission), declaredCount: sub.itemCount ?? null })
+    : real && "analysis" in real
+      ? real.analysis
+      : null;
+  const ok = commit((s) =>
+    finishExtraProof(
+      patchSubmission(s, sub.id, { extraProofStatus: "sent", extraPhoto: input.photo, extraPhotoHash: input.photoHash, verifyBy: addHours(new Date(), VERIFY_WINDOW_HOURS).toISOString() }),
+      sub.id,
+      extra,
+    ),
+  );
+  return ok ? {} : { error: "storage" };
+}
+
+const extraProofOverdue = (x: Submission) =>
+  x.status === "pending" && x.extraProofStatus === "requested" && !!x.extraProofDueAt && new Date(x.extraProofDueAt) < new Date();
+
+/** Deliveries the collection point never weighed (same as step 1b of sweepVerifications). */
+const partnerOverdue = (x: Submission) =>
+  x.status === "pending" && !!x.deliveryCode && !x.partnerConfirmedAt && !x.appealedAt && Date.now() - new Date(x.submittedAt).getTime() > PARTNER_CONFIRM_HOURS * 3_600_000;
+
+/** Extra proofs not sent in time are refused (same as sweepVerifications). */
+function sweepState(s: State): State {
+  let next = s;
+  for (const sub of s.submissions.filter(extraProofOverdue)) {
+    next = patchSubmission(applyRejection(next, sub.id, null, "extra_proof_missing", ""), sub.id, { extraProofStatus: "expired", verifyBy: null });
+  }
+  for (const sub of s.submissions.filter(partnerOverdue)) {
+    next = patchSubmission(applyRejection(next, sub.id, null, "partner_missing", ""), sub.id, { verifyBy: null });
+  }
+  // Irregular dumping reports nobody confirmed in time (same as expireDumpReports).
+  if ((next.dumps ?? []).some((d) => isDumpOverdue(d))) {
+    next = { ...next, dumps: (next.dumps ?? []).map((d) => (isDumpOverdue(d) ? { ...d, status: "expired", needsReview: false } : d)) };
+  }
+  return next;
+}
+
+export function sweepDemoVerifications() {
+  if (state.submissions.some((x) => extraProofOverdue(x) || partnerOverdue(x))) commit(sweepState);
+}
+
+export function confirmAudit(submissionId: string): Result {
+  const auditor = me();
+  if (!canModerate(auditor)) return { error: "error_generic" };
+  const sub = state.submissions.find((x) => x.id === submissionId);
+  if (!sub || sub.status !== "approved" || sub.auditStatus !== "pending") return { error: "error_generic" };
+  if (sub.userId === auditor.id) return { error: "own_submission_warning" };
+  commit((s) => patchSubmission(s, sub.id, { auditStatus: "ok", auditedBy: auditor.id, auditedAt: now() }));
+  return {};
+}
+
+/** Same as revokeApproval: rejected, points back, unpaid FONE cancelled, the person is told why. */
+export function revokeAudit(submissionId: string, code: RejectionCode | null, reason: string, giveCard: boolean): Result & { paidFone?: boolean } {
+  const auditor = me();
+  if (!canModerate(auditor)) return { error: "error_generic" };
+  const sub = state.submissions.find((x) => x.id === submissionId);
+  const mission = sub && state.missions.find((m) => m.id === sub.missionId);
+  if (!sub || !mission || sub.status !== "approved" || sub.auditStatus !== "pending") return { error: "error_generic" };
+  if (sub.userId === auditor.id) return { error: "own_submission_warning" };
+  const typed = reason.trim().slice(0, 1000);
+  const text = typed || (code ? (rejectionReasonText(code, "pt") ?? "") : "");
+  if (text.length < 10) return { error: "reason_too_short" };
+  if (giveCard && text.length < CARD_NOTE_MIN) return { error: "card_note_short" };
+  const paidFone = state.rewards.some((r) => r.submissionId === sub.id && r.status === "paid");
+  const points = mission.pointsReward;
+  commit((s) => {
+    let next: State = {
+      ...patchSubmission(s, sub.id, {
+        status: "rejected",
+        auditStatus: "revoked",
+        auditedBy: auditor.id,
+        auditedAt: now(),
+        reviewedBy: auditor.id,
+        decidedBy: "human",
+        reviewedAt: now(),
+        rejectionReason: text,
+        rejectionCode: code,
+      }),
+      users: s.users.map((u) => (u.id === sub.userId ? { ...u, totalPoints: Math.max(0, u.totalPoints - points) } : u)),
+      rewards: s.rewards.filter((r) => r.submissionId !== sub.id || r.status === "paid"),
+    };
+    const why = (l: Lang) => composeRejectionMessage(code, typed, l).replace(/[.!\s]+$/, "") + ".";
+    next = {
+      ...next,
+      notifications: notify(next, sub.userId, (l) => ({
+        title: tx(l, "Comprovação revista pela auditoria", "Proof reviewed by the audit", "Comprobación revisada por la auditoría"),
+        message: tx(
+          l,
+          `A auditoria por amostragem revisou sua comprovação para "${localizedTitle(mission, l)}" e não pôde mantê-la. Motivo: ${why(l)} Os ${points} pontos foram retirados.`,
+          `The sample audit reviewed your proof for "${localizedTitle(mission, l)}" and could not keep it. Reason: ${why(l)} The ${points} points were removed.`,
+          `La auditoría por muestreo revisó tu comprobación para "${localizedTitle(mission, l)}" y no pudo mantenerla. Motivo: ${why(l)} Se retiraron los ${points} puntos.`,
+        ),
+      })),
+    };
+    if (!giveCard) return next;
+    return applyCard(next, { userId: sub.userId, type: "yellow", reason: cardReasonForRejection(code), note: text, issuerId: auditor.id, submissionId: sub.id });
+  });
+  return paidFone ? { paidFone: true } : {};
+}
+
+/* ------------------------------------------------------------------ */
 /* Approve / reject (shared by the moderators and the simulated AI)    */
 /* ------------------------------------------------------------------ */
 
 /** reviewerId null = automatic verification. */
 function applyApproval(s: State, submissionId: string, reviewerId: string | null): State {
+  const sub = s.submissions.find((x) => x.id === submissionId);
+  const mission = sub && s.missions.find((m) => m.id === sub.missionId);
+  if (!sub || !mission || sub.status !== "pending") return s;
+  return resolveDumpState(applyApprovalInner(s, submissionId, reviewerId), mission.id);
+}
+
+function applyApprovalInner(s: State, submissionId: string, reviewerId: string | null): State {
   const sub = s.submissions.find((x) => x.id === submissionId);
   const mission = sub && s.missions.find((m) => m.id === sub.missionId);
   if (!sub || !mission || sub.status !== "pending") return s;
@@ -913,20 +1365,31 @@ function canModerate(user: User | null): user is User {
   return !!user && canReview(user.role, moderatorsOn()) && !user.isBanned;
 }
 
-/** `weight`: the reviewer may correct the declared weight of a recycling delivery (same rule as the server). */
-export function approveSubmission(submissionId: string, weight?: string): Result {
+/**
+ * `correction`: the reviewer may correct the number of items of a count proof (weight re-estimated)
+ * or, for older recycling proofs, the declared weight (same rules as the server).
+ */
+export function approveSubmission(submissionId: string, correction?: string): Result {
   const reviewer = me();
   if (!canModerate(reviewer)) return { error: "error_generic" };
   const sub = state.submissions.find((s) => s.id === submissionId);
   if (!sub || sub.status !== "pending") return { error: "error_generic" };
   if (sub.userId === reviewer.id) return { error: "own_submission_warning" };
-  if (!state.missions.some((m) => m.id === sub.missionId)) return { error: "error_generic" };
+  const mission = state.missions.find((m) => m.id === sub.missionId);
+  if (!mission) return { error: "error_generic" };
   let weightKg = sub.weightKg ?? null;
-  if (sub.material && weight && weight.trim()) {
-    weightKg = parseWeightKg(weight);
+  let itemCount = sub.itemCount ?? null;
+  const raw = correction?.trim() ?? "";
+  if (itemCount !== null && raw) {
+    const n = Number(raw);
+    if (!/^\d{1,4}$/.test(raw) || n < 1 || n > MAX_ITEM_COUNT) return { error: "error_count_review_invalid" };
+    itemCount = n;
+    weightKg = estimatedKg(countRule(mission).item, n);
+  } else if (sub.material && raw) {
+    weightKg = parseWeightKg(raw);
     if (weightKg === null) return { error: "error_weight_invalid" };
   }
-  commit((s) => applyApproval({ ...s, submissions: s.submissions.map((x) => (x.id === sub.id ? { ...x, weightKg } : x)) }, sub.id, reviewer.id));
+  commit((s) => applyApproval({ ...s, submissions: s.submissions.map((x) => (x.id === sub.id ? { ...x, weightKg, itemCount } : x)) }, sub.id, reviewer.id));
   return {};
 }
 
@@ -977,6 +1440,8 @@ export function createMission(input: NewMission): Result {
   if (!valid) return { error: "invalid_form" };
   const sponsor = input.sponsorId ? (state.sponsors ?? []).find((x) => x.id === input.sponsorId) : null;
   if (input.sponsorId && !sponsor) return { error: "invalid_form" };
+  // Collection point missions happen at an active point, with a mission location.
+  if (input.collectionPointId && (input.scope === "anywhere" || !(state.collectionPoints ?? []).some((p) => p.id === input.collectionPointId && p.isActive))) return { error: "invalid_form" };
   const mission: Mission = {
     ...input,
     sponsorId: sponsor?.id ?? null,
@@ -1561,6 +2026,11 @@ export function exportMyData(): string | null {
         const offer = (state.offers ?? []).find((o) => o.id === r.offerId);
         return { partner: offer?.partnerName ?? null, benefit: offer?.title ?? null, code: r.code, createdAt: r.createdAt, usedAt: r.usedAt };
       }),
+    dailyQuiz: (state.quiz ?? []).filter((q) => q.userId === user.id).map(({ day, correct, points, finishedAt }) => ({ day, correct, points, finishedAt })),
+    dumpReports: (state.dumps ?? [])
+      .filter((d) => d.userId === user.id)
+      .map(({ id, latitude, longitude, city, size, note, status, createdAt }) => ({ id, latitude, longitude, city, size, note, status, createdAt })),
+    dumpConfirmations: (state.dumpConfirmations ?? []).filter((c) => c.userId === user.id).map(({ reportId, latitude, longitude, createdAt }) => ({ reportId, latitude, longitude, createdAt })),
   };
   return JSON.stringify(payload, null, 2);
 }
@@ -1754,7 +2224,16 @@ export function orgEventAllowance(orgId: string, s: State = state): number {
 
 export function createOrgMission(
   orgId: string,
-  input: { title: string; description: string; category: Category; points: number; scope: "local" | "anywhere"; startsAt?: string | null; endsAt?: string | null },
+  input: {
+    title: string;
+    description: string;
+    category: Category;
+    points: number;
+    scope: "local" | "anywhere";
+    startsAt?: string | null;
+    endsAt?: string | null;
+    proof?: { proofType: ProofType; countItem: CountItem | null; countTarget: number | null; collectionPointId?: string | null; error?: string };
+  },
 ): OrgResult {
   const user = me();
   const org = orgOf(state, orgId);
@@ -1769,6 +2248,9 @@ export function createOrgMission(
     if ("error" in parsed) return { error: parsed.error };
     window = parsed;
   }
+  if (input.proof?.error) return { error: "invalid" };
+  const point = input.proof?.collectionPointId ? (state.collectionPoints ?? []).find((p) => p.id === input.proof!.collectionPointId && p.isActive) : null;
+  if (input.proof?.collectionPointId && !point) return { error: "invalid" };
   const active = state.missions.filter((m) => m.organizationId === orgId && m.isActive && eventPhase(m) !== "closed").length;
   const limit = canActivateMission(org, active);
   if (limit) return { error: limit };
@@ -1777,11 +2259,16 @@ export function createOrgMission(
     title,
     description,
     category: input.category,
+    proofType: input.proof?.proofType ?? "photo",
+    countItem: input.proof?.countItem ?? null,
+    countTarget: input.proof?.countTarget ?? null,
     pointsReward: input.points,
     foneReward: "0.00",
-    latitude: -8.0476,
-    longitude: -34.877,
-    scope: "anywhere",
+    // Collection point missions happen at the point.
+    latitude: point?.latitude ?? -8.0476,
+    longitude: point?.longitude ?? -34.877,
+    scope: point ? "local" : "anywhere",
+    collectionPointId: point?.id ?? null,
     city: org.city,
     isActive: true,
     createdAt: now(),
@@ -1959,6 +2446,8 @@ export function impactRows(s: State = state): ImpactRow[] {
       longitude: mission.scope === "anywhere" ? null : mission.longitude,
       material: sub.material ?? null,
       weightKg: sub.weightKg ?? null,
+      itemCount: sub.itemCount ?? null,
+      weightSource: sub.weightSource ?? null,
     });
   }
   return rows;
@@ -2030,3 +2519,388 @@ export function regenerateOfferToken(offerId: string): Result {
   commit((s) => ({ ...s, offers: (s.offers ?? []).map((o) => (o.id === offerId ? { ...o, partnerToken: newPartnerToken() } : o)) }));
   return {};
 }
+
+/* ------------------------------------------------------------------ */
+/* Collection points (#/ponto/<token>) — same as src/lib/actions/points.ts */
+/* ------------------------------------------------------------------ */
+
+function findDelivery(token: string, raw: string) {
+  const point = (state.collectionPoints ?? []).find((p) => p.token === token);
+  if (!point || !point.isActive) return { error: "invalid" as const };
+  const code = parseDeliveryQr(raw);
+  if (!code) return { error: "invalid" as const };
+  const sub =
+    state.submissions.find((x) => x.deliveryCode === code && state.missions.some((m) => m.id === x.missionId && m.collectionPointId === point.id)) ?? null;
+  return { point, code, sub };
+}
+
+export function lookupDelivery(token: string, raw: string, lang: Lang): { error?: DeliveryError; firstName?: string; missionTitle?: string; code?: string } {
+  const found = findDelivery(token, raw);
+  if ("error" in found) return { error: found.error };
+  const error = deliveryError(found.sub);
+  if (error) return { error };
+  const mission = state.missions.find((m) => m.id === found.sub!.missionId);
+  return { firstName: firstName(userById(found.sub!.userId)?.name ?? ""), missionTitle: mission ? localizedTitle(mission, lang) : "", code: found.code };
+}
+
+export function confirmDelivery(token: string, raw: string, material: string, kg: string): { error?: DeliveryError; firstName?: string; kg?: number } {
+  const found = findDelivery(token, raw);
+  if ("error" in found) return { error: found.error };
+  const error = deliveryError(found.sub);
+  if (error) return { error };
+  const parsed = parseDeliveryInput(material, kg);
+  if ("error" in parsed) return { error: parsed.error };
+  const sub = found.sub!;
+  const mission = state.missions.find((m) => m.id === sub.missionId);
+  const owner = userById(sub.userId);
+  const ok = commit((s) => {
+    const next = patchSubmission(s, sub.id, { material: parsed.material, weightKg: parsed.kg, weightSource: "partner", partnerConfirmedAt: now(), partnerPointId: found.point.id });
+    const withNotice: State = {
+      ...next,
+      notifications: notify(next, sub.userId, (l) => ({
+        title: pointText(l).notifTitle,
+        message: pointText(l).notifMessage(found.point.name, formatKg(parsed.kg, l), mission ? localizedTitle(mission, l) : ""),
+      })),
+    };
+    return planAfterPartner(withNotice, sub.id);
+  });
+  if (!ok) return { error: "invalid" };
+  return { firstName: firstName(owner?.name ?? ""), kg: parsed.kg };
+}
+
+export function createCollectionPoint(input: { name: string; address: string; city: string }): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  const name = input.name.trim().slice(0, 80);
+  if (name.length < 3) return { error: "name" };
+  const point: DemoPoint = {
+    id: uid(),
+    name,
+    address: input.address.trim().slice(0, 160) || null,
+    city: input.city.trim().slice(0, 80) || null,
+    // New points sit in central Recife until the mission form sets the exact place.
+    latitude: -8.0578,
+    longitude: -34.8808,
+    token: newPartnerToken(),
+    isActive: true,
+    createdAt: now(),
+  };
+  commit((s) => ({ ...s, collectionPoints: [point, ...(s.collectionPoints ?? [])] }));
+  return {};
+}
+
+export function toggleCollectionPoint(pointId: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  commit((s) => ({ ...s, collectionPoints: (s.collectionPoints ?? []).map((p) => (p.id === pointId ? { ...p, isActive: !p.isActive } : p)) }));
+  return {};
+}
+
+export function regenerateCollectionPointToken(pointId: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  commit((s) => ({ ...s, collectionPoints: (s.collectionPoints ?? []).map((p) => (p.id === pointId ? { ...p, token: newPartnerToken() } : p)) }));
+  return {};
+}
+
+/** Numbers of a point: weighed deliveries, kg and deliveries still waiting. */
+export function pointStats(s: State, pointId: string) {
+  const weighed = s.submissions.filter((x) => x.partnerPointId === pointId && x.partnerConfirmedAt);
+  const missionIds = new Set(s.missions.filter((m) => m.collectionPointId === pointId).map((m) => m.id));
+  return {
+    confirmed: weighed.length,
+    totalKg: weighed.reduce((sum, x) => sum + Number(x.weightKg ?? 0), 0),
+    waiting: s.submissions.filter((x) => missionIds.has(x.missionId) && x.status === "pending" && !x.partnerConfirmedAt).length,
+    recent: [...weighed].sort((a, b) => b.partnerConfirmedAt!.localeCompare(a.partnerConfirmedAt!)).slice(0, 10),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Event check-in — same as src/lib/actions/checkin.ts                 */
+/* ------------------------------------------------------------------ */
+
+function randomSecret(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function checkIn(missionId: string, raw: string): Promise<{ error?: CheckinError; checkedInAt?: string }> {
+  const user = me();
+  if (!user) return { error: "not_member" };
+  const parsed = parseCheckinQr(raw);
+  if (!parsed) return { error: "invalid_code" };
+  if (parsed.missionId && parsed.missionId !== missionId) return { error: "wrong_event" };
+  const mission = state.missions.find((m) => m.id === missionId);
+  if (!mission || !mission.isActive || !mission.organizationId) return { error: "wrong_event" };
+  const phase = checkinPhase(mission);
+  if (phase === null) return { error: "wrong_event" };
+  if (phase !== "open") return { error: phase };
+  if (!orgRole(state, mission.organizationId, user.id)) return { error: "not_member" };
+  if (!mission.checkinSecret || !(await isValidCheckinCode(mission.checkinSecret, mission.id, parsed.code))) return { error: "invalid_code" };
+  const existing = (state.checkins ?? []).find((c) => c.missionId === missionId && c.userId === user.id);
+  if (existing) return { checkedInAt: existing.createdAt };
+  const checkin: DemoCheckin = { id: uid(), missionId, userId: user.id, createdAt: now() };
+  commit((s) => ({ ...s, checkins: [...(s.checkins ?? []), checkin] }));
+  return { checkedInAt: checkin.createdAt };
+}
+
+/** The organizer's screen: current code, QR payload and presences. Managers only. */
+export async function checkinDisplay(missionId: string): Promise<{ error?: string; code?: string; payload?: string; expiresAt?: string; present?: number }> {
+  const user = me();
+  const mission = state.missions.find((m) => m.id === missionId);
+  if (!user || !mission?.organizationId) return { error: "not_event" };
+  const role = orgRole(state, mission.organizationId, user.id);
+  if (!(role === "owner" || role === "manager")) return { error: "forbidden" };
+  if (checkinPhase(mission) === null) return { error: "not_event" };
+  let secret = mission.checkinSecret;
+  if (!secret) {
+    secret = randomSecret();
+    const created = secret;
+    commit((s) => ({ ...s, missions: s.missions.map((m) => (m.id === missionId && !m.checkinSecret ? { ...m, checkinSecret: created } : m)) }));
+    secret = state.missions.find((m) => m.id === missionId)?.checkinSecret ?? created;
+  }
+  const at = new Date();
+  const code = await checkinCode(secret, missionId, checkinWindow(at));
+  return { code, payload: checkinQrPayload(missionId, code), expiresAt: checkinCodeExpiresAt(at).toISOString(), present: (state.checkins ?? []).filter((c) => c.missionId === missionId).length };
+}
+
+/* ------------------------------------------------------------------ */
+/* Daily quiz (same rules as src/lib/actions/quiz.ts)                  */
+/* ------------------------------------------------------------------ */
+
+export function quizAttemptOf(s: State, userId: string, day: string): DemoQuizAttempt | null {
+  return (s.quiz ?? []).find((a) => a.userId === userId && a.day === day) ?? null;
+}
+
+export async function answerQuiz(day: string, index: number, choice: number): Promise<QuizAnswerResponse> {
+  const user = me();
+  if (!user || user.isBanned || isStaffExperience(user.role, moderatorsOn())) return { error: "not_allowed" };
+  if (day !== quizDay()) return { error: "new_day" };
+  if (!Number.isInteger(index) || index < 0 || index >= QUIZ_SIZE) return { error: "invalid" };
+  const result = checkQuizAnswer(day, index, choice, user.language);
+  if (!result) return { error: "invalid" };
+  const attempt = quizAttemptOf(state, user.id, day) ?? { userId: user.id, day, answers: [], correct: 0, points: 0, finishedAt: null };
+  if (index < attempt.answers.length) {
+    const stored = checkQuizAnswer(day, index, attempt.answers[index], user.language);
+    if (!stored) return { error: "invalid" };
+    return attempt.finishedAt ? { ...stored, finished: { correct: attempt.correct, points: attempt.points } } : stored;
+  }
+  if (index > attempt.answers.length || attempt.finishedAt) return { error: "invalid" };
+  const answers = [...attempt.answers, choice];
+  const correct = attempt.correct + (result.correct ? 1 : 0);
+  const finishing = answers.length === QUIZ_SIZE;
+  const points = finishing ? quizPoints(correct) : 0;
+  const updated: DemoQuizAttempt = { ...attempt, answers, correct, points, finishedAt: finishing ? now() : null };
+  commit((s) => ({
+    ...s,
+    quiz: [...(s.quiz ?? []).filter((a) => !(a.userId === user.id && a.day === day)), updated],
+    users: finishing ? s.users.map((u) => (u.id === user.id ? { ...u, totalPoints: u.totalPoints + points } : u)) : s.users,
+  }));
+  return finishing ? { ...result, finished: { correct, points } } : result;
+}
+
+/* ------------------------------------------------------------------ */
+/* Irregular dumping spots (same rules as src/lib/actions/dumps.ts)    */
+/* ------------------------------------------------------------------ */
+
+export type DumpResult = { error?: DumpError; success?: boolean; missionId?: string | null };
+type DumpLocation = { latitude: number; longitude: number; accuracy: number };
+
+function dumpItemOf(s: State, d: DemoDump, viewerId: string, from?: { lat: number; lng: number }): DumpItem {
+  const confirmations = (s.dumpConfirmations ?? []).filter((c) => c.reportId === d.id);
+  return {
+    id: d.id,
+    photoUrl: d.photoUrl,
+    latitude: d.latitude,
+    longitude: d.longitude,
+    size: d.size,
+    status: d.status,
+    needsReview: d.needsReview,
+    createdAt: d.createdAt,
+    city: d.city,
+    note: d.note,
+    rejectionCode: d.rejectionCode,
+    missionId: d.missionId,
+    distanceM: from ? dumpDistance(from.lat, from.lng, d.latitude, d.longitude) : undefined,
+    mine: d.userId === viewerId,
+    confirmedByMe: confirmations.some((c) => c.userId === viewerId),
+    reporterName: userById(d.userId, s)?.name ?? "—",
+    confirmations: confirmations.length,
+    aiReason: d.aiReason,
+  };
+}
+
+export function myDumps(s: State, userId: string): DumpItem[] {
+  return (s.dumps ?? []).filter((d) => d.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((d) => dumpItemOf(s, d, userId));
+}
+
+export function nearbyDumps(s: State, userId: string, lat: number, lng: number): DumpItem[] {
+  return (s.dumps ?? [])
+    .filter((d) => d.status === "open" || d.status === "confirmed")
+    .map((d) => dumpItemOf(s, d, userId, { lat, lng }))
+    .filter((d) => (d.distanceM ?? 0) <= DUMP_NEARBY_KM * 1000)
+    .sort((a, b) => (a.distanceM ?? 0) - (b.distanceM ?? 0))
+    .slice(0, 30);
+}
+
+export function adminDumps(s: State): DumpItem[] {
+  const viewer = s.currentUserId ?? "";
+  return [...(s.dumps ?? [])]
+    .sort((a, b) => Number(b.needsReview) - Number(a.needsReview) || b.createdAt.localeCompare(a.createdAt))
+    .map((d) => dumpItemOf(s, d, viewer));
+}
+
+function photoUsed(s: State, hash: string) {
+  return (
+    (s.dumps ?? []).some((d) => d.photoHash === hash) ||
+    (s.dumpConfirmations ?? []).some((c) => c.photoHash === hash) ||
+    s.submissions.some((x) => x.photoHash === hash || x.photoBeforeHash === hash)
+  );
+}
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Confirmation: cleanup mission at the spot + points to the reporter and the confirmer. */
+function confirmDumpState(s: State, reportId: string, confirmerId: string | null): State {
+  const report = (s.dumps ?? []).find((d) => d.id === reportId);
+  if (!report || !(report.status === "open" || report.status === "pending")) return s;
+  const fields = cleanupMission(report);
+  const mission: Mission = {
+    id: uid(),
+    title: fields.title,
+    titleEn: fields.titleEn,
+    titleEs: fields.titleEs,
+    description: fields.description,
+    descriptionEn: fields.descriptionEn,
+    descriptionEs: fields.descriptionEs,
+    context: fields.context,
+    latitude: report.latitude,
+    longitude: report.longitude,
+    category: "cleanup",
+    pointsReward: CLEANUP_POINTS[report.size],
+    foneReward: "0.00",
+    isActive: true,
+    createdAt: now(),
+    scope: "local",
+    city: report.city,
+    stateCode: report.stateCode,
+    origin: "auto",
+    needsReview: false,
+    proofType: "before_after",
+  };
+  const points = new Map<string, number>([[report.userId, DUMP_REPORT_POINTS]]);
+  if (confirmerId) points.set(confirmerId, (points.get(confirmerId) ?? 0) + DUMP_CONFIRM_POINTS);
+  const next: State = {
+    ...s,
+    missions: [mission, ...s.missions],
+    dumps: (s.dumps ?? []).map((d) => (d.id === reportId ? { ...d, status: "confirmed", needsReview: false, confirmedAt: now(), missionId: mission.id } : d)),
+    users: s.users.map((u) => (points.has(u.id) ? { ...u, totalPoints: u.totalPoints + (points.get(u.id) ?? 0) } : u)),
+  };
+  return { ...next, notifications: notify(next, report.userId, (lang) => ({ title: dumpText(lang).notifyConfirmedTitle, message: dumpText(lang).notifyConfirmed })) };
+}
+
+function resolveDumpState(s: State, missionId: string): State {
+  const report = (s.dumps ?? []).find((d) => d.missionId === missionId && d.status === "confirmed");
+  if (!report) return s;
+  const next: State = {
+    ...s,
+    dumps: (s.dumps ?? []).map((d) => (d.id === report.id ? { ...d, status: "resolved", resolvedAt: now() } : d)),
+    missions: s.missions.map((m) => (m.id === missionId ? { ...m, isActive: false } : m)),
+  };
+  return { ...next, notifications: notify(next, report.userId, (lang) => ({ title: dumpText(lang).notifyResolvedTitle, message: dumpText(lang).notifyResolved })) };
+}
+
+function rejectDumpState(s: State, reportId: string, code: DumpRejection, aiReason: string | null): State {
+  const report = (s.dumps ?? []).find((d) => d.id === reportId);
+  if (!report || !(report.status === "open" || report.status === "pending")) return s;
+  const next: State = { ...s, dumps: (s.dumps ?? []).map((d) => (d.id === reportId ? { ...d, status: "rejected", rejectionCode: code, needsReview: false, aiReason: aiReason ?? d.aiReason } : d)) };
+  return {
+    ...next,
+    notifications: notify(next, report.userId, (lang) => ({ title: dumpText(lang).notifyRejectedTitle, message: dumpText(lang).notifyRejected(dumpText(lang).rejection[code]) })),
+  };
+}
+
+function dumpCitizen(): User | null {
+  const user = me();
+  return user && !user.isBanned && !isStaffExperience(user.role, moderatorsOn()) ? user : null;
+}
+
+export async function reportDump(input: { photoUrl: string; hash: string; sample: SampleKind | null; size: DumpSize; note: string; location: DumpLocation }): Promise<DumpResult> {
+  const user = dumpCitizen();
+  if (!user) return { error: "not_allowed" };
+  const { latitude, longitude, accuracy } = input.location;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return { error: "location_required" };
+  if (accuracy > DUMP_MAX_ACCURACY_M) return { error: "location_inaccurate" };
+  const mine = (state.dumps ?? []).filter((d) => d.userId === user.id && new Date(d.createdAt) >= startOfToday());
+  if (mine.length >= DUMP_DAILY_LIMIT) return { error: "daily_limit" };
+  const near = (state.dumps ?? []).some(
+    (d) => ["pending", "open", "confirmed"].includes(d.status) && dumpDistance(latitude, longitude, d.latitude, d.longitude) <= DUMP_DEDUPE_M,
+  );
+  if (near) return { error: "nearby_open" };
+  if (photoUsed(state, input.hash)) return { error: "duplicate_photo" };
+  const place = await placeOf(latitude, longitude).catch(() => null);
+  // Sample photos get the simulated AI answer; a camera photo is published and the confirmation checks it.
+  const analysis = simulateAnalysis(input.sample, "cleanup", user.language);
+  const outcome = dumpOutcome(analysis);
+  const report: DemoDump = {
+    id: uid(),
+    userId: user.id,
+    photoUrl: input.photoUrl,
+    photoHash: input.hash,
+    latitude,
+    longitude,
+    accuracyM: Math.round(accuracy),
+    city: place?.city ?? null,
+    stateCode: place?.stateCode ?? null,
+    size: input.size,
+    note: input.note.trim().slice(0, 280) || null,
+    status: outcome.status === "review" ? "pending" : "open",
+    needsReview: outcome.status === "review",
+    aiReason: analysis?.explanation ?? null,
+    rejectionCode: null,
+    missionId: null,
+    createdAt: now(),
+    confirmedAt: null,
+    resolvedAt: null,
+  };
+  const ok = commit((s) => {
+    const next = { ...s, dumps: [report, ...(s.dumps ?? [])] };
+    return outcome.status === "rejected" ? rejectDumpState(next, report.id, outcome.code, report.aiReason) : next;
+  });
+  return ok ? { success: true } : { error: "invalid_photo" };
+}
+
+export function confirmDump(input: { reportId: string; photoUrl: string; hash: string; location: DumpLocation }): DumpResult {
+  const user = dumpCitizen();
+  if (!user) return { error: "not_allowed" };
+  const report = (state.dumps ?? []).find((d) => d.id === input.reportId);
+  if (!report || report.status !== "open") return { error: "not_found" };
+  if (report.userId === user.id) return { error: "own_report" };
+  if ((state.dumpConfirmations ?? []).some((c) => c.reportId === report.id && c.userId === user.id)) return { error: "already_confirmed" };
+  const { latitude, longitude, accuracy } = input.location;
+  if (accuracy > DUMP_MAX_ACCURACY_M) return { error: "location_inaccurate" };
+  if (dumpDistance(latitude, longitude, report.latitude, report.longitude) > DUMP_CONFIRM_RADIUS_M) return { error: "too_far" };
+  const today = (state.dumpConfirmations ?? []).filter((c) => c.userId === user.id && new Date(c.createdAt) >= startOfToday());
+  if (today.length >= DUMP_CONFIRM_DAILY_LIMIT) return { error: "daily_limit" };
+  if (photoUsed(state, input.hash)) return { error: "duplicate_photo" };
+  const confirmation: DemoDumpConfirmation = { id: uid(), reportId: report.id, userId: user.id, photoUrl: input.photoUrl, photoHash: input.hash, latitude, longitude, createdAt: now() };
+  commit((s) => confirmDumpState({ ...s, dumpConfirmations: [...(s.dumpConfirmations ?? []), confirmation] }, report.id, user.id));
+  const missionId = (state.dumps ?? []).find((d) => d.id === report.id)?.missionId ?? null;
+  return missionId ? { success: true, missionId } : { error: "not_found" };
+}
+
+export async function adminDumpDecision(reportId: string, decision: "publish" | "confirm" | "reject"): Promise<{ error?: string }> {
+  if (!isAdmin(me())) return { error: "forbidden" };
+  const report = (state.dumps ?? []).find((d) => d.id === reportId);
+  if (!report || !(report.status === "open" || report.status === "pending")) return { error: "not_found" };
+  if (decision === "reject") commit((s) => rejectDumpState(s, reportId, "admin", null));
+  else if (decision === "confirm") commit((s) => confirmDumpState(s, reportId, null));
+  else if (report.status === "pending") commit((s) => ({ ...s, dumps: (s.dumps ?? []).map((d) => (d.id === reportId ? { ...d, status: "open", needsReview: false } : d)) }));
+  else return { error: "not_found" };
+  return {};
+}
+
+// Deadlines that passed while the app was closed.
+sweepDemoVerifications();

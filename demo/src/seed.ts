@@ -1,14 +1,15 @@
-import type { ChatMessage, DemoInvoice, DemoOffer, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
+import type { ChatMessage, DemoCheckin, DemoDump, DemoDumpConfirmation, DemoInvoice, DemoOffer, DemoPoint, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
 import { PAYMENTS_ENABLED } from "@/lib/features";
-import type { Material } from "@/lib/impact";
+import { COUNT_ITEM_INFO, countRule, estimatedKg } from "@/lib/proof";
 import { DEFAULT_LANG, type Lang } from "@/lib/i18n";
 import { registerText } from "./seed-text";
+import { CLEANUP_POINTS, cleanupMission } from "@/lib/dumps";
 
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 13;
+export const STATE_VERSION = 17;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -96,7 +97,8 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       description: "Recolha pelo menos um saco de resíduos na faixa de areia e descarte corretamente.",
       descriptionEn: "Collect at least one bag of waste from the sand and dispose of it properly.",
       descriptionEs: "Recoge al menos una bolsa de residuos en la arena y deséchala correctamente.",
-      ...C({ pt: "Leve luvas e sacos. Fotografe o material recolhido com a praia ao fundo.", en: "Bring gloves and bags. Photograph the waste you collected with the beach in the background.", es: "Lleva guantes y bolsas. Fotografía lo recogido con la playa al fondo." }),
+      ...C({ pt: "Leve luvas e sacos. Tire uma foto ANTES do trecho sujo e outra DEPOIS, do mesmo lugar, com os sacos cheios.", en: "Bring gloves and bags. Take a BEFORE photo of the dirty stretch and an AFTER photo from the same spot, with the full bags.", es: "Lleva guantes y bolsas. Toma una foto ANTES del tramo sucio y otra DESPUÉS, desde el mismo lugar, con las bolsas llenas." }),
+      proofType: "before_after",
       ...I({ pt: "Resíduos plásticos na praia acabam no mar e afetam tartarugas e peixes.", en: "Plastic waste on the beach ends up in the sea and harms turtles and fish.", es: "Los residuos plásticos de la playa terminan en el mar y afectan a tortugas y peces." }),
       latitude: -8.1196,
       longitude: -34.8956,
@@ -122,6 +124,7 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       latitude: -8.0376,
       longitude: -34.9035,
       category: "planting",
+      proofType: "photo",
       pointsReward: 80,
       foneReward: "40.00",
       isActive: true,
@@ -132,13 +135,16 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       scope: "local",
       city: "Recife",
       stateCode: "PE",
-      title: "Entrega de recicláveis no Marco Zero",
-      titleEn: "Drop off recyclables at Marco Zero",
-      titleEs: "Entrega de reciclables en el Marco Zero",
-      description: "Separe recicláveis em casa e entregue no ponto de coleta seletiva.",
-      descriptionEn: "Sort recyclables at home and drop them off at the collection point.",
-      descriptionEs: "Separa reciclables en casa y entrégalos en el punto de recolección.",
-      ...C({ pt: "Fotografe o material separado no ponto de coleta.", en: "Photograph the sorted material at the collection point.", es: "Fotografía el material separado en el punto de recolección." }),
+      title: "Entregue 20 garrafas PET no Marco Zero",
+      titleEn: "Drop off 20 PET bottles at Marco Zero",
+      titleEs: "Entrega 20 botellas PET en el Marco Zero",
+      description: "Junte pelo menos 20 garrafas PET vazias em casa e entregue no ponto de coleta seletiva do Marco Zero.",
+      descriptionEn: "Save at least 20 empty PET bottles at home and drop them off at the Marco Zero collection point.",
+      descriptionEs: "Junta al menos 20 botellas PET vacías en casa y entrégalas en el punto de recolección del Marco Zero.",
+      ...C({ pt: "No ponto de coleta, espalhe as garrafas no chão sem empilhar e fotografe todas juntas antes de entregar.", en: "At the collection point, spread the bottles on the ground without stacking and photograph them all before handing them in.", es: "En el punto de recolección, extiende las botellas en el suelo sin apilar y fotografíalas todas antes de entregarlas." }),
+      proofType: "count",
+      countItem: "pet_bottle",
+      countTarget: 20,
       ...I({ pt: "A reciclagem gera renda para cooperativas de catadores e reduz o lixo em aterros.", en: "Recycling creates income for waste-picker cooperatives and keeps waste out of landfills.", es: "El reciclaje genera ingresos para cooperativas de recicladores y reduce la basura en vertederos." }),
       latitude: -8.0631,
       longitude: -34.8711,
@@ -156,10 +162,13 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       title: "Doação de roupas no Parque Dona Lindu",
       titleEn: "Clothing donation at Dona Lindu Park",
       titleEs: "Donación de ropa en el Parque Dona Lindu",
-      description: "Doe roupas em bom estado na campanha de arrecadação.",
-      descriptionEn: "Donate clothes in good condition to the collection campaign.",
-      descriptionEs: "Dona ropa en buen estado en la campaña de recolección.",
-      ...C({ pt: "Fotografe a entrega no ponto de arrecadação.", en: "Photograph the drop-off at the donation point.", es: "Fotografía la entrega en el punto de recolección." }),
+      description: "Doe pelo menos 3 peças de roupa em bom estado na campanha de arrecadação.",
+      descriptionEn: "Donate at least 3 items of clothing in good condition to the collection campaign.",
+      descriptionEs: "Dona al menos 3 prendas de ropa en buen estado en la campaña de recolección.",
+      ...C({ pt: "No ponto de arrecadação, estenda as peças lado a lado e fotografe antes de entregar.", en: "At the donation point, lay the items side by side and photograph them before handing them in.", es: "En el punto de recolección, extiende las prendas una al lado de otra y fotografíalas antes de entregarlas." }),
+      proofType: "count",
+      countItem: "clothing",
+      countTarget: 3,
       ...I({ pt: "Reaproveitar roupas reduz o descarte têxtil e ajuda famílias da comunidade.", en: "Reusing clothes cuts textile waste and helps families in the community.", es: "Reutilizar ropa reduce el desecho textil y ayuda a familias de la comunidad." }),
       latitude: -8.1366,
       longitude: -34.9008,
@@ -180,7 +189,8 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       description: "Recolha resíduos às margens do rio na Rua da Aurora e separe o que for reciclável.",
       descriptionEn: "Pick up waste along the river on Rua da Aurora and sort what can be recycled.",
       descriptionEs: "Recoge residuos en la orilla del río en la Rua da Aurora y separa lo reciclable.",
-      ...C({ pt: "Use luvas, não entre na água e fotografe os sacos recolhidos com o rio ao fundo.", en: "Wear gloves, stay out of the water and photograph the bags with the river in the background.", es: "Usa guantes, no entres al agua y fotografía las bolsas con el río al fondo." }),
+      ...C({ pt: "Use luvas e não entre na água. Foto ANTES do trecho e foto DEPOIS do mesmo ângulo, com os sacos recolhidos e o rio ao fundo.", en: "Wear gloves and stay out of the water. A BEFORE photo of the stretch and an AFTER photo from the same angle, with the bags and the river in the background.", es: "Usa guantes y no entres al agua. Foto ANTES del tramo y foto DESPUÉS desde el mismo ángulo, con las bolsas y el río al fondo." }),
+      proofType: "before_after",
       ...I({ pt: "O lixo das margens chega ao mar pelo rio e entope a drenagem nas chuvas.", en: "Litter on the riverbanks reaches the sea through the river and clogs drains when it rains.", es: "La basura de las orillas llega al mar por el río y tapa el drenaje cuando llueve." }),
       latitude: -8.0597,
       longitude: -34.8796,
@@ -198,10 +208,13 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       title: "Coleta de óleo de cozinha em Olinda",
       titleEn: "Cooking oil collection in Olinda",
       titleEs: "Recolección de aceite de cocina en Olinda",
-      description: "Junte óleo de cozinha usado em garrafa PET e entregue no ponto de coleta do Alto da Sé.",
-      descriptionEn: "Store used cooking oil in a PET bottle and deliver it to the Alto da Sé collection point.",
-      descriptionEs: "Junta aceite de cocina usado en una botella PET y entrégalo en el punto del Alto da Sé.",
-      ...C({ pt: "Fotografe a garrafa no ponto de coleta.", en: "Photograph the bottle at the collection point.", es: "Fotografía la botella en el punto de recolección." }),
+      description: "Encha uma garrafa PET de 2 litros com óleo de cozinha usado e entregue no ponto de coleta do Alto da Sé.",
+      descriptionEn: "Fill a 2-litre PET bottle with used cooking oil and deliver it to the Alto da Sé collection point.",
+      descriptionEs: "Llena una botella PET de 2 litros con aceite de cocina usado y entrégala en el punto del Alto da Sé.",
+      ...C({ pt: "Fotografe a garrafa cheia e fechada no ponto de coleta.", en: "Photograph the full, closed bottle at the collection point.", es: "Fotografía la botella llena y cerrada en el punto de recolección." }),
+      proofType: "count",
+      countItem: "oil_bottle",
+      countTarget: 1,
       ...I({ pt: "Um litro de óleo pode contaminar até 25 mil litros de água.", en: "One litre of oil can contaminate up to 25,000 litres of water.", es: "Un litro de aceite puede contaminar hasta 25 mil litros de agua." }),
       latitude: -8.0137,
       longitude: -34.8553,
@@ -215,14 +228,17 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     {
       id: "m-casa-reciclaveis",
       scope: "anywhere",
-      title: "Separe o lixo reciclável em casa",
-      titleEn: "Sort recyclables at home",
-      titleEs: "Separa los reciclables en casa",
-      description: "Monte um ponto de separação em casa (plástico, papel, metal e vidro) e mostre os recicláveis limpos e separados.",
-      descriptionEn: "Set up a sorting spot at home (plastic, paper, metal and glass) and show the clean, sorted recyclables.",
-      descriptionEs: "Arma un punto de separación en casa (plástico, papel, metal y vidrio) y muestra los reciclables limpios y separados.",
-      ...C({ pt: "Fotografe os recicláveis limpos e separados por tipo (sacolas, caixas ou lixeiras diferentes).", en: "Photograph the clean recyclables sorted by type (separate bags, boxes or bins).", es: "Fotografía los reciclables limpios y separados por tipo (bolsas, cajas o cubos distintos)." }),
-      ...I({ pt: "Material limpo e separado vale mais para as cooperativas de catadores e não vai para o aterro.", en: "Clean, sorted material is worth more to waste-picker cooperatives and stays out of the landfill.", es: "El material limpio y separado vale más para las cooperativas y no va al vertedero." }),
+      title: "Junte 30 latinhas de alumínio",
+      titleEn: "Collect 30 aluminium cans",
+      titleEs: "Junta 30 latas de aluminio",
+      description: "Junte pelo menos 30 latinhas vazias e amassadas para entregar a um catador ou ponto de coleta.",
+      descriptionEn: "Save at least 30 empty, crushed cans to give to a waste picker or a collection point.",
+      descriptionEs: "Junta al menos 30 latas vacías y aplastadas para entregar a un reciclador o punto de recolección.",
+      ...C({ pt: "Espalhe as latinhas no chão sem empilhar e fotografe todas de cima.", en: "Spread the cans on the floor without stacking and photograph them all from above.", es: "Extiende las latas en el suelo sin apilar y fotografíalas todas desde arriba." }),
+      ...I({ pt: "A latinha é 100% reciclável, volta à prateleira em cerca de 60 dias e é uma das principais rendas dos catadores.", en: "Cans are 100% recyclable, are back on the shelf in about 60 days and are one of the main incomes of waste pickers.", es: "La lata es 100% reciclable, vuelve a la estantería en unos 60 días y es uno de los principales ingresos de los recicladores." }),
+      proofType: "count",
+      countItem: "can",
+      countTarget: 30,
       latitude: -8.0476,
       longitude: -34.877,
       category: "recycling",
@@ -236,14 +252,17 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       scope: "anywhere",
       sponsorName: "Cooperativa Reciclar Juntos",
       sponsorId: "sp-recicla",
-      title: "Guarde o óleo de cozinha usado",
-      titleEn: "Store used cooking oil",
-      titleEs: "Guarda el aceite de cocina usado",
-      description: "Em vez de jogar na pia, guarde o óleo usado frio numa garrafa PET fechada para levar a um ponto de coleta.",
-      descriptionEn: "Instead of pouring it down the sink, store cold used oil in a closed PET bottle to take to a collection point.",
-      descriptionEs: "En lugar de tirarlo al fregadero, guarda el aceite usado frío en una botella PET cerrada para llevarlo a un punto de recolección.",
-      ...C({ pt: "Fotografe a garrafa PET fechada com o óleo usado.", en: "Photograph the closed PET bottle with the used oil.", es: "Fotografía la botella PET cerrada con el aceite usado." }),
-      ...I({ pt: "Um litro de óleo pode contaminar milhares de litros de água e entupir a rede de esgoto.", en: "One litre of oil can contaminate thousands of litres of water and clog the sewer system.", es: "Un litro de aceite puede contaminar miles de litros de agua y tapar el alcantarillado." }),
+      title: "Junte 10 pilhas usadas",
+      titleEn: "Collect 10 used batteries",
+      titleEs: "Junta 10 pilas usadas",
+      description: "Pilha não vai no lixo comum. Junte pelo menos 10 pilhas usadas para levar a um ponto de coleta (mercados e farmácias costumam ter).",
+      descriptionEn: "Batteries don't go in the regular bin. Save at least 10 used batteries to take to a collection point (supermarkets and pharmacies often have one).",
+      descriptionEs: "Las pilas no van a la basura común. Junta al menos 10 pilas usadas para llevar a un punto de recolección (supermercados y farmacias suelen tener).",
+      ...C({ pt: "Espalhe as pilhas sobre uma mesa, lado a lado, e fotografe de cima.", en: "Lay the batteries side by side on a table and photograph them from above.", es: "Coloca las pilas una al lado de otra sobre una mesa y fotografíalas desde arriba." }),
+      ...I({ pt: "Pilhas no lixo comum liberam metais pesados que contaminam o solo e a água.", en: "Batteries in the regular bin release heavy metals that pollute soil and water.", es: "Las pilas en la basura común liberan metales pesados que contaminan el suelo y el agua." }),
+      proofType: "count",
+      countItem: "battery",
+      countTarget: 10,
       latitude: -8.0476,
       longitude: -34.877,
       category: "recycling",
@@ -269,17 +288,23 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
   const olindaOleo = missions.find((m) => m.id === "m-olinda-oleo") ?? marcoZero;
   /** Approved deliveries of the example people in the last months (no FONE: already paid out before the demo). */
   const impactHistory = (): Submission[] => {
-    const entries: [string, Mission, Material, number, number][] = [
-      ["u-bot-1", marcoZero, "plastic", 6.0, 20],
-      ["u-bot-2", marcoZero, "paper", 8.5, 34],
-      ["u-bot-3", marcoZero, "glass", 5.0, 47],
-      ["u-bot-5", marcoZero, "plastic", 3.0, 15],
-      ["u-bot-1", olindaOleo, "oil", 2.0, 52],
-      ["u-bot-2", olindaOleo, "oil", 1.5, 70],
-      ["u-bot-4", olindaOleo, "oil", 3.0, 25],
+    const cans = missions.find((m) => m.id === "m-casa-reciclaveis") ?? marcoZero;
+    const batteries = missions.find((m) => m.id === "m-casa-oleo") ?? marcoZero;
+    // [person, mission, items counted, days ago]: the weight is estimated from the items (src/lib/proof.ts).
+    const entries: [string, Mission, number, number][] = [
+      ["u-bot-1", marcoZero, 60, 20],
+      ["u-bot-2", cans, 120, 34],
+      ["u-bot-3", marcoZero, 45, 47],
+      ["u-bot-5", cans, 80, 15],
+      ["u-bot-3", batteries, 24, 40],
+      ["u-bot-1", olindaOleo, 2, 52],
+      ["u-bot-2", olindaOleo, 1, 70],
+      ["u-bot-4", olindaOleo, 1, 25],
     ];
-    return entries.map(([userId, mission, material, kg, days]) =>
-      sub({
+    return entries.map(([userId, mission, count, days]) => {
+      const { item } = countRule(mission);
+      const material = COUNT_ITEM_INFO[item].material;
+      return sub({
         id: `s-hist-${userId}-${mission.id}`,
         userId,
         missionId: mission.id,
@@ -287,15 +312,16 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
         photo: P(material === "oil" ? "🛢️" : "♻️", "#2dd4bf", "#0f766e", ({ pt: "Entrega de recicláveis", en: "Recyclables drop-off", es: "Entrega de reciclables" })),
         report: L({ pt: "Separei o material em casa ao longo das semanas e entreguei no ponto de coleta indicado na missão, com foto no local.", en: "I sorted the material at home over a few weeks and dropped it off at the collection point named in the mission, with a photo on site.", es: "Separé el material en casa durante semanas y lo entregué en el punto de recolección de la misión, con foto en el lugar." }),
         material,
-        weightKg: kg,
-        declaredWeightKg: kg,
+        itemCount: count,
+        weightKg: estimatedKg(item, count),
+        weightSource: "estimated",
         status: "approved",
         reviewedBy: DEMO_IDS.moderator,
         rejectionReason: null,
         submittedAt: ago(days * DAY + 3 * 60 * 60 * 1000),
         reviewedAt: ago(days * DAY),
-      }),
-    );
+      });
+    });
   };
 
   const submissions: Submission[] = [
@@ -306,6 +332,7 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       missionId: boaViagem.id,
       at: boaViagem,
       photo: P("🧹", "#38bdf8", "#2563eb", ({ pt: "3 sacos recolhidos na areia", en: "3 bags collected from the sand", es: "3 bolsas recogidas en la arena" })),
+      photoBefore: P("🗑️", "#fcd34d", "#b45309", ({ pt: "Antes: lixo espalhado na areia", en: "Before: litter scattered on the sand", es: "Antes: basura esparcida en la arena" })),
       report: L({ pt: "Fui com minha irmã no fim da tarde e recolhemos três sacos de lixo, principalmente copos plásticos e tampinhas perto do posto 7.", en: "I went with my sister in the late afternoon and we collected three bags of litter, mostly plastic cups and bottle caps near lifeguard post 7.", es: "Fui con mi hermana al final de la tarde y recogimos tres bolsas de basura, sobre todo vasos plásticos y tapitas cerca del puesto 7." }),
       status: "pending",
       reviewedBy: null,
@@ -332,10 +359,11 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       missionId: marcoZero.id,
       at: marcoZero,
       photo: P("♻️", "#2dd4bf", "#0d9488", ({ pt: "Recicláveis separados", en: "Sorted recyclables", es: "Reciclables separados" })),
-      report: L({ pt: "Separei garrafas PET, latinhas e papelão durante a semana e entreguei tudo no ponto de coleta seletiva do Marco Zero.", en: "I sorted PET bottles, cans and cardboard during the week and took everything to the Marco Zero recycling point.", es: "Separé botellas PET, latas y cartón durante la semana y lo entregué todo en el punto de reciclaje del Marco Zero." }),
+      report: L({ pt: "Juntei 25 garrafas PET durante a semana, espalhei no chão do ponto de coleta do Marco Zero e fotografei antes de entregar.", en: "I saved 25 PET bottles during the week, spread them on the ground at the Marco Zero collection point and took the photo before handing them in.", es: "Junté 25 botellas PET durante la semana, las extendí en el suelo del punto de recolección del Marco Zero y tomé la foto antes de entregarlas." }),
       material: "plastic",
-      weightKg: 4.5,
-      declaredWeightKg: 4.5,
+      itemCount: 25,
+      weightKg: estimatedKg("pet_bottle", 25),
+      weightSource: "estimated",
       status: "pending",
       reviewedBy: null,
       rejectionReason: null,
@@ -348,11 +376,12 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       userId: DEMO_IDS.citizen,
       missionId: marcoZero.id,
       at: marcoZero,
-      photo: P("♻️", "#2dd4bf", "#0f766e", ({ pt: "Garrafas e latinhas", en: "Bottles and cans", es: "Botellas y latas" })),
-      report: L({ pt: "Juntei as garrafas e latinhas lá de casa durante duas semanas e levei ao ponto de coleta do Marco Zero no domingo.", en: "I saved the bottles and cans from home for two weeks and took them to the Marco Zero collection point on Sunday.", es: "Junté las botellas y latas de casa durante dos semanas y las llevé al punto de recolección del Marco Zero el domingo." }),
-      material: "metal",
-      weightKg: 2.5,
-      declaredWeightKg: 2.5,
+      photo: P("♻️", "#2dd4bf", "#0f766e", ({ pt: "32 garrafas PET", en: "32 PET bottles", es: "32 botellas PET" })),
+      report: L({ pt: "Juntei 32 garrafas PET lá de casa durante duas semanas e levei ao ponto de coleta do Marco Zero no domingo.", en: "I saved 32 PET bottles from home for two weeks and took them to the Marco Zero collection point on Sunday.", es: "Junté 32 botellas PET de casa durante dos semanas y las llevé al punto de recolección del Marco Zero el domingo." }),
+      material: "plastic",
+      itemCount: 32,
+      weightKg: estimatedKg("pet_bottle", 32),
+      weightSource: "estimated",
       status: "approved",
       reviewedBy: DEMO_IDS.moderator,
       rejectionReason: null,
@@ -407,8 +436,27 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       photo: P("🧹", "#7dd3fc", "#0284c7", ({ pt: "Saco de lixo cheio", en: "Full bag of litter", es: "Bolsa de basura llena" })),
       report: L({ pt: "Fiz uma caminhada na orla recolhendo lixo e enchi um saco grande com plástico, isopor e bitucas de cigarro.", en: "I walked along the seafront picking up litter and filled a large bag with plastic, styrofoam and cigarette butts.", es: "Caminé por la costanera recogiendo basura y llené una bolsa grande con plástico, poliestireno y colillas." }),
       status: "approved",
-      reviewedBy: DEMO_IDS.moderator,
+      // Approved by the automatic verification and drawn for the sample audit (Moderation → Auditoria).
+      photoBefore: P("🗑️", "#fde68a", "#b45309", ({ pt: "Antes: orla com lixo", en: "Before: littered seafront", es: "Antes: costanera con basura" })),
+      reviewedBy: null,
       rejectionReason: null,
+      decidedBy: "ai",
+      aiStatus: "done",
+      aiModel: "simulated",
+      aiVerdict: "approve",
+      aiConfidence: 90,
+      aiReasonCode: null,
+      aiSummary: L({ pt: "Saco de lixo cheio na orla, compatível com a missão de limpeza.", en: "Full bag of litter on the seafront, consistent with the clean-up mission.", es: "Bolsa de basura llena en la costanera, compatible con la misión de limpieza." }),
+      trustScore: 82,
+      aiChecks: {
+        trustFactors: [
+          { key: "ai_approve", points: 45 },
+          { key: "gps_precise", points: 20 },
+          { key: "history_new", points: 7 },
+          { key: "evidence_before_after", points: 10 },
+        ],
+      },
+      auditStatus: "pending",
       submittedAt: ago(2 * DAY),
       reviewedAt: ago(1 * DAY),
     }),
@@ -479,8 +527,10 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     orgMember(company.id, "u-bot-1", "owner", 45),
     orgMember(company.id, "u-bot-5", "member", 40),
   ];
-  const orgMission = (id: string, title: Text3, description: Text3, category: Mission["category"], points: number, days: number): Mission => ({
+  type Proof = Pick<Mission, "proofType" | "countItem" | "countTarget">;
+  const orgMission = (id: string, title: Text3, description: Text3, category: Mission["category"], points: number, days: number, proof: Proof = {}): Mission => ({
     id,
+    ...proof,
     title: title.pt,
     titleEn: title.en,
     titleEs: title.es,
@@ -500,9 +550,9 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     organizationId: school.id,
   });
   const schoolMissions = [
-    orgMission("m-org-pilhas", { pt: "Coleta de pilhas e baterias", en: "Battery collection", es: "Recolección de pilas y baterías" }, { pt: "Traga pilhas usadas para a caixa de coleta da escola (bloco B) e fotografe a entrega.", en: "Bring used batteries to the school collection box (block B) and photograph the drop-off.", es: "Trae pilas usadas a la caja de recolección de la escuela (bloque B) y fotografía la entrega." }, "recycling", 30, 5),
-    orgMission("m-org-horta", { pt: "Cuide da horta da escola", en: "Look after the school garden", es: "Cuida la huerta de la escuela" }, { pt: "Regue, retire ervas daninhas ou plante uma muda na horta da escola. Foto mostrando o canteiro.", en: "Water, weed or plant a seedling in the school garden. Photo showing the bed.", es: "Riega, quita malezas o planta un plantín en la huerta de la escuela. Foto mostrando el cantero." }, "planting", 40, 5),
-    orgMission("m-org-garrafa", { pt: "Semana da garrafa reutilizável", en: "Reusable bottle week", es: "Semana de la botella reutilizable" }, { pt: "Use sua garrafa reutilizável em vez de copos descartáveis durante a semana. Foto com a garrafa na escola.", en: "Use your reusable bottle instead of disposable cups all week. Photo with the bottle at school.", es: "Usa tu botella reutilizable en lugar de vasos descartables durante la semana. Foto con la botella en la escuela." }, "other", 20, 2),
+    orgMission("m-org-pilhas", { pt: "Coleta de pilhas e baterias", en: "Battery collection", es: "Recolección de pilas y baterías" }, { pt: "Traga pelo menos 10 pilhas usadas para a caixa de coleta da escola (bloco B). Antes de depositar, espalhe as pilhas sobre a mesa e fotografe.", en: "Bring at least 10 used batteries to the school collection box (block B). Before dropping them in, lay them out on the table and take a photo.", es: "Trae al menos 10 pilas usadas a la caja de recolección de la escuela (bloque B). Antes de depositarlas, extiéndelas sobre la mesa y toma una foto." }, "recycling", 30, 5, { proofType: "count", countItem: "battery", countTarget: 10 }),
+    orgMission("m-org-horta", { pt: "Cuide da horta da escola", en: "Look after the school garden", es: "Cuida la huerta de la escuela" }, { pt: "Regue, retire ervas daninhas ou plante uma muda na horta da escola. Foto mostrando o canteiro.", en: "Water, weed or plant a seedling in the school garden. Photo showing the bed.", es: "Riega, quita malezas o planta un plantín en la huerta de la escuela. Foto mostrando el cantero." }, "planting", 40, 5, { proofType: "photo" }),
+    orgMission("m-org-garrafa", { pt: "Caixas de leite para a reciclagem", en: "Milk cartons for recycling", es: "Cajas de leche para el reciclaje" }, { pt: "Junte pelo menos 20 caixas de leite ou suco limpas e abertas e traga para o ponto da escola. Espalhe as caixas lado a lado e fotografe.", en: "Save at least 20 clean, flattened milk or juice cartons and bring them to the school drop-off. Lay them side by side and take a photo.", es: "Junta al menos 20 cajas de leche o jugo limpias y abiertas y tráelas al punto de la escuela. Extiéndelas una al lado de otra y toma una foto." }, "recycling", 20, 2, { proofType: "count", countItem: "carton", countTarget: 20 }),
   ];
   missions.push(...schoolMissions);
   const orgSub = (id: string, userId: string, mission: Mission, days: number, emoji: string, caption: Text3): Submission =>
@@ -559,8 +609,8 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     d.setHours(hour, 0, 0, 0);
     return d.getTime();
   };
-  const eventMission = (id: string, orgId: string, title: Text3, description: Text3, category: Mission["category"], points: number, start: number, hours: number): Mission => ({
-    ...orgMission(id, title, description, category, points, 6),
+  const eventMission = (id: string, orgId: string, title: Text3, description: Text3, category: Mission["category"], points: number, start: number, hours: number, proof: Proof = {}): Mission => ({
+    ...orgMission(id, title, description, category, points, 6, proof),
     organizationId: orgId,
     sponsorName: null,
     startsAt: new Date(start).toISOString(),
@@ -578,6 +628,7 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     50,
     at(lastSaturday, 7),
     4,
+    { proofType: "before_after" },
   );
   const parkCleanup = eventMission(
     "m-ev-jaqueira",
@@ -588,19 +639,241 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     50,
     at(nextSaturday, 8),
     4,
+    { proofType: "before_after" },
   );
   const schoolDrive = eventMission(
     "m-ev-feira",
     school.id,
     { pt: "Gincana de recicláveis da Feira de Ciências", en: "Science Fair recycling challenge", es: "Competencia de reciclables de la Feria de Ciencias" },
-    { pt: "Traga recicláveis separados para a gincana no pátio e fotografe a entrega na mesa da sua turma.", en: "Bring sorted recyclables to the challenge in the courtyard and photograph the drop-off at your class table.", es: "Trae reciclables separados a la competencia en el patio y fotografía la entrega en la mesa de tu grupo." },
+    { pt: "Traga pelo menos 15 garrafas PET para a gincana no pátio. Espalhe as garrafas na mesa da sua turma e fotografe antes de entregar.", en: "Bring at least 15 PET bottles to the challenge in the courtyard. Spread them on your class table and take a photo before handing them in.", es: "Trae al menos 15 botellas PET a la competencia en el patio. Extiéndelas en la mesa de tu grupo y toma una foto antes de entregarlas." },
     "recycling",
     40,
     // Happening now: started at the top of the previous hour, ends in a few hours.
     at(0, new Date().getHours() - 1),
     5,
+    { proofType: "count", countItem: "pet_bottle", countTarget: 15 },
   );
   missions.push(beachCleanup, parkCleanup, schoolDrive);
+
+  /*
+   * Collection point with a scale (src/lib/partner.ts): the cooperative weighs deliveries at
+   * #/ponto/<token>. One delivery is waiting for the counter (Pedro, code K7P-4QX) and one was weighed.
+   */
+  const coop: DemoPoint = {
+    id: "pt-reciclar",
+    name: "Ecoponto Reciclar Juntos",
+    address: "Rua da Aurora, 100 - Boa Vista",
+    city: "Recife",
+    latitude: -8.0578,
+    longitude: -34.8808,
+    token: "reciclarjuntospontorecif",
+    isActive: true,
+    createdAt: ago(30 * DAY),
+  };
+  const coopMission: Mission = {
+    id: "m-coop-entrega",
+    title: "Entregue recicláveis no ecoponto",
+    titleEn: "Drop off recyclables at the drop-off point",
+    titleEs: "Entrega reciclables en el ecopunto",
+    description: "Leve plástico, papel, metal ou vidro limpos ao Ecoponto Reciclar Juntos. A equipe pesa na balança e confirma pelo app.",
+    descriptionEn: "Take clean plastic, paper, metal or glass to the Reciclar Juntos drop-off point. The team weighs it on the scale and confirms in the app.",
+    descriptionEs: "Lleva plástico, papel, metal o vidrio limpios al Ecopunto Reciclar Juntos. El equipo lo pesa en la balanza y confirma en la app.",
+    ...C({ pt: "Tire uma foto do material na entrada do ecoponto e envie. Depois mostre o QR de Meus envios no balcão.", en: "Take a photo of the material at the drop-off entrance and send it. Then show the QR from My submissions at the counter.", es: "Toma una foto del material en la entrada del ecopunto y envíala. Después muestra el QR de Mis envíos en el mostrador." }),
+    ...I({ pt: "Cada quilo pesado no ecoponto vira renda para os catadores e um registro rastreável da coleta.", en: "Every kilo weighed at the drop-off point becomes income for waste pickers and a traceable record of the collection.", es: "Cada kilo pesado en el ecopunto se convierte en ingresos para los recicladores y un registro rastreable de la recolección." }),
+    proofType: "partner",
+    collectionPointId: coop.id,
+    latitude: coop.latitude!,
+    longitude: coop.longitude!,
+    scope: "local",
+    city: "Recife",
+    stateCode: "PE",
+    category: "recycling",
+    pointsReward: 25,
+    foneReward: "5.00",
+    isActive: true,
+    createdAt: ago(10 * DAY),
+  };
+  missions.push(coopMission);
+  const coopAnalysis = (visible: string) => ({
+    whatIsVisible: visible,
+    matchesMission: true,
+    isRealPhoto: true,
+    screenOrPrint: false,
+    aiGeneratedOrEdited: false,
+    inappropriate: false,
+    tooDarkOrBlurry: false,
+    reportConsistent: true,
+    identifiableFaces: false,
+    internetCopy: false,
+    internetSigns: "",
+    itemCount: null,
+    verdict: "approve" as const,
+    confidence: 88,
+    explanation: visible,
+  });
+  submissions.push(
+    sub({
+      id: "s-coop-pedro",
+      userId: "u-bot-3",
+      missionId: coopMission.id,
+      at: coopMission,
+      photo: P("♻️", "#5eead4", "#0f766e", { pt: "Sacolas de recicláveis no ecoponto", en: "Bags of recyclables at the drop-off", es: "Bolsas de reciclables en el ecopunto" }),
+      report: L({ pt: "Levei duas sacolas com garrafas PET e papelão limpos para o ecoponto da Rua da Aurora. Agora falta a pesagem no balcão.", en: "I took two bags of clean PET bottles and cardboard to the drop-off point on Rua da Aurora. Now it only needs the weighing at the counter.", es: "Llevé dos bolsas con botellas PET y cartón limpios al ecopunto de la Rua da Aurora. Ahora falta el pesaje en el mostrador." }),
+      status: "pending",
+      reviewedBy: null,
+      rejectionReason: null,
+      aiStatus: "done",
+      aiModel: "simulated",
+      aiVerdict: "approve",
+      aiConfidence: 88,
+      aiReasonCode: null,
+      aiSummary: L({ pt: "Sacolas com recicláveis na entrada de um ecoponto.", en: "Bags of recyclables at the entrance of a drop-off point.", es: "Bolsas con reciclables en la entrada de un ecopunto." }),
+      aiChecks: { ...coopAnalysis("Sacolas com recicláveis na entrada de um ecoponto."), trustFactors: [{ key: "ai_approve", points: 45 }, { key: "gps_precise", points: 20 }, { key: "partner_waiting", points: 0 }] },
+      trustScore: 65,
+      deliveryCode: "K7P4QX",
+      verifyBy: new Date(Date.now() + 46 * HOUR).toISOString(),
+      submittedAt: ago(2 * HOUR),
+      reviewedAt: null,
+    }),
+    sub({
+      id: "s-coop-ana",
+      userId: "u-bot-2",
+      missionId: coopMission.id,
+      at: coopMission,
+      photo: P("📦", "#99f6e4", "#0d9488", { pt: "Papelão dobrado", en: "Folded cardboard", es: "Cartón doblado" }),
+      report: L({ pt: "Juntei o papelão das caixas da mudança, dobrei tudo e levei ao ecoponto. A equipe pesou na hora.", en: "I gathered the cardboard from the moving boxes, folded it all and took it to the drop-off point. The team weighed it right away.", es: "Junté el cartón de las cajas de la mudanza, lo doblé todo y lo llevé al ecopunto. El equipo lo pesó en el momento." }),
+      status: "approved",
+      reviewedBy: null,
+      rejectionReason: null,
+      decidedBy: "ai",
+      aiStatus: "done",
+      aiModel: "simulated",
+      aiVerdict: "approve",
+      aiConfidence: 90,
+      aiReasonCode: null,
+      aiSummary: L({ pt: "Papelão dobrado em um ecoponto.", en: "Folded cardboard at a drop-off point.", es: "Cartón doblado en un ecopunto." }),
+      aiChecks: { ...coopAnalysis("Papelão dobrado em um ecoponto."), trustFactors: [{ key: "ai_approve", points: 45 }, { key: "gps_precise", points: 20 }, { key: "partner_weighed", points: 30 }] },
+      trustScore: 95,
+      material: "paper",
+      weightKg: 6.4,
+      weightSource: "partner",
+      deliveryCode: "M9R2TW",
+      partnerConfirmedAt: ago(3 * DAY - 40 * 60000),
+      partnerPointId: coop.id,
+      submittedAt: ago(3 * DAY),
+      reviewedAt: ago(3 * DAY - 39 * 60000),
+    }),
+  );
+  // People who already checked in at the school drive happening now (Juliana shows the QR in Events).
+  const checkins: DemoCheckin[] = ["u-bot-2", "u-bot-3"].map((userId, i) => ({
+    id: `ck-feira-${i + 1}`,
+    missionId: schoolDrive.id,
+    userId,
+    createdAt: new Date(new Date(schoolDrive.startsAt!).getTime() + (i + 1) * 12 * 60000).toISOString(),
+  }));
+  // Irregular dumping spots (src/lib/dumps.ts): one waiting for a confirmation (Maria can confirm it),
+  // one confirmed with its cleanup mission, one the AI sent to the admin and one already cleaned.
+  const dumpPhoto = (caption: Text3) => P("🗑️", "#a8a29e", "#57534e", caption);
+  const dumpBase = { photoHash: "", accuracyM: 9, stateCode: "PE", aiReason: null, rejectionCode: null, missionId: null, confirmedAt: null, resolvedAt: null, needsReview: false } as const;
+  const imbiribeiraNote = L({ pt: "Sacos de lixo e um sofá velho na calçada", en: "Rubbish bags and an old sofa on the pavement", es: "Bolsas de basura y un sofá viejo en la vereda" });
+  const imbiribeiraFields = cleanupMission({ size: "small", city: "Recife", note: imbiribeiraNote });
+  const dumpMission: Mission = {
+    id: "m-dump-imbiribeira",
+    title: imbiribeiraFields.title,
+    titleEn: imbiribeiraFields.titleEn,
+    titleEs: imbiribeiraFields.titleEs,
+    description: imbiribeiraFields.description,
+    descriptionEn: imbiribeiraFields.descriptionEn,
+    descriptionEs: imbiribeiraFields.descriptionEs,
+    context: imbiribeiraFields.context,
+    latitude: -8.1102,
+    longitude: -34.9061,
+    category: "cleanup",
+    pointsReward: CLEANUP_POINTS.small,
+    foneReward: "0.00",
+    isActive: true,
+    createdAt: ago(4 * DAY),
+    scope: "local",
+    city: "Recife",
+    stateCode: "PE",
+    origin: "auto",
+    needsReview: false,
+    proofType: "before_after",
+  };
+  missions.push(dumpMission);
+  const dumps: DemoDump[] = [
+    {
+      ...dumpBase,
+      id: "d-aurora",
+      userId: "u-bot-2",
+      photoUrl: dumpPhoto({ pt: "Entulho na beira do rio", en: "Rubble by the river", es: "Escombros junto al río" }),
+      photoHash: "seed-d-aurora",
+      latitude: -8.0596,
+      longitude: -34.8806,
+      city: "Recife",
+      size: "medium",
+      note: L({ pt: "Entulho e sacos na margem do Capibaribe, perto da ponte", en: "Rubble and bags on the Capibaribe bank, near the bridge", es: "Escombros y bolsas en la orilla del Capibaribe, cerca del puente" }),
+      status: "open",
+      createdAt: ago(2 * DAY),
+    },
+    {
+      ...dumpBase,
+      id: "d-imbiribeira",
+      userId: "u-bot-3",
+      photoUrl: dumpPhoto({ pt: "Sofá velho na calçada", en: "Old sofa on the pavement", es: "Sofá viejo en la vereda" }),
+      photoHash: "seed-d-imbiribeira",
+      latitude: -8.1102,
+      longitude: -34.9061,
+      city: "Recife",
+      size: "small",
+      note: imbiribeiraNote,
+      status: "confirmed",
+      missionId: dumpMission.id,
+      createdAt: ago(5 * DAY),
+      confirmedAt: ago(4 * DAY),
+    },
+    {
+      ...dumpBase,
+      id: "d-review",
+      userId: "u-bot-5",
+      photoUrl: dumpPhoto({ pt: "Lixo no terreno · © banco de imagens", en: "Rubbish in a lot · © stock photo", es: "Basura en un terreno · © banco de imágenes" }),
+      photoHash: "seed-d-review",
+      latitude: -8.0476,
+      longitude: -34.9013,
+      city: "Recife",
+      size: "large",
+      note: null,
+      status: "pending",
+      needsReview: true,
+      aiReason: L({
+        pt: "A foto tem marca d'água de banco de imagens: pode ter sido baixada da internet.",
+        en: "The photo has a stock-image watermark: it may have been downloaded from the internet.",
+        es: "La foto tiene marca de agua de banco de imágenes: puede haber sido descargada de internet.",
+      }),
+      createdAt: ago(1 * DAY),
+    },
+    {
+      ...dumpBase,
+      id: "d-maria-done",
+      userId: DEMO_IDS.citizen,
+      photoUrl: dumpPhoto({ pt: "Sacos de lixo na esquina", en: "Rubbish bags on the corner", es: "Bolsas de basura en la esquina" }),
+      photoHash: "seed-d-maria",
+      latitude: -8.0632,
+      longitude: -34.8712,
+      city: "Recife",
+      size: "small",
+      note: L({ pt: "Esquina da praça, perto da parada de ônibus", en: "Corner of the square, near the bus stop", es: "Esquina de la plaza, cerca de la parada de autobús" }),
+      status: "resolved",
+      createdAt: ago(9 * DAY),
+      confirmedAt: ago(8 * DAY),
+      resolvedAt: ago(6 * DAY),
+    },
+  ];
+  const dumpConfirmations: DemoDumpConfirmation[] = [
+    { id: "dc-imbiribeira", reportId: "d-imbiribeira", userId: "u-bot-1", photoUrl: dumps[1].photoUrl, photoHash: "seed-dc-imbiribeira", latitude: -8.1103, longitude: -34.9059, createdAt: ago(4 * DAY) },
+    { id: "dc-maria", reportId: "d-maria-done", userId: "u-bot-4", photoUrl: dumps[3].photoUrl, photoHash: "seed-dc-maria", latitude: -8.0631, longitude: -34.8713, createdAt: ago(8 * DAY) },
+  ];
+
   const beachPeople: [string, Text3][] = [
     ["u-bot-1", { pt: "Recolhi garrafas e tampinhas perto do Posto 7", en: "Collected bottles and caps near post 7", es: "Recogí botellas y tapitas cerca del puesto 7" }],
     ["u-bot-2", { pt: "Dois sacos de plástico e isopor", en: "Two bags of plastic and styrofoam", es: "Dos bolsas de plástico y poliestireno" }],
@@ -772,6 +1045,10 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     moderatorsEnabled: true,
     offers,
     redemptions,
+    collectionPoints: [coop],
+    checkins,
+    dumps,
+    dumpConfirmations,
   };
 }
 

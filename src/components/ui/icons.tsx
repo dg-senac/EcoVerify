@@ -92,6 +92,8 @@ export {
   Flame,
   Droplets,
   Sprout,
+  Brain,
+  MapPinCheck,
   Leaf,
   TreePine,
   Flower2,

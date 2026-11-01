@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { missions, pointsLedger, submissions, users } from "@/db/schema";
+import { eventCheckins, missions, pointsLedger, submissions, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { canManage, orgPlan } from "@/lib/saas/org-rules";
 import { ORG_TEXT } from "@/lib/saas/org-text";
@@ -41,11 +41,13 @@ export default async function EventReportPage({ params }: { params: Promise<{ id
       weightKg: submissions.weightKg,
       at: submissions.submittedAt,
       points: sql<number>`coalesce((select sum(pl.points)::int from ${pointsLedger} pl where pl.submission_id = ${submissions.id}), 0)`,
+      checkedIn: sql<boolean>`exists (select 1 from event_checkins c where c.mission_id = ${submissions.missionId} and c.user_id = ${submissions.userId})`,
     })
     .from(submissions)
     .innerJoin(users, eq(users.id, submissions.userId))
     .where(and(eq(submissions.missionId, mission.id), eq(submissions.status, "approved"), sql`${users.deletedAt} is null`))
     .orderBy(asc(submissions.submittedAt));
+  const [checkins] = await db.select({ present: sql<number>`count(*)::int` }).from(eventCheckins).where(eq(eventCheckins.missionId, mission.id));
 
   return (
     <EventReportView
@@ -59,8 +61,9 @@ export default async function EventReportPage({ params }: { params: Promise<{ id
         endsAt: mission.endsAt!.toISOString(),
         actions: rows.length,
         recycledKg: rows.reduce((sum, r) => sum + Number(r.weightKg ?? 0), 0),
-        participants: rows.map((r) => ({ submissionId: r.id, name: r.name, points: r.points, at: r.at.toISOString() })),
+        participants: rows.map((r) => ({ submissionId: r.id, name: r.name, points: r.points, at: r.at.toISOString(), checkedIn: r.checkedIn })),
         photos: rows.map((r) => r.photoUrl).filter(Boolean),
+        checkins: checkins.present,
       }}
       toolbar={
         <>

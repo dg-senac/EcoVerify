@@ -4,11 +4,15 @@ import { useActionState } from "react";
 import { approveSubmissionAction, retryAiVerificationAction, type ModerationActionState } from "@/lib/actions/moderation";
 import { AiPanel, type AiPanelData } from "@/components/moderation/ai-panel";
 import { isInternetCopyFlag, isRejectionCode, rejectionReasonText } from "@/lib/ai/decision";
-import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
+import { categoryEmoji, categoryLabels, t, tx, type Lang } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { RejectModal } from "@/components/moderation/reject-modal";
 import { HistoryPanel } from "@/components/moderation/history-panel";
 import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS, type Material } from "@/lib/impact";
+import { ProofEvidence } from "@/components/moderation/proof-evidence";
+import { TrustScore } from "@/components/moderation/trust-score";
+import { ExtraProofNote } from "@/components/moderation/extra-proof-note";
+import type { WeightSource } from "@/lib/proof";
 
 const initialState: ModerationActionState = {};
 
@@ -36,6 +40,10 @@ export function ModerationCard({
     material?: Material | null;
     weightKg?: string | null;
     declaredWeightKg?: string | null;
+    itemCount?: number | null;
+    weightSource?: WeightSource | null;
+    photoBeforeUrl?: string | null;
+    countItem?: string | null;
     latitude: string | null;
     longitude: string | null;
     submittedAt: Date;
@@ -43,6 +51,10 @@ export function ModerationCard({
     missionCategory: string;
     authorId: string;
     authorName: string;
+    trustScore?: number | null;
+    extraProofCode?: string | null;
+    extraProofStatus?: string | null;
+    extraPhotoUrl?: string | null;
   };
 }) {
   const [state, formAction, pending] = useActionState(approveSubmissionAction, initialState);
@@ -50,6 +62,8 @@ export function ModerationCard({
   const isOwn = submission.authorId === moderatorId;
 
   const weightError = state.error === "weight_invalid";
+  const countError = state.error === "count_review_invalid";
+  const isCount = submission.itemCount != null;
   if (state.success) {
     return (
       <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-700 animate-fade-in">
@@ -72,7 +86,7 @@ export function ModerationCard({
           </span>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
-          <span>por</span>
+          <span>{tx(lang, "por", "by", "por")}</span>
           {showHistory && <HistoryPanel lang={lang} userId={submission.authorId} userName={submission.authorName} />}
           <span>·</span>
           <span>{formatDate(submission.submittedAt, lang)}</span>
@@ -90,7 +104,17 @@ export function ModerationCard({
           </div>
         )}
         <p className="mt-3 text-sm leading-relaxed text-slate-700">{submission.report}</p>
-        {submission.material && (
+        <ProofEvidence
+          lang={lang}
+          countItem={submission.countItem}
+          itemCount={submission.itemCount}
+          aiItemCount={submission.aiChecks?.itemCount ?? null}
+          weightKg={submission.weightKg}
+          weightSource={submission.weightSource}
+          beforeUrl={submission.photoBeforeUrl}
+          afterUrl={submission.photoUrl}
+        />
+        {submission.material && !isCount && (
           <p className="mt-3 inline-flex flex-wrap items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800" data-testid="delivery">
             <span aria-hidden="true">{MATERIAL_EMOJI[submission.material]}</span>
             {t(lang, "recycling_delivery")}: {MATERIAL_LABELS[submission.material][lang]} · {formatKg(Number(submission.weightKg ?? 0), lang)}
@@ -101,6 +125,8 @@ export function ModerationCard({
             📍 {Number(submission.latitude).toFixed(4)}, {Number(submission.longitude).toFixed(4)}
           </p>
         )}
+        <ExtraProofNote lang={lang} code={submission.extraProofCode} status={submission.extraProofStatus} photoUrl={submission.extraPhotoUrl} />
+        <TrustScore lang={lang} score={submission.trustScore} factors={submission.aiChecks?.trustFactors} />
 
         {!submission.appealedAt && (
           <AiPanel
@@ -134,7 +160,19 @@ export function ModerationCard({
             <div className="flex items-end gap-3">
               <form action={formAction} className="flex-1 space-y-2">
                 <input type="hidden" name="submissionId" value={submission.id} />
-                {submission.material && (
+                {isCount && (
+                  <label className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
+                    🔢 {t(lang, "recycling_count_review")}
+                    <input
+                      name="itemCount"
+                      inputMode="numeric"
+                      defaultValue={String(submission.itemCount ?? "")}
+                      className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm outline-none focus:border-emerald-500"
+                      data-testid="review-count"
+                    />
+                  </label>
+                )}
+                {submission.material && !isCount && (
                   <label className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
                     ⚖️ {t(lang, "recycling_weight_review")}
                     <input
@@ -155,6 +193,7 @@ export function ModerationCard({
                   ✓ {t(lang, "approve")}
                 </button>
                 {weightError && <p className="text-xs font-medium text-red-600">{t(lang, "error_weight_invalid")}</p>}
+                {countError && <p className="text-xs font-medium text-red-600">{t(lang, "error_count_review_invalid")}</p>}
               </form>
               <RejectModal
                 lang={lang}

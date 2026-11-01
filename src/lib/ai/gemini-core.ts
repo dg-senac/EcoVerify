@@ -31,6 +31,16 @@ export type MissionForAi = {
   /** "What must be checked on site", written by the admin. */
   context: string | null;
   aiChecklist: string | null;
+  /** How the mission is proven (src/lib/proof.ts). Default "photo". */
+  proofType?: "photo" | "before_after" | "count" | "partner";
+  /** Count missions: what to count (Portuguese name, e.g. "Garrafas PET") and how many the person declared. */
+  countItem?: string | null;
+  declaredCount?: number | null;
+  /**
+   * Extra proof (src/lib/verification.ts): the code the person had to write on a paper. The request
+   * then carries the original photo first and the extra photo second.
+   */
+  challengeCode?: string | null;
 };
 
 const LANGUAGE_NAME: Record<Lang, string> = { pt: "português", en: "inglês", es: "espanhol" };
@@ -56,6 +66,13 @@ const RESPONSE_SCHEMA = {
       type: "string",
       description: "Quais sinais de cópia da internet foram vistos (frase curta). Vazio quando internet_copy for false.",
     },
+    item_count: {
+      type: "integer",
+      description: "Missões de contagem: quantos itens do tipo pedido aparecem na foto. Use -1 nas outras missões ou quando não der para contar.",
+    },
+    same_scene: { type: "boolean", description: "Missões de antes e depois: as duas fotos mostram o mesmo lugar." },
+    improvement_visible: { type: "boolean", description: "Missões de antes e depois: a foto DEPOIS mostra a melhora pedida (mais limpo, plantado...)." },
+    code_visible: { type: "boolean", description: "Prova extra: um papel com o código pedido, escrito à mão, aparece na foto." },
     verdict: { type: "string", enum: ["approve", "reject", "review"] },
     reason_code: { type: "string", enum: [...REJECTION_CODES, "none"] },
     confidence: { type: "integer", minimum: 0, maximum: 100, description: "Confiança no veredito, de 0 a 100." },
@@ -82,6 +99,47 @@ const RESPONSE_SCHEMA = {
     "explanation",
   ],
 } as const;
+
+function proofInstructions(mission: MissionForAi): string[] {
+  if (mission.challengeCode) {
+    return [
+      "PROVA EXTRA. Você recebe DUAS fotos: a primeira é a comprovação original, a segunda é a prova extra.",
+      `- code_visible: na SEGUNDA foto aparece um papel com o código "${mission.challengeCode}" escrito à mão (só esse código vale).`,
+      "- same_scene: a segunda foto mostra o mesmo lugar ou os mesmos itens da primeira (outro ângulo é normal).",
+      "- Avalie os outros campos (foto real, tela, edição, impróprio...) pela SEGUNDA foto.",
+      "- Sem o código ou outro lugar: verdict \"review\". Responda item_count com -1 e improvement_visible com true.",
+      "",
+    ];
+  }
+  if (mission.proofType === "count") {
+    return [
+      "TIPO DE PROVA: CONTAGEM.",
+      `- Conte quantos itens do tipo "${mission.countItem ?? "itens recicláveis"}" aparecem na foto e informe em item_count.`,
+      `- A pessoa declarou ${mission.declaredCount ?? "?"}. Itens sobrepostos são normais: conte só o que dá para ver.`,
+      "- Se a foto mostrar bem menos itens do que o declarado, use verdict \"review\" e reason_code \"count_mismatch\".",
+      "",
+    ];
+  }
+  if (mission.proofType === "partner") {
+    return [
+      "TIPO DE PROVA: ENTREGA NO PONTO DE COLETA. O peso é conferido depois pela equipe do ponto, com balança.",
+      "- A foto deve mostrar o material reciclável sendo entregue (sacos, caixas, garrafas) ou o ponto de coleta.",
+      "- Não estime peso nem conte itens: responda item_count com -1.",
+      "",
+    ];
+  }
+  if (mission.proofType === "before_after") {
+    return [
+      "TIPO DE PROVA: ANTES E DEPOIS. Você recebe DUAS fotos: a primeira é ANTES, a segunda é DEPOIS.",
+      "- same_scene: as duas mostram o mesmo lugar (mesmos elementos fixos: muro, árvore, poste, calçada...).",
+      "- improvement_visible: a foto DEPOIS mostra a melhora pedida pela missão.",
+      "- Lugares diferentes: verdict \"reject\" e reason_code \"before_after_mismatch\". Sem melhora: \"not_matching_mission\".",
+      "- Responda item_count com -1.",
+      "",
+    ];
+  }
+  return ["Responda item_count com -1 e same_scene/improvement_visible com true.", ""];
+}
 
 function buildPrompt(mission: MissionForAi, report: string, lang: Lang): string {
   return [
@@ -111,6 +169,7 @@ function buildPrompt(mission: MissionForAi, report: string, lang: Lang): string 
     "  reason_code \"internet_copy\": uma pessoa da equipe confere e decide.",
     "reason_code deve ser \"none\" quando verdict for approve.",
     "",
+    ...proofInstructions(mission),
     `MISSÃO: ${mission.title}`,
     `CATEGORIA: ${mission.category}`,
     `DESCRIÇÃO: ${mission.description}`,
@@ -144,6 +203,8 @@ export type GeminiRequest = {
   model?: string;
   baseUrl?: string;
   image: { base64: string; mimeType: string };
+  /** Before/after missions: the "before" photo (sent first). */
+  beforeImage?: { base64: string; mimeType: string } | null;
   mission: MissionForAi;
   report: string;
   /** Language of the explanation shown to the user (default Portuguese). */
@@ -162,6 +223,7 @@ export async function requestGeminiAnalysis(input: GeminiRequest): Promise<{ ana
         role: "user",
         parts: [
           { text: buildPrompt(input.mission, input.report, input.lang ?? "pt") },
+          ...(input.beforeImage ? [{ inline_data: { mime_type: input.beforeImage.mimeType, data: input.beforeImage.base64 } }] : []),
           { inline_data: { mime_type: input.image.mimeType, data: input.image.base64 } },
         ],
       },

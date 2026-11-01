@@ -1,11 +1,14 @@
-import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, not, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { auditQueueCondition, inAutomaticVerification, sweepVerifications } from "@/lib/verification-server";
+import { AuditCard } from "@/components/moderation/audit-card";
 import { db } from "@/db";
 import { missions, missionSuggestions, submissions, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { canReview } from "@/lib/nav";
 import { moderatorsEnabled } from "@/lib/staff-config";
-import { t, type Lang } from "@/lib/i18n";
+import { t, tx, type Lang } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { rejectionReasonText, type AiChecks } from "@/lib/ai/decision";
 import { getAiSettings, willAnalyzeWithModel } from "@/lib/ai/pipeline";
@@ -27,8 +30,10 @@ export default async function ModerationPage() {
   if (!user) redirect("/login");
   if (!canReview(user.role, moderatorsEnabled())) redirect("/missions");
   const lang = user.language;
+  // Keeps the verification window moving even without a scheduler (throttled inside).
+  after(() => sweepVerifications().catch((error) => console.error("[verify] sweep failed:", error)));
 
-  const [rows, recentAi, settings, suggestions] = await Promise.all([
+  const [rows, recentAi, settings, suggestions, [automatic], audits] = await Promise.all([
     db
       .select({
         id: submissions.id,
@@ -37,6 +42,10 @@ export default async function ModerationPage() {
         material: submissions.material,
         weightKg: submissions.weightKg,
         declaredWeightKg: submissions.declaredWeightKg,
+        itemCount: submissions.itemCount,
+        weightSource: submissions.weightSource,
+        photoBeforeUrl: submissions.photoBeforeUrl,
+        countItem: missions.countItem,
         latitude: submissions.latitude,
         longitude: submissions.longitude,
         submittedAt: submissions.submittedAt,
@@ -52,11 +61,16 @@ export default async function ModerationPage() {
         aiChecks: submissions.aiChecks,
         appealedAt: submissions.appealedAt,
         appealMessage: submissions.appealMessage,
+        trustScore: submissions.trustScore,
+        extraProofCode: submissions.extraProofCode,
+        extraProofStatus: submissions.extraProofStatus,
+        extraPhotoUrl: submissions.extraPhotoUrl,
       })
       .from(submissions)
       .innerJoin(missions, eq(submissions.missionId, missions.id))
       .innerJoin(users, eq(submissions.userId, users.id))
-      .where(eq(submissions.status, "pending"))
+      // The moderator is the last resort: proofs still inside the automatic verification wait.
+      .where(and(eq(submissions.status, "pending"), not(inAutomaticVerification())))
       // Appeals first, then possible copies from the internet, then oldest first.
       .orderBy(
         sql`${submissions.appealedAt} is null`,
@@ -99,6 +113,36 @@ export default async function ModerationPage() {
       .where(eq(missionSuggestions.status, "pending"))
       .orderBy(asc(missionSuggestions.createdAt))
       .limit(30),
+    db
+      .select({ value: count() })
+      .from(submissions)
+      .where(and(eq(submissions.status, "pending"), inAutomaticVerification())),
+    db
+      .select({
+        id: submissions.id,
+        userId: submissions.userId,
+        photoUrl: submissions.photoUrl,
+        photoBeforeUrl: submissions.photoBeforeUrl,
+        extraPhotoUrl: submissions.extraPhotoUrl,
+        report: submissions.report,
+        missionTitle: missions.title,
+        missionCategory: missions.category,
+        authorName: users.name,
+        reviewedAt: submissions.reviewedAt,
+        trustScore: submissions.trustScore,
+        aiSummary: submissions.aiSummary,
+        aiChecks: submissions.aiChecks,
+        itemCount: submissions.itemCount,
+        weightKg: submissions.weightKg,
+        weightSource: submissions.weightSource,
+        countItem: missions.countItem,
+      })
+      .from(submissions)
+      .innerJoin(missions, eq(submissions.missionId, missions.id))
+      .innerJoin(users, eq(submissions.userId, users.id))
+      .where(auditQueueCondition())
+      .orderBy(asc(submissions.reviewedAt))
+      .limit(20),
   ]);
 
   return (
@@ -106,6 +150,17 @@ export default async function ModerationPage() {
       <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">{t(lang, "moderation_title")}</h1>
       <p className="mt-1 text-sm text-slate-500">{t(lang, "moderation_subtitle")}</p>
       <AiModeBanner lang={lang} mode={settings.mode} hasModel={willAnalyzeWithModel(settings)} />
+      {automatic.value > 0 && (
+        <p className="mt-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" data-testid="auto-verifying">
+          🔎 {automatic.value}{" "}
+          {tx(
+            lang,
+            "comprovação(ões) em verificação automática (análise, nova tentativa ou prova extra). Só chegam aqui se a dúvida continuar.",
+            "proof(s) under automatic verification (analysis, retry or extra proof). They only come here if the doubt remains.",
+            "comprobación(es) en verificación automática (análisis, nuevo intento o prueba extra). Solo llegan aquí si la duda continúa.",
+          )}
+        </p>
+      )}
 
       {rows.length === 0 ? (
         <div className="mt-10 rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-slate-400">
@@ -125,6 +180,32 @@ export default async function ModerationPage() {
             />
           ))}
         </div>
+      )}
+
+      {audits.length > 0 && (
+        <section className="mt-10" data-testid="audits">
+          <h2 className="text-lg font-bold text-slate-900">🔍 {tx(lang, "Auditoria por amostragem", "Sample audit", "Auditoría por muestreo")}</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            {tx(
+              lang,
+              "Algumas aprovações automáticas são sorteadas para conferência. Confirme ou revogue (os pontos voltam).",
+              "Some automatic approvals are drawn for a check. Confirm or revoke them (the points are taken back).",
+              "Algunas aprobaciones automáticas se sortean para revisión. Confírmalas o revócalas (los puntos se retiran).",
+            )}
+          </p>
+          <div className="mt-3 space-y-4">
+            {audits.map(({ aiChecks, userId, ...audit }) => {
+              const checks = aiChecks as AiChecks | null;
+              return (
+                <AuditCard
+                  key={audit.id}
+                  lang={lang}
+                  item={{ ...audit, isOwn: userId === user.id, trustFactors: checks?.trustFactors ?? null, aiItemCount: checks?.itemCount ?? null }}
+                />
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {suggestions.length > 0 && (

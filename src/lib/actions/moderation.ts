@@ -16,6 +16,8 @@ import { canReview } from "@/lib/nav";
 import { moderatorsEnabled } from "@/lib/staff-config";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
 import { parseWeightKg } from "@/lib/impact";
+import { countRule, estimatedKg, MAX_ITEM_COUNT } from "@/lib/proof";
+import { confirmAudit, revokeApproval } from "@/lib/verification-server";
 
 export type ModerationActionState = { error?: string; success?: boolean };
 
@@ -67,8 +69,23 @@ export async function approveSubmissionAction(
   if (submission.status !== "pending") return { error: "already_reviewed" };
   if (submission.userId === moderator.id) return { error: "own_submission" };
 
-  // Recycling delivery: the reviewer may correct the declared weight after looking at the photo.
-  if (submission.material) {
+  // Count proofs: the reviewer may correct the number of items; the estimated weight follows.
+  if (submission.itemCount !== null) {
+    const typed = String(formData.get("itemCount") ?? "").trim();
+    if (typed) {
+      const checked = /^\d{1,4}$/.test(typed) ? Number(typed) : NaN;
+      if (!(checked >= 1 && checked <= MAX_ITEM_COUNT)) return { error: "count_review_invalid" };
+      if (checked !== submission.itemCount) {
+        const [mission] = await db.select().from(missions).where(eq(missions.id, submission.missionId)).limit(1);
+        const kg = mission ? estimatedKg(countRule(mission).item, checked) : null;
+        await db
+          .update(submissions)
+          .set({ itemCount: checked, weightKg: kg === null ? null : String(kg) })
+          .where(and(eq(submissions.id, submissionId), eq(submissions.status, "pending")));
+      }
+    }
+  } else if (submission.material) {
+    // Older proofs with a typed weight: the reviewer may still correct it.
     const typed = String(formData.get("weightKg") ?? "").trim();
     if (typed) {
       const checked = parseWeightKg(typed);
@@ -184,4 +201,51 @@ export async function getUserHistory(userId: string) {
     .innerJoin(missions, eq(submissions.missionId, missions.id))
     .where(eq(submissions.userId, userId))
     .orderBy(sql`${submissions.submittedAt} desc`);
+}
+
+/* ------------------------------------------------------------------ */
+/* Sample audit of automatic approvals (src/lib/verification.ts)       */
+/* ------------------------------------------------------------------ */
+
+async function auditTarget(submissionId: string) {
+  const auditor = await assertModerator();
+  const [row] = await db.select({ userId: submissions.userId }).from(submissions).where(eq(submissions.id, submissionId)).limit(1);
+  if (!row) return { auditor, error: "not_found" as const };
+  if (row.userId === auditor.id) return { auditor, error: "own_submission" as const };
+  return { auditor, userId: row.userId };
+}
+
+export async function confirmAuditAction(_prev: ModerationActionState, formData: FormData): Promise<ModerationActionState> {
+  const submissionId = String(formData.get("submissionId") ?? "");
+  const target = await auditTarget(submissionId);
+  if ("error" in target && target.error) return { error: target.error };
+  if (!(await confirmAudit(submissionId, target.auditor.id))) return { error: "already_reviewed" };
+  revalidatePath("/moderation");
+  return { success: true };
+}
+
+/** The approval is undone (points back, unpaid FONE cancelled); the auditor explains why. */
+export async function revokeAuditAction(_prev: ModerationActionState, formData: FormData): Promise<ModerationActionState> {
+  const submissionId = String(formData.get("submissionId") ?? "");
+  const target = await auditTarget(submissionId);
+  if ("error" in target && target.error) return { error: target.error };
+  const codeInput = String(formData.get("reasonCode") ?? "");
+  const code = isRejectionCode(codeInput) ? codeInput : null;
+  const typed = String(formData.get("reason") ?? "").trim().slice(0, 1000);
+  const reason = typed || (code ? REJECTION_REASONS[code].pt : "");
+  if (reason.length < 10) return { error: "audit_reason_short" };
+  const giveCard = formData.get("giveCard") === "on";
+  if (giveCard && reason.length < CARD_NOTE_MIN) return { error: "card_note_short" };
+
+  // Only the auditor's own words are passed: the catalogued reason is translated for the person.
+  const revoked = await revokeApproval(submissionId, target.auditor.id, { code, text: typed });
+  if (!revoked) return { error: "already_reviewed" };
+  if (giveCard && target.userId) {
+    await issueCard({ userId: target.userId, type: "yellow", reason: cardReasonForRejection(code), note: reason, issuerId: target.auditor.id, submissionId });
+    revalidatePath("/admin");
+  }
+  revalidatePath("/moderation");
+  revalidatePath("/submissions");
+  revalidatePath("/ranking");
+  return { success: true, ...(revoked.paidFone ? { error: "audit_fone_already_paid" } : {}) };
 }

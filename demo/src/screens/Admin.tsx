@@ -38,10 +38,17 @@ import {
   userPayout,
   useLang,
   useStore,
+  createCollectionPoint,
+  toggleCollectionPoint,
+  regenerateCollectionPointToken,
+  pointStats,
   type Category,
   type Mission,
   type User,
+  adminDumps,
+  adminDumpDecision,
 } from "../store";
+import { CollectionPointsPanel, type AdminPoint } from "@/components/admin/collection-points-panel";
 import { placeOf } from "../municipalities";
 import { getCurrentPosition } from "../media";
 import { Avatar, Modal, PageHeader, btnPrimary, btnSecondary, card, input, label, toast } from "../components/ui";
@@ -56,17 +63,21 @@ import { PLANS } from "@/lib/plans";
 import { orgPlan } from "@/lib/saas/org-rules";
 import { monthStart } from "@/lib/payout-rules";
 import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
+import { DumpsAdminPanel } from "@/components/dumps/dumps-admin-panel";
 import { dataTables, recyclingSummary } from "@/lib/impact";
 import { BenefitsTab, type AdminOffer } from "@/components/admin/benefits-tab";
 import { localizeOffer } from "@/lib/benefits";
+import { ProofTypeFields } from "@/components/missions/proof-type-fields";
+import { defaultProofType, parseProofFields } from "@/lib/proof";
 
-type Tab = "metrics" | "business" | "benefits" | "missions" | "users" | "rewards" | "recycling" | "data";
+type Tab = "metrics" | "business" | "benefits" | "missions" | "users" | "rewards" | "recycling" | "dumps" | "data";
 export const ADMIN_TAB_KEY = "ecoverify-admin-tab";
 const BUSINESS_LABEL = { pt: "Negócios", en: "Business", es: "Negocios" };
 const EXTRA_TABS: Partial<Record<Tab, { icon: string; label: Record<Lang, string> }>> = {
   business: { icon: "💼", label: BUSINESS_LABEL },
   benefits: { icon: "🎁", label: { pt: "Benefícios", en: "Perks", es: "Beneficios" } },
   recycling: { icon: "♻️", label: { pt: "Reciclagem", en: "Recycling", es: "Reciclaje" } },
+  dumps: { icon: "🗑️", label: { pt: "Lixo irregular", en: "Illegal dumping", es: "Basura irregular" } },
   data: { icon: "🗺️", label: { pt: "Dados", en: "Data", es: "Datos" } },
 };
 
@@ -101,16 +112,39 @@ function DemoBenefitsTab() {
   );
 }
 
+/** Same panel as the web app (src/components/dumps/dumps-admin-panel.tsx). */
+function DemoDumpsTab() {
+  const lang = useLang();
+  const items = useStore((s) => adminDumps(s));
+  return <DumpsAdminPanel lang={lang} items={items} onDecision={adminDumpDecision} />;
+}
+
 /** Same panels as the web app (src/components/admin/impact-tabs.tsx); the CSV is built in the browser. */
 function DemoRecyclingTab() {
   const lang = useLang();
   const all = useStore((s) => impactRows(s));
+  const points = useStore<AdminPoint[]>((s) =>
+    (s.collectionPoints ?? [])
+      .map((p) => {
+        const stats = pointStats(s, p.id);
+        return { id: p.id, name: p.name, address: p.address, city: p.city, token: p.token, isActive: p.isActive, confirmed: stats.confirmed, totalKg: stats.totalKg, waiting: stats.waiting };
+      })
+      .sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.name.localeCompare(b.name)),
+  );
   return (
-    <RecyclingTab
-      lang={lang}
-      summary={recyclingSummary(all)}
-      rows={all}
-    />
+    <div className="grid min-w-0 grid-cols-1 gap-6">
+      <CollectionPointsPanel
+        lang={lang}
+        points={points}
+        pointBase={`${window.location.origin}${window.location.pathname}#/ponto/`}
+        actions={{
+          create: async (input) => createCollectionPoint(input),
+          toggle: async (id) => toggleCollectionPoint(id),
+          regenerate: async (id) => regenerateCollectionPointToken(id),
+        }}
+      />
+      <RecyclingTab lang={lang} summary={recyclingSummary(all)} rows={all} />
+    </div>
   );
 }
 
@@ -184,10 +218,11 @@ export function AdminScreen({ user }: { user: User }) {
     const wanted = sessionStorage.getItem(ADMIN_TAB_KEY);
     sessionStorage.removeItem(ADMIN_TAB_KEY);
     const payments = wanted === "rewards" || wanted === "business";
-    return (payments && PAYMENTS_ENABLED) || wanted === "missions" || wanted === "users" || wanted === "recycling" || wanted === "data"
+    return (payments && PAYMENTS_ENABLED) || wanted === "missions" || wanted === "users" || wanted === "recycling" || wanted === "dumps" || wanted === "data"
       ? (wanted as Tab)
       : "metrics";
   });
+  const dumpsBadge = useStore((st) => (st.dumps ?? []).filter((d) => d.status === "pending" && d.needsReview).length);
   const businessBadge = useStore((st) => (st.invoices ?? []).filter((i) => i.status === "pending" && i.reportedAt).length);
   // Appeals waiting for an answer: card appeals plus blocked/suspended accounts.
   const usersBadge = useStore(
@@ -204,6 +239,7 @@ export function AdminScreen({ user }: { user: User }) {
     { id: "users", key: "admin_tab_users" },
     { id: "rewards", key: "admin_tab_rewards" },
     { id: "recycling", key: null },
+    { id: "dumps", key: null },
     { id: "data", key: null },
   ].filter((tb) => PAYMENTS_ENABLED || (tb.id !== "business" && tb.id !== "rewards")) as typeof tabs;
   return (
@@ -219,7 +255,7 @@ export function AdminScreen({ user }: { user: User }) {
           >
             {tb.key
               ? `${t(lang, tb.key)}${tb.id === "users" && usersBadge ? ` (${usersBadge})` : ""}`
-              : `${EXTRA_TABS[tb.id]?.icon} ${EXTRA_TABS[tb.id]?.label[lang]}${tb.id === "business" && businessBadge ? ` (${businessBadge})` : ""}`}
+              : `${EXTRA_TABS[tb.id]?.icon} ${EXTRA_TABS[tb.id]?.label[lang]}${tb.id === "business" && businessBadge ? ` (${businessBadge})` : ""}${tb.id === "dumps" && dumpsBadge ? ` (${dumpsBadge})` : ""}`}
           </button>
         ))}
       </div>
@@ -230,6 +266,7 @@ export function AdminScreen({ user }: { user: User }) {
       {tab === "users" && <UsersTab me={user} />}
       {tab === "rewards" && <RewardsTab />}
       {tab === "recycling" && <DemoRecyclingTab />}
+      {tab === "dumps" && <DemoDumpsTab />}
       {tab === "data" && <DemoDataTab />}
     </>
   );
@@ -331,6 +368,7 @@ function MissionsTab() {
   const missions = useStore((s) => s.missions);
   const requests = useStore((s) => s.missionRequests ?? []);
   const sponsors = useStore((s) => s.sponsors ?? []);
+  const points = useStore((s) => (s.collectionPoints ?? []).filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name, city: p.city })));
   const [open, setOpen] = useState(false);
   const [anywhere, setAnywhere] = useState(false);
   const toReview = missions.filter((m) => m.needsReview && m.isActive);
@@ -346,8 +384,10 @@ function MissionsTab() {
 
   const set = (key: keyof typeof emptyForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const fields = new FormData(event.currentTarget);
+    const proof = parseProofFields((name) => fields.get(name));
     const latitude = Number(form.latitude.replace(",", "."));
     const longitude = Number(form.longitude.replace(",", "."));
     const place = !anywhere && Number.isFinite(latitude) && Number.isFinite(longitude) ? await placeOf(latitude, longitude) : null;
@@ -365,6 +405,10 @@ function MissionsTab() {
       foneReward: form.fone.replace(",", "."),
       latitude,
       longitude,
+      proofType: proof.proofType,
+      countItem: proof.countItem,
+      countTarget: proof.countTarget,
+      collectionPointId: proof.collectionPointId,
     });
     if (result.error) return setError(errorText(lang, result.error));
     toast(dt(lang, "mission_created"));
@@ -474,6 +518,7 @@ function MissionsTab() {
                 <input className={input} inputMode="decimal" value={form.longitude} onChange={set("longitude")} required />
               </div>
             </div>
+            <ProofTypeFields lang={lang} defaultType={defaultProofType(form.category)} key={form.category} points={points} />
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={anywhere} onChange={(e) => setAnywhere(e.target.checked)} className="accent-emerald-600" />
               🌎 {dt(lang, "field_anywhere")}

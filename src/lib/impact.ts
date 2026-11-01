@@ -4,6 +4,7 @@
  * See docs/MONETIZACAO.md, sections 6 and 7.
  */
 import type { Lang } from "@/lib/i18n";
+import { weightSourceLabel, type WeightSource } from "@/lib/proof";
 
 /* ------------------------------------------------------------------ */
 /* Recycling: material and weight                                      */
@@ -36,11 +37,6 @@ export function isMaterial(value: unknown): value is Material {
   return typeof value === "string" && (MATERIALS as readonly string[]).includes(value);
 }
 
-/** Missions of these categories ask for the material and the approximate weight. */
-export function asksForWeight(category: string | null | undefined): boolean {
-  return category === "recycling";
-}
-
 export const MIN_WEIGHT_KG = 0.1;
 /** One delivery by one person: more than this is almost certainly a typo (or a lie). */
 export const MAX_WEIGHT_KG = 200;
@@ -59,19 +55,6 @@ export function formatKg(kg: number, lang: Lang = "pt"): string {
   const locale = lang === "en" ? "en-US" : lang === "es" ? "es-ES" : "pt-BR";
   if (kg >= 1000) return `${(kg / 1000).toLocaleString(locale, { maximumFractionDigits: 2 })} t`;
   return `${kg.toLocaleString(locale, { maximumFractionDigits: 1 })} kg`;
-}
-
-/** Validates the recycling fields of a proof. Error keys match the i18n dictionary (error_*). */
-export function checkRecyclingInput(
-  category: string,
-  materialRaw: unknown,
-  weightRaw: unknown,
-): { material: Material | null; weightKg: number | null; error?: "material_required" | "weight_invalid" } {
-  if (!asksForWeight(category)) return { material: null, weightKg: null };
-  if (!isMaterial(materialRaw)) return { material: null, weightKg: null, error: "material_required" };
-  const weightKg = parseWeightKg(weightRaw);
-  if (weightKg === null) return { material: materialRaw, weightKg: null, error: "weight_invalid" };
-  return { material: materialRaw, weightKg };
 }
 
 /* ------------------------------------------------------------------ */
@@ -94,6 +77,14 @@ export interface ImpactRow {
   longitude: number | null;
   material: Material | null;
   weightKg: number | null;
+  /** Count proofs: items counted. Older proofs (weight typed by the person) have none. */
+  itemCount?: number | null;
+  weightSource?: WeightSource | null;
+}
+
+/** Where the weight of a delivery came from (older proofs: typed by the person). */
+export function weightSourceOf(row: Pick<ImpactRow, "itemCount" | "weightSource">): WeightSource {
+  return row.weightSource ?? (row.itemCount == null ? "declared" : "estimated");
 }
 
 export function monthKey(date: string | Date): string {
@@ -167,14 +158,16 @@ export function proofCode(submissionId: string): string {
 export function recyclingCsv(allRows: ImpactRow[]): string {
   const rows = recyclingRows(allRows).sort((a, b) => b.approvedAt.localeCompare(a.approvedAt));
   return toCsv(
-    ["data", "cidade", "uf", "ponto", "material", "kg_declarado_verificado_por_foto", "codigo_comprovacao"],
+    ["data", "cidade", "uf", "ponto", "material", "itens", "kg", "origem_do_peso", "codigo_comprovacao"],
     rows.map((row) => [
       row.approvedAt.slice(0, 10),
       row.city ?? "",
       row.stateCode ?? "",
       row.missionTitle,
       MATERIAL_LABELS[row.material as Material].pt,
+      row.itemCount == null ? "" : String(row.itemCount),
       formatDecimal(row.weightKg ?? 0),
+      weightSourceLabel(weightSourceOf(row), "pt"),
       proofCode(row.submissionId),
     ]),
   );

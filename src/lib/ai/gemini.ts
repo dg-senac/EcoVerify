@@ -19,6 +19,7 @@ export function geminiModel(): string {
 
 export async function analyzeProofWithGemini(input: {
   image: { base64: string; mimeType: string };
+  beforeImage?: { base64: string; mimeType: string } | null;
   mission: MissionForAi;
   report: string;
 }): Promise<{ analysis: AiAnalysis; model: string }> {

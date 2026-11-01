@@ -7,11 +7,12 @@ import { categoryEmoji, categoryLabels } from "@/lib/i18n";
 import { Star, Utensils } from "@/components/ui/icons";
 import { FoneAmount, FoneMark } from "@/components/brand/fone";
 import type { SponsorItem } from "@/components/admin/sponsors-panel";
+import { ProofTypeFields } from "@/components/missions/proof-type-fields";
 
 const initialState: AdminActionState = {};
 const categories = Object.keys(categoryLabels);
 
-export function MissionForm({ sponsors = [] }: { sponsors?: SponsorItem[] }) {
+export function MissionForm({ sponsors = [], points }: { sponsors?: SponsorItem[]; points?: { id: string; name: string; city?: string | null }[] }) {
   const [state, formAction, pending] = useActionState(createMissionAction, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const [scope, setScope] = useState<"local" | "anywhere">("local");
@@ -89,6 +90,7 @@ export function MissionForm({ sponsors = [] }: { sponsors?: SponsorItem[] }) {
           <label className="mb-1 block text-sm font-medium text-slate-700">🤖 O que a foto deve mostrar (opcional, para a verificação automática)</label>
           <textarea name="aiChecklist" rows={2} maxLength={500} placeholder="Ex.: sacos de lixo cheios na areia da praia; a muda plantada na terra; o óleo entregue no ponto de coleta" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
         </div>
+        <ProofTypeFields lang="pt" className="sm:col-span-2" points={points} />
         <fieldset className="sm:col-span-2">
           <legend className="mb-1 text-sm font-medium text-slate-700">Onde a missão acontece</legend>
           <div className="flex flex-wrap gap-2">

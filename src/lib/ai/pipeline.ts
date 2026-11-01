@@ -5,7 +5,6 @@ import { aiSettings, missions, submissions, users } from "@/db/schema";
 import {
   decideProof,
   DEFAULT_AI_SETTINGS,
-  REJECTION_REASONS,
   SAME_PHOTO_MAX_DISTANCE,
   SIMILAR_PHOTO_MAX_DISTANCE,
   type AiAnalysis,
@@ -16,12 +15,13 @@ import { analyzeProofWithGemini, AiUnavailableError, geminiApiKey } from "@/lib/
 import { hammingDistance, photoForAi } from "@/lib/ai/photo";
 import { canUseVision, findPhotoOnWeb } from "@/lib/ai/vision";
 import { webVerdict, type WebMatches } from "@/lib/ai/web-detection-core";
-import { approveSubmission, rejectSubmission } from "@/lib/review";
+import { planAfterAnalysis, planAfterExtraProof } from "@/lib/verification-server";
+import { extraProofVerdict } from "@/lib/verification";
 import { notifyStaff } from "@/lib/staff-alerts";
 import { moderatorsEnabled } from "@/lib/staff-config";
 import { t, tf } from "@/lib/i18n";
 import { FILES_ROUTE_PREFIX, isValidStoragePath, readStoredFile } from "@/lib/storage";
-import { MATERIAL_LABELS } from "@/lib/impact";
+import { COUNT_ITEM_INFO, countRule, proofTypeOf } from "@/lib/proof";
 
 export async function getAiSettings(): Promise<AiSettingsValues> {
   const [row] = await db.select().from(aiSettings).where(eq(aiSettings.id, 1)).limit(1);
@@ -70,7 +70,7 @@ async function findSimilarPhoto(submission: { id: string; userId: string; missio
   return best && best.distance <= SIMILAR_PHOTO_MAX_DISTANCE ? best : null;
 }
 
-export type VerificationResult = "approved" | "rejected" | "review" | "skipped";
+export type VerificationResult = "approved" | "rejected" | "review" | "extra_proof" | "waiting" | "skipped";
 
 /**
  * Runs the automatic verification of a pending proof and, in "auto" mode, approves or rejects it
@@ -88,8 +88,11 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
   // Appeals are always decided by a person.
   if (!row || row.submission.status !== "pending" || row.submission.appealedAt) return "skipped";
   const { submission, mission } = row;
+  // Waiting for the person to send the extra photo.
+  if (submission.extraProofStatus === "requested") return "skipped";
 
   const settings = await getAiSettings();
+  if (submission.extraProofStatus === "sent") return runExtraProofCheck(submission, mission, settings);
   if (settings.mode === "off") {
     if (submission.aiStatus === "queued") {
       await db.update(submissions).set({ aiStatus: null }).where(eq(submissions.id, submissionId));
@@ -136,19 +139,28 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
   if (useModel) {
     try {
       if (!image) throw new AiUnavailableError("photo not found in storage", "network");
+      const proofType = proofTypeOf(mission);
+      // Before/after missions: the "before" photo goes first.
+      let beforeImage: { base64: string; mimeType: string } | null = null;
+      if (proofType === "before_after" && submission.photoBeforeUrl) {
+        const before = await loadPhoto(submission.photoBeforeUrl);
+        beforeImage = before ? await photoForAi(before).catch(() => null) : null;
+      }
       const result = await analyzeProofWithGemini({
         image,
+        beforeImage,
         mission: {
           title: mission.title,
           description: mission.description,
           category: mission.category,
           context: mission.context,
           aiChecklist: mission.aiChecklist,
+          proofType,
+          // The model counts the items itself and compares with the declared number.
+          countItem: proofType === "count" ? COUNT_ITEM_INFO[countRule(mission).item].name[0] : null,
+          declaredCount: submission.itemCount,
         },
-        // The model also checks whether the photo matches the declared delivery.
-        report: submission.material
-          ? `${submission.report}\n\n[Entrega declarada: ${MATERIAL_LABELS[submission.material].pt}, cerca de ${submission.weightKg} kg]`
-          : submission.report,
+        report: submission.report,
       });
       analysis = result.analysis;
       model = result.model;
@@ -165,6 +177,7 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
     foneReward: Number(mission.foneReward),
     web: webVerdict(web),
     weightKg: submission.weightKg === null ? null : Number(submission.weightKg),
+    declaredCount: submission.itemCount,
   });
 
   await db
@@ -195,15 +208,53 @@ export async function runProofVerification(submissionId: string, photo?: Buffer)
     }
   }
 
-  if (decision.action === "approve") {
-    return (await approveSubmission(submissionId, { kind: "ai" })) ? "approved" : "skipped";
+  const outcome = await planAfterAnalysis({ submission, mission, settings, analysis, decision, aiExpected: useModel, web: webVerdict(web), similar });
+  return outcome === "approved" ? "approved" : outcome === "rejected" ? "rejected" : outcome === "review" ? "review" : outcome;
+}
+
+/** The AI looks at the extra photo (with the handwritten code) next to the original one. */
+async function runExtraProofCheck(
+  submission: typeof submissions.$inferSelect,
+  mission: typeof missions.$inferSelect,
+  settings: AiSettingsValues,
+): Promise<VerificationResult> {
+  if (!willAnalyzeWithModel(settings) || !submission.extraPhotoUrl || !submission.extraProofCode) {
+    await db.update(submissions).set({ extraProofStatus: "failed", verifyBy: new Date() }).where(eq(submissions.id, submission.id));
+    return "review";
   }
-  if (decision.action === "reject" && decision.reasonCode) {
-    const ok = await rejectSubmission(submissionId, { kind: "ai" }, {
-      code: decision.reasonCode,
-      text: REJECTION_REASONS[decision.reasonCode].pt,
+  let extra: AiAnalysis | null = null;
+  let model: string | null = null;
+  let aiError: string | null = null;
+  try {
+    const [original, extraPhoto] = await Promise.all([loadPhoto(submission.photoUrl), loadPhoto(submission.extraPhotoUrl)]);
+    if (!extraPhoto) throw new AiUnavailableError("extra photo not found in storage", "network");
+    const proofType = proofTypeOf(mission);
+    const result = await analyzeProofWithGemini({
+      image: await photoForAi(extraPhoto),
+      beforeImage: original ? await photoForAi(original).catch(() => null) : null,
+      mission: {
+        title: mission.title,
+        description: mission.description,
+        category: mission.category,
+        context: mission.context,
+        aiChecklist: mission.aiChecklist,
+        proofType,
+        countItem: proofType === "count" ? COUNT_ITEM_INFO[countRule(mission).item].name[0] : null,
+        declaredCount: submission.itemCount,
+        challengeCode: submission.extraProofCode,
+      },
+      report: submission.report,
     });
-    return ok ? "rejected" : "skipped";
+    extra = result.analysis;
+    model = result.model;
+  } catch (error) {
+    aiError = error instanceof AiUnavailableError ? `${error.kind}: ${error.message}` : `error: ${(error as Error).message}`;
+    console.error(`[ai] extra proof of ${submission.id} failed:`, aiError);
   }
-  return "review";
+  await db
+    .update(submissions)
+    .set({ aiAnalyzedAt: new Date(), aiError, ...(model ? { aiModel: model } : {}) })
+    .where(eq(submissions.id, submission.id));
+  const outcome = await planAfterExtraProof({ submission, mission, settings, extra, verdict: extra ? extraProofVerdict(extra) : null });
+  return outcome === "approved" || outcome === "rejected" || outcome === "review" || outcome === "waiting" ? outcome : "review";
 }

@@ -107,11 +107,23 @@ export function testGeminiKey(key: string) {
 export async function analyzeWithMyKey(input: {
   key: string;
   dataUrl: string;
+  /** Before/after missions: the "before" photo, sent together. */
+  beforeDataUrl?: string | null;
   mission: MissionForAi;
   report: string;
   lang: Lang;
 }): Promise<{ analysis: AiAnalysis; model: string }> {
-  const match = /^data:(image\/[a-z+]+);base64,(.+)$/.exec(input.dataUrl);
-  const image = match ? { mimeType: match[1], base64: match[2] } : { mimeType: "image/jpeg", base64: input.dataUrl };
-  return requestGeminiAnalysis({ apiKey: input.key, model: BYOK_MODEL, image, mission: input.mission, report: input.report, lang: input.lang });
+  const toImage = (dataUrl: string) => {
+    const match = /^data:(image\/[a-z+]+);base64,(.+)$/.exec(dataUrl);
+    return match ? { mimeType: match[1], base64: match[2] } : { mimeType: "image/jpeg", base64: dataUrl };
+  };
+  return requestGeminiAnalysis({
+    apiKey: input.key,
+    model: BYOK_MODEL,
+    image: toImage(input.dataUrl),
+    beforeImage: input.beforeDataUrl ? toImage(input.beforeDataUrl) : null,
+    mission: input.mission,
+    report: input.report,
+    lang: input.lang,
+  });
 }

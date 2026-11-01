@@ -1,10 +1,12 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { ArrowLeft, Camera, Crosshair, Loader2, MapPin, Navigation, Star, Target, Lightbulb } from "lucide-react";
-import { categoryEmoji, inLang, t } from "@/lib/i18n";
+import { categoryEmoji, inLang, t, tx } from "@/lib/i18n";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { goBack, Link, navigate } from "../router";
 import { dt, errorText } from "../i18n";
-import { checkProof, localizedDescription, localizedTitle, submitProof, useLang, useStore, type NewSubmission } from "../store";
+import { checkIn, checkProof, localizedDescription, localizedTitle, submitProof, useCurrentUser, useLang, useStore, type NewSubmission } from "../store";
+import { checkinPhase } from "@/lib/saas/checkin";
+import { CheckinBox } from "@/components/checkin/checkin-box";
 import { analyzeWithMyKey, byokErrorText, useGeminiKey } from "../byok";
 import { AiUnavailableError } from "@/lib/ai/gemini-core";
 import {
@@ -23,8 +25,8 @@ import { categoryStyles } from "../components/MissionCard";
 import { drawSamplePhoto, SAMPLE_KINDS, sampleEmoji, sampleLabel, type SampleKind } from "../demoAi";
 import { btnPrimary, btnSecondary, card, EmptyState, label, toast } from "../components/ui";
 import { FoneAmount } from "@/components/brand/fone";
-import { RecyclingFields, type RecyclingValue } from "@/components/missions/recycling-fields";
-import { asksForWeight } from "@/lib/impact";
+import { CountField } from "@/components/missions/count-field";
+import { PROOF_TYPE_INFO, proofTypeHint, proofTypeName, proofTypeOf } from "@/lib/proof";
 import { eventSubmissionError } from "@/lib/saas/events";
 import { EventBadge } from "@/components/missions/event-badge";
 
@@ -34,6 +36,8 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
   const lang = useLang();
   const mission = useStore((s) => s.missions.find((m) => m.id === missionId && m.isActive));
   const fileRef = useRef<HTMLInputElement>(null);
+  const beforeRef = useRef<HTMLInputElement>(null);
+  const [before, setBefore] = useState<{ dataUrl: string; hash: string } | null>(null);
   const [photo, setPhoto] = useState<{ dataUrl: string; hash: string; sample: SampleKind | null } | null>(null);
   const [processing, setProcessing] = useState(false);
   const [report, setReport] = useState("");
@@ -41,11 +45,39 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [recycling, setRecycling] = useState<RecyclingValue>({ material: "", weight: "" });
+  const [itemCount, setItemCount] = useState("");
   const myKey = useGeminiKey();
+  const me = useCurrentUser();
+  const myCheckin = useStore((s) => (s.checkins ?? []).find((c) => c.missionId === missionId && c.userId === s.currentUserId)?.createdAt ?? null);
 
   if (!mission) return <EmptyState emoji="🔎" text={t(lang, "missions_empty")} />;
   const eventError = eventSubmissionError(mission);
+  const proofType = proofTypeOf(mission);
+
+  const readPhoto = async (file: File) => {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!detectImageType(bytes)) throw new Error("invalid");
+    const [hash, dataUrl] = await Promise.all([hashBytes(bytes), compressPhoto(file)]);
+    return { hash, dataUrl };
+  };
+
+  const onBefore = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setError(null);
+    if (file.size > MAX_PHOTO_BYTES) return setError(t(lang, "error_photo_too_large"));
+    try {
+      setBefore(await readPhoto(file));
+    } catch {
+      setError(t(lang, "error_invalid_photo"));
+    }
+  };
+
+  const sampleBefore = async () => {
+    const dataUrl = drawSamplePhoto(mission.category === "other" ? "cleanup" : mission.category);
+    if (dataUrl) setBefore({ dataUrl, hash: await hashBytes(new TextEncoder().encode(dataUrl)) });
+  };
 
   const onPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -55,10 +87,7 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
     if (file.size > MAX_PHOTO_BYTES) return setError(t(lang, "error_photo_too_large"));
     setProcessing(true);
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      if (!detectImageType(bytes)) throw new Error("invalid");
-      const [hash, dataUrl] = await Promise.all([hashBytes(bytes), compressPhoto(file)]);
-      setPhoto({ dataUrl, hash, sample: null });
+      setPhoto({ ...(await readPhoto(file)), sample: null });
     } catch {
       setError(t(lang, "error_invalid_photo"));
     } finally {
@@ -103,7 +132,7 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
   const locationOk =
     !!location && distance !== null && (anywhere || distance <= MAX_DISTANCE_METERS) && location.accuracy <= MAX_GPS_ACCURACY_METERS;
   const reportLength = report.trim().length;
-  const canSend = !!photo && reportLength >= 50 && reportLength <= 1000 && !!location && !processing && !analyzing;
+  const canSend = !!photo && (proofType !== "before_after" || !!before) && reportLength >= 50 && reportLength <= 1000 && !!location && !processing && !analyzing;
 
   const send = async () => {
     if (!photo) return setError(t(lang, "error_photo_required"));
@@ -118,8 +147,9 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
       longitude: location.longitude,
       accuracy: location.accuracy,
       simulatedLocation: location.simulated,
-      material: recycling.material || null,
-      weight: recycling.weight,
+      itemCount: proofType === "count" ? itemCount : null,
+      photoBefore: before?.dataUrl ?? null,
+      photoBeforeHash: before?.hash ?? null,
       sample: photo.sample,
     };
     // Check every rule first, so no Gemini request is spent on a proof that would be refused.
@@ -132,7 +162,17 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
         proof.realAi = await analyzeWithMyKey({
           key: myKey,
           dataUrl: photo.dataUrl,
-          mission: { title: mission.title, description: mission.description, category: mission.category, context: mission.context ?? null, aiChecklist: null },
+          beforeDataUrl: proofType === "before_after" ? (before?.dataUrl ?? null) : null,
+          mission: {
+            title: mission.title,
+            description: mission.description,
+            category: mission.category,
+            context: mission.context ?? null,
+            aiChecklist: null,
+            proofType,
+            countItem: proofType === "count" ? (mission.countItem ?? null) : null,
+            declaredCount: proofType === "count" ? Number(itemCount) || null : null,
+          },
           report: report.trim(),
           lang,
         });
@@ -147,7 +187,11 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
 
     const result = submitProof(proof);
     if (result.error) return setError(errorText(lang, result.error));
-    toast(t(lang, "submission_success"));
+    toast(
+      proofType === "partner"
+        ? tx(lang, "Enviado! Agora mostre o QR de Meus envios no ponto de coleta.", "Sent! Now show the QR in My submissions at the collection point.", "¡Enviado! Ahora muestra el QR de Mis envíos en el punto de recolección.")
+        : t(lang, "submission_success"),
+    );
     navigate("/submissions", { replace: true });
   };
 
@@ -187,9 +231,47 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
         </div>
       </div>
 
+      {mission.organizationId && me && checkinPhase(mission) && (
+        <div className="mt-4">
+          <CheckinBox lang={lang} phase={checkinPhase(mission)!} checkedInAt={myCheckin} onCheckIn={(raw) => checkIn(mission.id, raw)} />
+        </div>
+      )}
+
       <div className={`${card} mt-4 grid gap-5 p-5 animate-slide-up`}>
+        <div className="flex gap-3 rounded-2xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-900" data-testid="proof-type">
+          <span className="text-2xl" aria-hidden="true">{PROOF_TYPE_INFO[proofType].emoji}</span>
+          <div>
+            <p className="font-bold">{tx(lang, "Como provar", "How to prove it", "Cómo comprobarlo")}: {proofTypeName(proofType, lang)}</p>
+            <p className="mt-0.5 text-xs">{proofTypeHint(proofType, lang)}</p>
+          </div>
+        </div>
+
+        {proofType === "before_after" && (
+          <div data-testid="before-photo">
+            <span className={label}>⏮️ {tx(lang, "Foto ANTES", "BEFORE photo", "Foto ANTES")}</span>
+            <input ref={beforeRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onBefore} />
+            <button
+              type="button"
+              onClick={() => beforeRef.current?.click()}
+              className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-sky-200 bg-sky-50/50 text-sky-700 transition hover:bg-sky-50"
+            >
+              {before ? (
+                <img src={before.dataUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              ) : (
+                <span className="flex flex-col items-center gap-2 text-sm font-semibold">
+                  <Camera className="h-10 w-10" /> {tx(lang, "Tire a foto antes de começar", "Take it before you start", "Tómala antes de empezar")}
+                </span>
+              )}
+            </button>
+            <button type="button" onClick={sampleBefore} className="mt-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100" data-testid="sample-before">
+              🤖 {tx(lang, "Usar foto de exemplo", "Use a sample photo", "Usar foto de ejemplo")}
+            </button>
+          </div>
+        )}
+
         {/* Photo */}
         <div>
+          {proofType === "before_after" && <span className={label}>⏭️ {tx(lang, "Foto DEPOIS (mesmo lugar e enquadramento)", "AFTER photo (same place and framing)", "Foto DESPUÉS (mismo lugar y encuadre)")}</span>}
           <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhoto} />
           <button
             type="button"
@@ -265,7 +347,7 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
           </div>
         </div>
 
-        {asksForWeight(mission.category) && <RecyclingFields lang={lang} value={recycling} onChange={setRecycling} />}
+        {proofType === "count" && <CountField lang={lang} mission={mission} value={itemCount} onChange={setItemCount} />}
 
         {/* Location */}
         <div className="grid gap-2">

@@ -11,7 +11,9 @@
 @source "../../src/components/brand";
 @source "../../src/components/cards/cards-panel.tsx";
 @source "../../src/components/admin/user-sheet-view.tsx";
-@source "../../src/components/missions/recycling-fields.tsx";
+@source "../../src/components/missions/count-field.tsx";
+@source "../../src/components/missions/proof-type-fields.tsx";
+@source "../../src/components/moderation/proof-evidence.tsx";
 @source "../../src/components/admin/impact-tabs.tsx";
 @source "../../src/components/missions/event-badge.tsx";
 @source "../../src/components/org/event-fields.tsx";
@@ -20,6 +22,17 @@
 @source "../../src/components/benefits";
 @source "../../src/components/admin/benefits-tab.tsx";
 @source "../../src/components/profile";
+@source "../../src/components/qr";
+@source "../../src/components/points";
+@source "../../src/components/checkin";
+@source "../../src/components/submissions/delivery-box.tsx";
+@source "../../src/components/admin/collection-points-panel.tsx";
+@source "../../src/components/submissions/extra-proof-box.tsx";
+@source "../../src/components/moderation/trust-score.tsx";
+@source "../../src/components/moderation/audit-actions.tsx";
+@source "../../src/components/moderation/extra-proof-note.tsx";
+@source "../../src/components/quiz";
+@source "../../src/components/dumps";
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Ubuntu, sans-serif;
