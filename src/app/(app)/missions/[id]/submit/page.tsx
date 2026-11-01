@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { missions } from "@/db/schema";
+import { eventCheckins, missions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { citizenOnly } from "@/lib/role-guard";
@@ -9,6 +9,9 @@ import { membershipRole } from "@/lib/saas/orgs";
 import { eventSubmissionError } from "@/lib/saas/events";
 import { EventBadge } from "@/components/missions/event-badge";
 import { t } from "@/lib/i18n";
+import { checkinPhase } from "@/lib/saas/checkin";
+import { checkInAction } from "@/lib/actions/checkin";
+import { CheckinBox } from "@/components/checkin/checkin-box";
 
 export default async function SubmitMissionPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -38,9 +41,22 @@ export default async function SubmitMissionPage({ params }: { params: Promise<{ 
     );
   }
 
+  // Events: presence check-in with the organizer's rotating QR.
+  const phase = mission.organizationId ? checkinPhase(mission) : null;
+  const [checkin] = phase
+    ? await db
+        .select({ createdAt: eventCheckins.createdAt })
+        .from(eventCheckins)
+        .where(and(eq(eventCheckins.missionId, mission.id), eq(eventCheckins.userId, user.id)))
+        .limit(1)
+    : [];
+
   return (
     <div className="max-w-2xl mx-auto">
       <EventBadge lang={user.language} mission={mission} />
+      {phase && (
+        <CheckinBox lang={user.language} phase={phase} checkedInAt={checkin?.createdAt.toISOString() ?? null} onCheckIn={checkInAction.bind(null, mission.id)} />
+      )}
       <SubmitProofForm
         lang={user.language}
         mission={{

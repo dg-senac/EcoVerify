@@ -1,7 +1,7 @@
 import "server-only";
 import { and, count, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { missions, notifications, pointsLedger, rewardQueue, submissions, userCards, users } from "@/db/schema";
+import { eventCheckins, missions, notifications, pointsLedger, rewardQueue, submissions, userCards, users } from "@/db/schema";
 import { REJECTION_REASONS, composeRejectionMessage, decideProof, isRejectionCode, type AiAnalysis, type AiChecks, type AiSettingsValues, type ProofDecision } from "@/lib/ai/decision";
 import { isCardActive } from "@/lib/cards";
 import { tx, type Lang } from "@/lib/i18n";
@@ -20,6 +20,7 @@ import {
   type TrustInput,
   type VerificationPlan,
 } from "@/lib/verification";
+import { PARTNER_CONFIRM_HOURS } from "@/lib/partner";
 
 type SubmissionRow = typeof submissions.$inferSelect;
 type MissionRow = typeof missions.$inferSelect;
@@ -49,15 +50,30 @@ export function verifyDeadline(submission: Pick<SubmissionRow, "verifyBy" | "sub
 }
 
 function capExceeded(settings: AiSettingsValues, mission: MissionRow, submission: SubmissionRow) {
-  return Number(mission.foneReward) > settings.maxAutoApproveFone || Number(submission.weightKg ?? 0) > MAX_AUTO_APPROVE_KG;
+  // A weight from the point's scale is not an estimate: only the FONE cap applies to it.
+  const heavy = submission.weightSource !== "partner" && Number(submission.weightKg ?? 0) > MAX_AUTO_APPROVE_KG;
+  return Number(mission.foneReward) > settings.maxAutoApproveFone || heavy;
 }
 
-function trustInput(mission: MissionRow, submission: SubmissionRow, history: TrustInput["history"]): Omit<TrustInput, "analysis"> {
+/** Event missions: presence confirmed with the organizer's QR. */
+async function checkedInAt(mission: MissionRow, userId: string): Promise<boolean> {
+  if (!mission.startsAt || !mission.endsAt) return false;
+  const [row] = await db
+    .select({ id: eventCheckins.id })
+    .from(eventCheckins)
+    .where(and(eq(eventCheckins.missionId, mission.id), eq(eventCheckins.userId, userId)))
+    .limit(1);
+  return !!row;
+}
+
+function trustInput(mission: MissionRow, submission: SubmissionRow, history: TrustInput["history"], checkedIn: boolean): Omit<TrustInput, "analysis"> {
   return {
     proofType: proofTypeOf(mission),
     declaredCount: submission.itemCount,
     location: { accuracy: submission.gpsAccuracy, simulated: false, anywhere: mission.scope === "anywhere" },
     history,
+    partnerConfirmed: !!submission.partnerConfirmedAt,
+    checkedIn,
   };
 }
 
@@ -130,9 +146,13 @@ export async function planAfterAnalysis(input: {
   web: "copy" | "partial" | "none" | null;
   similar: { distance: number } | null;
 }) {
-  const { submission, mission, settings } = input;
-  const history = await historyOf(submission.userId, submission.id);
-  const trust = trustScore({ ...trustInput(mission, submission, history), analysis: input.analysis, web: input.web, similar: input.similar });
+  const { mission, settings } = input;
+  // Fresh copy: the collection point may have confirmed the delivery while the AI was looking.
+  const [fresh] = await db.select().from(submissions).where(eq(submissions.id, input.submission.id)).limit(1);
+  const submission = fresh ?? input.submission;
+  const [history, checkedIn] = await Promise.all([historyOf(submission.userId, submission.id), checkedInAt(mission, submission.userId)]);
+  const trust = trustScore({ ...trustInput(mission, submission, history, checkedIn), analysis: input.analysis, web: input.web, similar: input.similar });
+  const isPartner = proofTypeOf(mission) === "partner";
   const windowClosed = Date.now() >= verifyDeadline(submission).getTime();
   const plan = planVerification({
     mode: settings.mode,
@@ -143,6 +163,8 @@ export async function planAfterAnalysis(input: {
     extraProofAsked: !!submission.extraProofStatus,
     windowClosed,
     capExceeded: capExceeded(settings, mission, submission),
+    awaitingPartner: isPartner && !submission.partnerConfirmedAt,
+    partnerConfirmed: isPartner && !!submission.partnerConfirmedAt,
   });
   await db
     .update(submissions)
@@ -175,12 +197,12 @@ export async function planAfterExtraProof(input: {
     return "review" as const;
   }
 
-  const history = await historyOf(submission.userId, submission.id);
+  const [history, checkedIn] = await Promise.all([historyOf(submission.userId, submission.id), checkedInAt(mission, submission.userId)]);
   // The original analysis, with the count of the extra photo when it is better.
   const original = (checks.verdict ? (checks as AiAnalysis) : null) as AiAnalysis | null;
   const extraCountOk = proofTypeOf(mission) === "count" && countCheck(submission.itemCount, extra.itemCount) === "ok";
   const analysis = original ? { ...original, itemCount: extraCountOk ? extra.itemCount : original.itemCount } : null;
-  const trust = trustScore({ ...trustInput(mission, submission, history), analysis, extraProofOk: verdict === "ok" });
+  const trust = trustScore({ ...trustInput(mission, submission, history, checkedIn), analysis, extraProofOk: verdict === "ok" });
 
   let plan: VerificationPlan;
   if (verdict === "failed") {
@@ -221,6 +243,44 @@ export async function planAfterExtraProof(input: {
   return applyPlan(plan, submission, mission, history.approved);
 }
 
+/**
+ * The collection point confirmed the delivery (src/lib/actions/points.ts). If the AI already looked
+ * at the photo, the plan is made now; otherwise the pipeline makes it when the analysis arrives.
+ */
+export async function planAfterPartner(submissionId: string) {
+  const [row] = await db
+    .select({ submission: submissions, mission: missions })
+    .from(submissions)
+    .innerJoin(missions, eq(missions.id, submissions.missionId))
+    .where(eq(submissions.id, submissionId))
+    .limit(1);
+  if (!row || row.submission.status !== "pending" || !row.submission.partnerConfirmedAt) return "skipped" as const;
+  const { submission, mission } = row;
+  if (submission.aiStatus === "queued") return "waiting" as const;
+  const { getAiSettings, willAnalyzeWithModel } = await import("@/lib/ai/pipeline");
+  const settings = await getAiSettings();
+  const checks = (submission.aiChecks as AiChecks | null) ?? {};
+  const analysis = checks.verdict ? (checks as AiAnalysis) : null;
+  const reasonCode = submission.aiReasonCode as ProofDecision["reasonCode"];
+  const decision: ProofDecision = {
+    action: submission.aiVerdict === "approve" && !reasonCode ? "approve" : "review",
+    verdict: submission.aiVerdict ?? "review",
+    confidence: submission.aiConfidence ?? 0,
+    reasonCode,
+  };
+  return planAfterAnalysis({
+    submission,
+    mission,
+    settings,
+    analysis,
+    decision,
+    // A failed analysis is retried by the sweep; without a model there is nothing to wait for.
+    aiExpected: submission.aiStatus === "failed" && willAnalyzeWithModel(settings),
+    web: null,
+    similar: checks.similarSubmissionId && checks.similarDistance != null ? { distance: checks.similarDistance } : null,
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* Sweep: deadlines and retries                                        */
 /* ------------------------------------------------------------------ */
@@ -250,6 +310,26 @@ export async function sweepVerifications(options: { force?: boolean; limit?: num
       await db.update(submissions).set({ extraProofStatus: "expired" }).where(eq(submissions.id, id));
       result.expired++;
     }
+  }
+
+  // 1b. Delivery never confirmed by the collection point: refused (the person can deliver again).
+  const unconfirmed = await db
+    .select({ id: submissions.id })
+    .from(submissions)
+    .where(
+      and(
+        eq(submissions.status, "pending"),
+        isNotNull(submissions.deliveryCode),
+        isNull(submissions.partnerConfirmedAt),
+        isNull(submissions.appealedAt),
+        lt(submissions.submittedAt, new Date(now.getTime() - PARTNER_CONFIRM_HOURS * 3_600_000)),
+      ),
+    )
+    .limit(50);
+  for (const { id } of unconfirmed) {
+    const ok = await rejectSubmission(id, { kind: "ai" }, { code: "partner_missing", text: REJECTION_REASONS.partner_missing.pt });
+    if (ok) await db.update(submissions).set({ verifyBy: null }).where(eq(submissions.id, id));
+    if (ok) result.expired++;
   }
 
   // 2. AI not available earlier: try again (inside the window) or close the window (fallback).
@@ -298,6 +378,8 @@ export function inAutomaticVerification() {
   const now = new Date();
   const condition = or(
     eq(submissions.extraProofStatus, "requested"),
+    // Waiting for the collection point (unless the AI already sent it to a person: verifyBy = now).
+    and(isNotNull(submissions.deliveryCode), isNull(submissions.partnerConfirmedAt), isNull(submissions.appealedAt), gt(submissions.verifyBy, now)),
     and(isNull(submissions.appealedAt), gt(submissions.verifyBy, now), or(inArray(submissions.aiStatus, ["queued", "failed"]), eq(submissions.extraProofStatus, "sent"))),
   );
   // NULL columns must count as "not in verification" (NOT NULL would hide the row from both lists).

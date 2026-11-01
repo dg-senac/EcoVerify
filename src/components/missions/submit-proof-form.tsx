@@ -80,11 +80,12 @@ export function SubmitProofForm({
   useEffect(() => {
     if (state.success) {
       const timeout = setTimeout(() => {
-        router.push("/missions");
-      }, 1600);
+        // Collection point: straight to the QR the person shows at the counter.
+        router.push(mission.proofType === "partner" ? "/submissions" : "/missions");
+      }, mission.proofType === "partner" ? 2600 : 1600);
       return () => clearTimeout(timeout);
     }
-  }, [state.success, router]);
+  }, [state.success, router, mission.proofType]);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -139,6 +140,11 @@ export function SubmitProofForm({
             ✅
           </div>
           <p className="text-lg font-bold text-slate-900">{t(lang, "submission_success")}</p>
+          {mission.proofType === "partner" && (
+            <p className="max-w-sm text-sm text-teal-800" data-testid="partner-next">
+              ⚖️ {tx(lang, "Agora leve o material ao ponto de coleta e mostre o QR que aparece em Meus envios.", "Now take the material to the collection point and show the QR in My submissions.", "Ahora lleva el material al punto de recolección y muestra el QR que aparece en Mis envíos.")}
+            </p>
+          )}
         </div>
       ) : (
         <form ref={formRef} action={formAction} className="space-y-6 bg-white rounded-3xl p-6 shadow-lg">

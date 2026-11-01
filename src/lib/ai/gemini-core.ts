@@ -32,7 +32,7 @@ export type MissionForAi = {
   context: string | null;
   aiChecklist: string | null;
   /** How the mission is proven (src/lib/proof.ts). Default "photo". */
-  proofType?: "photo" | "before_after" | "count";
+  proofType?: "photo" | "before_after" | "count" | "partner";
   /** Count missions: what to count (Portuguese name, e.g. "Garrafas PET") and how many the person declared. */
   countItem?: string | null;
   declaredCount?: number | null;
@@ -117,6 +117,14 @@ function proofInstructions(mission: MissionForAi): string[] {
       `- Conte quantos itens do tipo "${mission.countItem ?? "itens recicláveis"}" aparecem na foto e informe em item_count.`,
       `- A pessoa declarou ${mission.declaredCount ?? "?"}. Itens sobrepostos são normais: conte só o que dá para ver.`,
       "- Se a foto mostrar bem menos itens do que o declarado, use verdict \"review\" e reason_code \"count_mismatch\".",
+      "",
+    ];
+  }
+  if (mission.proofType === "partner") {
+    return [
+      "TIPO DE PROVA: ENTREGA NO PONTO DE COLETA. O peso é conferido depois pela equipe do ponto, com balança.",
+      "- A foto deve mostrar o material reciclável sendo entregue (sacos, caixas, garrafas) ou o ponto de coleta.",
+      "- Não estime peso nem conte itens: responda item_count com -1.",
       "",
     ];
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { Check, FileBarChart, Lock, MessageCircle, Users } from "lucide-react";
 import { categoryEmoji, type Lang } from "@/lib/i18n";
 import { formatBRL, type PlanId } from "@/lib/plans";
@@ -17,6 +17,8 @@ import {
   type EventPackage,
 } from "@/lib/saas/events";
 import { EventBadge } from "@/components/missions/event-badge";
+import { CheckinDisplay, type CheckinDisplayResult } from "@/components/checkin/checkin-display";
+import { checkinPhase, checkinText } from "@/lib/saas/checkin";
 import { PixBox, PixIcon, type BillingInvoice } from "@/components/org/billing-panel";
 
 export interface EventRow {
@@ -30,6 +32,8 @@ export interface EventRow {
   people: number;
   actions: number;
   pending: number;
+  /** Presences confirmed with the rotating QR. */
+  checkins?: number;
   /** Pending Pix charge of this event (with the copy-and-paste code). */
   invoice: BillingInvoice | null;
 }
@@ -52,6 +56,7 @@ export function EventsPanel({
   onCreate,
   onReport,
   onCancel,
+  onCheckinCode,
 }: {
   lang: Lang;
   plan: PlanId;
@@ -65,6 +70,8 @@ export function EventsPanel({
   onCreate: (missionId: string, pkg: EventPackage) => Promise<Result>;
   onReport: (invoiceId: string) => Promise<Result>;
   onCancel: (invoiceId: string) => Promise<Result>;
+  /** The organizer's rotating check-in QR (managers). */
+  onCheckinCode?: (missionId: string) => Promise<CheckinDisplayResult>;
 }) {
   const text = EVENT_TEXT[lang];
   return (
@@ -89,6 +96,7 @@ export function EventsPanel({
             onCreate={onCreate}
             onReport={onReport}
             onCancel={onCancel}
+            onCheckinCode={onCheckinCode}
           />
         ))
       )}
@@ -108,6 +116,7 @@ function EventCard({
   onCreate,
   onReport,
   onCancel,
+  onCheckinCode,
 }: {
   lang: Lang;
   plan: PlanId;
@@ -120,6 +129,7 @@ function EventCard({
   onCreate: (missionId: string, pkg: EventPackage) => Promise<Result>;
   onReport: (invoiceId: string) => Promise<Result>;
   onCancel: (invoiceId: string) => Promise<Result>;
+  onCheckinCode?: (missionId: string) => Promise<CheckinDisplayResult>;
 }) {
   const text = EVENT_TEXT[lang];
   const orgText = ORG_TEXT[lang];
@@ -134,6 +144,8 @@ function EventCard({
       const result = await fn();
       setError(result.error ? (orgText.errors[result.error] ?? orgText.errors.invalid) : null);
     });
+
+  const loadCheckin = useCallback(() => onCheckinCode!(event.id), [onCheckinCode, event.id]);
 
   const reportButton = (
     <>
@@ -169,7 +181,17 @@ function EventCard({
           <b className="text-slate-900">{event.actions}</b> {text.actions}
         </span>
         {event.pending > 0 && <span className="text-amber-700">⏳ {event.pending}</span>}
+        {event.checkins != null && (
+          <span className="text-emerald-700" data-testid="event-checkins">
+            📍 {checkinText(lang).present(event.checkins)}
+          </span>
+        )}
       </div>
+      {onCheckinCode && checkinPhase(event) === "open" && (
+        <div className="mt-3">
+          <CheckinDisplay lang={lang} title={event.title} load={loadCheckin} />
+        </div>
+      )}
 
       {unlocked ? (
         <div className="mt-4">

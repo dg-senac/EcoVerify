@@ -19,8 +19,10 @@ export function MissionsTab({
   demand = [],
   seeds = [],
   sponsors = [],
+  points,
 }: {
   missions: MissionItem[];
+  points?: { id: string; name: string; city?: string | null }[];
   demand?: CityDemand[];
   seeds?: SeedLog[];
   sponsors?: SponsorItem[];
@@ -70,7 +72,7 @@ export function MissionsTab({
         </div>
       )}
 
-      <MissionForm sponsors={sponsors.filter((sponsor) => sponsor.isActive)} />
+      <MissionForm sponsors={sponsors.filter((sponsor) => sponsor.isActive)} points={points} />
       {PAYMENTS_ENABLED && <SponsorsPanel sponsors={sponsors} />}
       <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
         <h3 className="mb-3 font-bold text-slate-900">Todas as missões</h3>

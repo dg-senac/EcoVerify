@@ -156,7 +156,7 @@ export function ToggleMissionButton({ lang, missionId, active }: { lang: Lang; m
 
 const CATEGORIES = ["recycling", "cleanup", "planting", "donation", "other"] as const;
 
-export function OrgMissionForm({ lang, orgId }: { lang: Lang; orgId: string }) {
+export function OrgMissionForm({ lang, orgId, points }: { lang: Lang; orgId: string; points?: { id: string; name: string; city?: string | null }[] }) {
   const text = ORG_TEXT[lang];
   const [state, action, pending] = useActionState<OrgActionState, FormData>(createOrgMissionAction, {});
   const [scope, setScope] = useState<"anywhere" | "local">("anywhere");
@@ -216,7 +216,7 @@ export function OrgMissionForm({ lang, orgId }: { lang: Lang; orgId: string }) {
           </button>
         </div>
       )}
-      <ProofTypeFields lang={lang} defaultType="count" />
+      <ProofTypeFields lang={lang} defaultType="count" points={points} />
       <EventFields lang={lang} />
       <p className="text-xs text-slate-500">{text.pointsOnlyNote}</p>
       {state.error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{text.errors[state.error] ?? text.errors.invalid}</p>}

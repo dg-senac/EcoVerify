@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { and, count, eq, gte, inArray, or } from "drizzle-orm";
 import crypto from "node:crypto";
 import { db } from "@/db";
-import { missions, submissions } from "@/db/schema";
+import { collectionPoints, missions, submissions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { membershipRole } from "@/lib/saas/orgs";
 import { detectFileType } from "@/lib/file-type";
@@ -17,6 +17,7 @@ import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib
 import { checkCountInput, proofTypeOf } from "@/lib/proof";
 import { eventSubmissionError } from "@/lib/saas/events";
 import { addHours, VERIFY_WINDOW_HOURS } from "@/lib/verification";
+import { newDeliveryCode, PARTNER_CONFIRM_HOURS } from "@/lib/partner";
 
 export type SubmissionActionState = { error?: string; success?: boolean };
 
@@ -86,6 +87,13 @@ export async function createSubmissionAction(
   const proofType = proofTypeOf(mission);
   const counted = checkCountInput(mission, formData.get("itemCount"));
   if (counted.error) return { error: counted.error };
+  // Collection point missions: the point must exist and be active to weigh the delivery.
+  if (proofType === "partner") {
+    const [point] = mission.collectionPointId
+      ? await db.select({ isActive: collectionPoints.isActive }).from(collectionPoints).where(eq(collectionPoints.id, mission.collectionPointId)).limit(1)
+      : [];
+    if (!point?.isActive) return { error: "mission_not_found" };
+  }
   const photoBefore = formData.get("photoBefore");
   if (proofType === "before_after") {
     if (!(photoBefore instanceof File) || photoBefore.size === 0) return { error: "photo_before_required" };
@@ -196,7 +204,9 @@ export async function createSubmissionAction(
         photoBeforeHash: before?.hash ?? null,
         aiStatus: willAnalyzeWithModel(aiConfig) ? "queued" : null,
         gpsAccuracy: accuracy === null ? null : Math.round(accuracy),
-        verifyBy: addHours(new Date(), VERIFY_WINDOW_HOURS),
+        // Collection point missions wait for the point (up to PARTNER_CONFIRM_HOURS).
+        verifyBy: addHours(new Date(), proofType === "partner" ? PARTNER_CONFIRM_HOURS : VERIFY_WINDOW_HOURS),
+        deliveryCode: proofType === "partner" ? newDeliveryCode(() => crypto.randomInt(0, 1_000_000) / 1_000_000) : null,
       })
       .returning({ id: submissions.id });
     submissionId = created.id;

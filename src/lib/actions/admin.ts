@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { aiSettings, foneSettings, missions, notifications, rewardQueue, sessions, sponsorTopups, sponsors, users } from "@/db/schema";
+import { aiSettings, collectionPoints, foneSettings, missions, notifications, rewardQueue, sessions, sponsorTopups, sponsors, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { isSuspended } from "@/lib/cards";
 import { canHoldAdminRole, isOwnerEmail } from "@/lib/staff-config";
@@ -51,6 +51,12 @@ export async function createMissionAction(
   const proof = parseProofFields((name) => formData.get(name));
   if (proof.error) return { error: "invalid" };
   const scope = formData.get("scope") === "anywhere" ? "anywhere" : "local";
+  // Collection point missions happen at the point: an active point and a mission location are required.
+  if (proof.collectionPointId) {
+    if (scope !== "local" || !/^[0-9a-f-]{36}$/i.test(proof.collectionPointId)) return { error: "invalid" };
+    const [point] = await db.select({ id: collectionPoints.id }).from(collectionPoints).where(and(eq(collectionPoints.id, proof.collectionPointId), eq(collectionPoints.isActive, true))).limit(1);
+    if (!point) return { error: "invalid" };
+  }
   let sponsorName = String(formData.get("sponsorName") ?? "").trim().slice(0, 80) || null;
   // A registered sponsor pays the FONE of this mission from its own budget.
   const sponsorIdInput = String(formData.get("sponsorId") ?? "").trim();
@@ -69,6 +75,7 @@ export async function createMissionAction(
   const latitude = coordinate("latitude");
   const longitude = coordinate("longitude");
   const hasPoint = Number.isFinite(latitude) && Number.isFinite(longitude);
+  if (proof.collectionPointId && !hasPoint) return { error: "invalid" };
   const category = String(formData.get("category") ?? "other") as Category;
   const pointsReward = Number(formData.get("pointsReward") ?? 0);
   const foneRewardNumber = Number(String(formData.get("foneReward") ?? "0").replace(",", "."));
@@ -103,6 +110,7 @@ export async function createMissionAction(
     proofType: proof.proofType,
     countItem: proof.countItem,
     countTarget: proof.countTarget,
+    collectionPointId: proof.collectionPointId,
     latitude: hasPoint ? String(latitude) : null,
     longitude: hasPoint ? String(longitude) : null,
     scope,

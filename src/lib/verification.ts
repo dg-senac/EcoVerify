@@ -37,6 +37,8 @@ export const AUDIT_RATE_NEW = 0.25;
 export const NEW_ACCOUNT_APPROVED = 3;
 /** Points the extra proof adds when the AI confirms it. */
 export const EXTRA_PROOF_BONUS = 15;
+/** Presence confirmed with the organizer's rotating QR (src/lib/saas/checkin.ts). */
+export const CHECKIN_BONUS = 15;
 
 /* ------------------------------------------------------------------ */
 /* Confidence score                                                    */
@@ -60,7 +62,10 @@ export type TrustFactorKey =
   | "extra_proof"
   | "web_partial"
   | "similar_photo"
-  | "count_low";
+  | "count_low"
+  | "partner_weighed"
+  | "partner_waiting"
+  | "event_checkin";
 
 export type TrustFactor = { key: TrustFactorKey; points: number };
 
@@ -85,6 +90,10 @@ export type TrustInput = {
   web?: "copy" | "partial" | "none" | null;
   similar?: { distance: number } | null;
   extraProofOk?: boolean;
+  /** "partner" missions: the collection point weighed and confirmed the delivery. */
+  partnerConfirmed?: boolean;
+  /** Event missions: presence confirmed with the organizer's QR. */
+  checkedIn?: boolean;
 };
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
@@ -121,11 +130,14 @@ export function trustScore(input: TrustInput): { score: number; factors: TrustFa
     if (check === "ok") add("evidence_count", 10);
     else if (check === "low") add("count_low", -30);
     else add("evidence_count_unknown", 3);
+  } else if (input.proofType === "partner") {
+    add(input.partnerConfirmed ? "partner_weighed" : "partner_waiting", input.partnerConfirmed ? 30 : 0);
   } else if (input.proofType === "before_after") {
     add("evidence_before_after", a && a.sameScene !== false && a.improvementVisible !== false ? 10 : 0);
   } else add("evidence_photo", 5);
 
   if (input.extraProofOk) add("extra_proof", EXTRA_PROOF_BONUS);
+  if (input.checkedIn) add("event_checkin", CHECKIN_BONUS);
   if (input.web === "partial") add("web_partial", -15);
   if (input.similar) add("similar_photo", -25);
 
@@ -151,6 +163,9 @@ const FACTOR_TEXT: Record<TrustFactorKey, [string, string, string]> = {
   web_partial: ["Imagem parecida na internet", "Similar image online", "Imagen parecida en internet"],
   similar_photo: ["Parecida com outra foto enviada", "Similar to another photo sent", "Parecida a otra foto enviada"],
   count_low: ["Menos itens do que o informado", "Fewer items than declared", "Menos artículos de lo informado"],
+  partner_weighed: ["Pesado e confirmado no ponto de coleta", "Weighed and confirmed at the collection point", "Pesado y confirmado en el punto de recolección"],
+  partner_waiting: ["Aguardando o ponto de coleta", "Waiting for the collection point", "Esperando el punto de recolección"],
+  event_checkin: ["Presença confirmada no mutirão (QR)", "Presence confirmed at the event (QR)", "Presencia confirmada en la jornada (QR)"],
 };
 
 export function trustFactorLabel(key: TrustFactorKey, lang: Lang): string {
@@ -192,11 +207,17 @@ export function planVerification(input: {
   capExceeded: boolean;
   /** This evaluation comes after the AI confirmed the extra proof. */
   extraProofOk?: boolean;
+  /** "partner" mission not confirmed by the collection point yet: nothing to decide before that. */
+  awaitingPartner?: boolean;
+  /** The collection point weighed and confirmed the delivery (no extra photo needed after that). */
+  partnerConfirmed?: boolean;
 }): VerificationPlan {
   const { decision } = input;
   if (input.mode !== "auto") return { action: "review" };
   if (decision.action === "reject" && decision.reasonCode) return { action: "reject", reasonCode: decision.reasonCode };
   if (PERSON_ONLY.has(decision.reasonCode)) return { action: "review" };
+  // The point weighs the delivery; no extra photo replaces that (the sweep refuses it after the deadline).
+  if (input.awaitingPartner) return { action: "wait" };
 
   if (!input.analyzed) {
     if (input.aiExpected && !input.windowClosed) return { action: "wait" };
@@ -206,6 +227,8 @@ export function planVerification(input: {
   }
 
   const aiAgrees = decision.verdict === "approve" && !decision.reasonCode;
+  // A person at the point saw and weighed the material: an unsure AI is not a reason to doubt it.
+  if (input.partnerConfirmed) return !decision.reasonCode && input.score >= TRUST_APPROVE_MIN && !input.capExceeded ? { action: "approve", forceAudit: false } : { action: "review" };
   if (input.extraProofOk) return aiAgrees && input.score >= TRUST_APPROVE_MIN && !input.capExceeded ? { action: "approve", forceAudit: false } : { action: "review" };
   if (decision.action === "approve" && input.score >= TRUST_APPROVE_MIN) return { action: "approve", forceAudit: false };
   // Big rewards / heavy deliveries are always decided by a person: no point asking for more photos.

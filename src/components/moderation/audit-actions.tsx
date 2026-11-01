@@ -4,7 +4,7 @@ import { useState } from "react";
 import { tx, type Lang } from "@/lib/i18n";
 import { REJECTION_CODES, REJECTION_REASONS, type RejectionCode } from "@/lib/ai/decision";
 
-const AUDIT_CODES = REJECTION_CODES.filter((code) => code !== "extra_proof_missing");
+const AUDIT_CODES = REJECTION_CODES.filter((code) => code !== "extra_proof_missing" && code !== "partner_missing");
 
 /**
  * Sample audit of an automatic approval (src/lib/verification.ts): keep it or revoke it.

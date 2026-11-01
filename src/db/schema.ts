@@ -23,7 +23,7 @@ export const categoryEnum = pgEnum("mission_category", [
   "other",
 ]);
 /** How a mission is proven (src/lib/proof.ts). */
-export const proofTypeEnum = pgEnum("proof_type", ["photo", "before_after", "count"]);
+export const proofTypeEnum = pgEnum("proof_type", ["photo", "before_after", "count", "partner"]);
 /** Where the weight of a recycling proof came from (src/lib/proof.ts). */
 export const weightSourceEnum = pgEnum("weight_source", ["estimated", "partner", "declared"]);
 /** Recyclable material of a delivery (src/lib/impact.ts). */
@@ -189,6 +189,8 @@ export const missions = pgTable("missions", {
   /** Count missions: what is counted (COUNT_ITEMS) and the minimum number of items. */
   countItem: varchar("count_item", { length: 30 }),
   countTarget: integer("count_target"),
+  /** "partner" missions: the collection point that weighs and confirms the deliveries (src/lib/partner.ts). */
+  collectionPointId: uuid("collection_point_id").references((): AnyPgColumn => collectionPoints.id, { onDelete: "set null" }),
   pointsReward: integer("points_reward").notNull(),
   foneReward: numeric("fone_reward", { precision: 12, scale: 2 }).notNull(),
   isActive: boolean("is_active").notNull().default(true),
@@ -198,6 +200,8 @@ export const missions = pgTable("missions", {
   /** One-off event payment ("evento avulso"): package p/m/g and when it was confirmed. */
   eventPackage: varchar("event_package", { length: 1 }),
   eventPaidAt: timestamp("event_paid_at", { withTimezone: true }),
+  /** Key of the rotating check-in QR (src/lib/saas/checkin.ts), created when the organizer first opens it. */
+  checkinSecret: varchar("checkin_secret", { length: 64 }),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -348,6 +352,10 @@ export const submissions = pgTable("submissions", {
   extraProofDueAt: timestamp("extra_proof_due_at", { withTimezone: true }),
   extraPhotoUrl: text("extra_photo_url"),
   extraPhotoHash: varchar("extra_photo_hash", { length: 64 }),
+  /** "partner" missions: code shown at the collection point and when/where it was weighed. */
+  deliveryCode: varchar("delivery_code", { length: 6 }),
+  partnerConfirmedAt: timestamp("partner_confirmed_at", { withTimezone: true }),
+  partnerPointId: uuid("partner_point_id").references((): AnyPgColumn => collectionPoints.id, { onDelete: "set null" }),
   /** Sample audit of an automatic approval: pending | ok | revoked. */
   auditStatus: varchar("audit_status", { length: 10 }),
   auditedBy: uuid("audited_by").references(() => users.id, { onDelete: "set null" }),
@@ -363,6 +371,7 @@ export const submissions = pgTable("submissions", {
   index("submissions_status_idx").on(table.status),
   index("submissions_mission_idx").on(table.missionId),
   index("submissions_audit_idx").on(table.auditStatus),
+  uniqueIndex("submissions_delivery_code_unique").on(table.deliveryCode),
 ]);
 
 /**
@@ -658,3 +667,29 @@ export const sponsorTopups = pgTable("sponsor_topups", {
   createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ------------------------------------------------------------------ */
+/* Collection points and event check-ins (src/lib/partner.ts, saas/checkin.ts) */
+/* ------------------------------------------------------------------ */
+
+/** A cooperativa / ecoponto with a scale. Confirms deliveries on /ponto/<token> (no account). */
+export const collectionPoints = pgTable("collection_points", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 80 }).notNull(),
+  address: varchar("address", { length: 160 }),
+  city: varchar("city", { length: 80 }),
+  /** Optional: the organization (e.g. a cooperativa on a paid plan) that runs it. */
+  organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+  token: varchar("token", { length: 40 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("collection_points_token_unique").on(table.token)]);
+
+/** Presence confirmed with the organizer's rotating QR. One per person per event. */
+export const eventCheckins = pgTable("event_checkins", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  missionId: uuid("mission_id").notNull().references(() => missions.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("event_checkins_once").on(table.missionId, table.userId)]);

@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { Award, Camera, Recycle, Users } from "lucide-react";
-import { categoryEmoji, categoryLabels, type Lang } from "@/lib/i18n";
+import { categoryEmoji, categoryLabels, tx, type Lang } from "@/lib/i18n";
 import { formatKg } from "@/lib/impact";
 import { EVENT_TEXT, formatEventWindow } from "@/lib/saas/events";
+import { checkinText } from "@/lib/saas/checkin";
 import { LogoHorizontal, LogoMark } from "@/components/logo";
 
 export interface EventReportData {
@@ -14,8 +15,10 @@ export interface EventReportData {
   endsAt: string;
   actions: number;
   recycledKg: number;
-  participants: { submissionId: string; name: string; points: number; at: string }[];
+  participants: { submissionId: string; name: string; points: number; at: string; checkedIn?: boolean }[];
   photos: string[];
+  /** Presences confirmed with the organizer's rotating QR (src/lib/saas/checkin.ts). */
+  checkins?: number;
 }
 
 /**
@@ -40,6 +43,7 @@ export function EventReportView({
     { icon: <span className="text-lg">{categoryEmoji[data.category] ?? "🌱"}</span>, value: data.actions.toLocaleString(locale), label: text.actions },
     ...(data.recycledKg > 0 ? [{ icon: <Recycle className="h-5 w-5" />, value: formatKg(data.recycledKg, lang), label: text.reportKg }] : []),
     { icon: <Camera className="h-5 w-5" />, value: data.photos.length.toLocaleString(locale), label: text.reportPhotos },
+    ...(data.checkins ? [{ icon: <span className="text-lg">📍</span>, value: data.checkins.toLocaleString(locale), label: tx(lang, "Check-ins no local", "On-site check-ins", "Check-ins en el lugar") }] : []),
   ];
   return (
     <div className="min-h-screen bg-slate-100 py-8 print:bg-white print:py-0">
@@ -63,7 +67,7 @@ export function EventReportView({
           </div>
         </header>
 
-        <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="event-report-stats">
+        <div className={`mt-6 grid grid-cols-2 gap-3 ${stats.length > 4 ? "md:grid-cols-5" : "md:grid-cols-4"}`} data-testid="event-report-stats">
           {stats.map((s) => (
             <div key={s.label} className="rounded-2xl bg-gradient-to-br from-violet-50 to-emerald-50 p-4">
               <span className="text-violet-600">{s.icon}</span>
@@ -94,7 +98,14 @@ export function EventReportView({
               {data.participants.map((p, i) => (
                 <tr key={p.submissionId} className="border-b border-slate-100 last:border-0">
                   <td className="w-8 py-2 font-bold text-slate-400">{i + 1}</td>
-                  <td className="py-2 font-semibold text-slate-800">{p.name}</td>
+                  <td className="py-2 font-semibold text-slate-800">
+                    {p.name}
+                    {p.checkedIn && (
+                      <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700" title={checkinText(lang).title}>
+                        📍 check-in
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2 text-slate-500">{new Date(p.at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}</td>
                   <td className="py-2 text-right font-bold text-emerald-700">{p.points} pts</td>
                   {certificate && <td className="py-2 pl-3 text-right print:hidden">{certificate(p.submissionId)}</td>}

@@ -31,6 +31,7 @@ export const REJECTION_CODES = [
   "count_mismatch",
   "before_after_mismatch",
   "extra_proof_missing",
+  "partner_missing",
 ] as const;
 export type RejectionCode = (typeof REJECTION_CODES)[number];
 
@@ -103,6 +104,11 @@ export const REJECTION_REASONS: Record<RejectionCode, Record<Lang, string>> = {
     pt: "A prova extra pedida pela verificação automática não foi enviada no prazo. Você pode enviar uma nova comprovação para esta missão.",
     en: "The extra proof asked by the automatic verification was not sent in time. You can send a new proof for this mission.",
     es: "La prueba extra pedida por la verificación automática no se envió a tiempo. Puedes enviar una nueva comprobación para esta misión.",
+  },
+  partner_missing: {
+    pt: "O ponto de coleta não confirmou a entrega no prazo. Leve o material ao ponto e envie uma nova comprovação.",
+    en: "The collection point did not confirm the delivery in time. Take the material to the point and send a new proof.",
+    es: "El punto de recolección no confirmó la entrega a tiempo. Lleva el material al punto y envía una nueva comprobación.",
   },
   internet_copy: {
     pt: "A foto parece ter sido copiada da internet (marca d'água, banco de imagens ou foto de outro site). Envie uma foto tirada por você no local.",

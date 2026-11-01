@@ -2,7 +2,7 @@ import { PAYMENTS_ENABLED } from "@/lib/features";
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { invoices, offerRedemptions, partnerOffers, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, userCards, users } from "@/db/schema";
+import { collectionPoints, invoices, offerRedemptions, partnerOffers, sponsorTopups, missionRequests, missions, organizations, pointsLedger, regionSeeds, rewardQueue, submissions, userCards, users } from "@/db/schema";
 import type { UserDetails } from "@/components/admin/user-sheet";
 import { BusinessTab, type BusinessData } from "@/components/admin/business-tab";
 import { confirmInvoiceAction, grantPlanAction } from "@/lib/actions/billing";
@@ -23,6 +23,8 @@ import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
 import { BenefitsTab, type AdminOffer } from "@/components/admin/benefits-tab";
 import { localizeOffer } from "@/lib/benefits";
 import { createOfferAction, regenerateOfferTokenAction, toggleOfferAction } from "@/lib/actions/benefits";
+import { createCollectionPointAction, regenerateCollectionPointLinkAction, toggleCollectionPointAction } from "@/lib/actions/points";
+import { CollectionPointsPanel } from "@/components/admin/collection-points-panel";
 import { publicBaseUrl } from "@/lib/saas/base-url";
 import { dataTables, recyclingSummary } from "@/lib/impact";
 import { loadImpactRows } from "@/lib/impact-server";
@@ -241,6 +243,21 @@ export default async function AdminPage() {
     .from(rewardQueue)
     .where(and(sql`${rewardQueue.createdAt} >= ${monthStart(now).toISOString()}`, isNull(rewardQueue.holdReason)));
   const sponsorList = await sponsorBalances();
+  // Collection points that weigh deliveries (♻️ tab and the mission form).
+  const pointList = await db
+    .select({
+      id: collectionPoints.id,
+      name: collectionPoints.name,
+      address: collectionPoints.address,
+      city: collectionPoints.city,
+      token: collectionPoints.token,
+      isActive: collectionPoints.isActive,
+      confirmed: sql<number>`(select count(*)::int from submissions s where s.partner_point_id = ${collectionPoints.id} and s.partner_confirmed_at is not null)`,
+      totalKg: sql<number>`(select coalesce(sum(s.weight_kg), 0)::float from submissions s where s.partner_point_id = ${collectionPoints.id} and s.partner_confirmed_at is not null)`,
+      waiting: sql<number>`(select count(*)::int from submissions s join missions m on m.id = s.mission_id where m.collection_point_id = ${collectionPoints.id} and s.status = 'pending' and s.partner_confirmed_at is null)`,
+    })
+    .from(collectionPoints)
+    .orderBy(desc(collectionPoints.isActive), asc(collectionPoints.name));
 
   const paidBatches: PaidBatch[] = await db
     .select({
@@ -404,6 +421,7 @@ export default async function AdminPage() {
     used30,
   }));
   const partnerBase = `${await publicBaseUrl()}/parceiro/`;
+  const pointBase = `${await publicBaseUrl()}/ponto/`;
 
   const vision = { configured: !!visionApiKey(), used: visionApiKey() ? await visionUsedThisMonth() : 0, limit: visionMonthlyLimit() };
 
@@ -465,6 +483,7 @@ export default async function AdminPage() {
                   missions={allMissions}
                   demand={cityDemand}
                   seeds={seedLog}
+                  points={pointList.filter((pt) => pt.isActive).map((pt) => ({ id: pt.id, name: pt.name, city: pt.city }))}
                   sponsors={sponsorList.map((sp) => ({
                     id: sp.id,
                     name: sp.name,
@@ -523,7 +542,17 @@ export default async function AdminPage() {
               key: "recycling",
               label: "Reciclagem",
               icon: "♻️",
-              content: <RecyclingTab lang={user.language} summary={recyclingSummary(impactRows)} exportBase="/api/admin/export" />,
+              content: (
+                <div className="grid gap-6">
+                  <CollectionPointsPanel
+                    lang={user.language}
+                    points={pointList.map((pt) => ({ ...pt, totalKg: Number(pt.totalKg) }))}
+                    pointBase={pointBase}
+                    actions={{ create: createCollectionPointAction, toggle: toggleCollectionPointAction, regenerate: regenerateCollectionPointLinkAction }}
+                  />
+                  <RecyclingTab lang={user.language} summary={recyclingSummary(impactRows)} exportBase="/api/admin/export" />
+                </div>
+              ),
             },
             {
               key: "data",

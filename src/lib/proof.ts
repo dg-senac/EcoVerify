@@ -11,7 +11,7 @@
 import { tx, type Lang } from "@/lib/i18n";
 import type { Material } from "@/lib/impact";
 
-export const PROOF_TYPES = ["photo", "before_after", "count"] as const;
+export const PROOF_TYPES = ["photo", "before_after", "count", "partner"] as const;
 export type ProofType = (typeof PROOF_TYPES)[number];
 
 export function isProofType(value: unknown): value is ProofType {
@@ -51,6 +51,15 @@ export const PROOF_TYPE_INFO: Record<ProofType, { emoji: string; name: Text3; hi
       "Espalhe os itens para todos aparecerem na foto e informe quantos são. A IA confere a contagem.",
       "Spread the items so they all show in the photo and say how many there are. The AI checks the count.",
       "Extiende los artículos para que todos salgan en la foto e indica cuántos son. La IA verifica el conteo.",
+    ],
+  },
+  partner: {
+    emoji: "⚖️",
+    name: ["Pesagem no ponto de coleta", "Weighed at a collection point", "Pesaje en el punto de recolección"],
+    hint: [
+      "Tire uma foto da entrega no ponto de coleta. A equipe do ponto lê o seu QR, pesa o material e confirma: o peso vale como conferido.",
+      "Take a photo of the delivery at the collection point. The point's team scans your QR, weighs the material and confirms: the weight counts as checked.",
+      "Toma una foto de la entrega en el punto de recolección. El equipo del punto lee tu QR, pesa el material y confirma: el peso cuenta como verificado.",
     ],
   },
 };
@@ -159,19 +168,25 @@ export function weightSourceLabel(source: WeightSource | null | undefined, lang:
   return tx(lang, "estimado pela contagem", "estimated from the count", "estimado por el conteo");
 }
 
-/** Reads the proof fields of a mission form ("proofType", "countItem", "countTarget"). */
+/** Reads the proof fields of a mission form ("proofType", "countItem", "countTarget", "collectionPointId"). */
 export function parseProofFields(get: (name: string) => unknown): {
   proofType: ProofType;
   countItem: CountItem | null;
   countTarget: number | null;
-  error?: "count_item_required";
+  collectionPointId: string | null;
+  error?: "count_item_required" | "collection_point_required";
 } {
   const proofType = isProofType(get("proofType")) ? (get("proofType") as ProofType) : "photo";
-  if (proofType !== "count") return { proofType, countItem: null, countTarget: null };
+  if (proofType === "partner") {
+    const point = String(get("collectionPointId") ?? "").trim();
+    if (!point) return { proofType, countItem: null, countTarget: null, collectionPointId: null, error: "collection_point_required" };
+    return { proofType, countItem: null, countTarget: null, collectionPointId: point };
+  }
+  if (proofType !== "count") return { proofType, countItem: null, countTarget: null, collectionPointId: null };
   const item = get("countItem");
-  if (!isCountItem(item)) return { proofType, countItem: null, countTarget: null, error: "count_item_required" };
+  if (!isCountItem(item)) return { proofType, countItem: null, countTarget: null, collectionPointId: null, error: "count_item_required" };
   const target = Math.min(MAX_ITEM_COUNT, Math.max(1, Math.round(Number(get("countTarget")) || 1)));
-  return { proofType, countItem: item, countTarget: target };
+  return { proofType, countItem: item, countTarget: target, collectionPointId: null };
 }
 
 /** Suggested proof type for a category (what the mission forms start with). */

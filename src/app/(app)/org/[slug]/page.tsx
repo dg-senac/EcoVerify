@@ -2,11 +2,11 @@ import Link from "next/link";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { notFound, redirect } from "next/navigation";
 import { citizenOnly } from "@/lib/role-guard";
-import { and, asc, desc, eq, inArray, isNotNull, not, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, not, or, sql } from "drizzle-orm";
 import { inAutomaticVerification } from "@/lib/verification-server";
 import { Award, ExternalLink, FileBarChart, Users } from "lucide-react";
 import { db } from "@/db";
-import { invoices, missions, submissions, users } from "@/db/schema";
+import { collectionPoints, invoices, missions, submissions, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { categoryEmoji, categoryLabels, t } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
@@ -20,6 +20,7 @@ import { contactUrl, pixConfig } from "@/lib/saas/sales-config";
 import { pixPayload } from "@/lib/saas/pix";
 import { publicBaseUrl } from "@/lib/saas/base-url";
 import { cancelInvoiceAction, createEventInvoiceAction, createInvoiceAction, reportInvoicePaidAction } from "@/lib/actions/billing";
+import { checkinCodeAction } from "@/lib/actions/checkin";
 import { ModerationCard } from "@/components/moderation/moderation-card";
 import { BillingPanel } from "@/components/org/billing-panel";
 import { EventsPanel } from "@/components/org/events-panel";
@@ -56,12 +57,17 @@ export default async function OrganizationPage({
   const tab: Tab = visibleTabs.find((t) => t === query.tab) ?? "overview";
   const accent = org.brandColor && hasFeature(plan, "branding") ? org.brandColor : null;
 
-  const [impact, ranking, activeCount, eventAllowance, orgMissions] = await Promise.all([
+  const [impact, ranking, activeCount, eventAllowance, orgMissions, orgPoints] = await Promise.all([
     orgImpact(org.id),
     orgRanking(org.id, 200),
     activeMissionCount(org.id),
     orgEventAllowance(org.id),
     db.select().from(missions).where(eq(missions.organizationId, org.id)).orderBy(desc(missions.isActive), desc(missions.createdAt)),
+    // Collection points the organization can use: public ones and its own.
+    db
+      .select({ id: collectionPoints.id, name: collectionPoints.name, city: collectionPoints.city })
+      .from(collectionPoints)
+      .where(and(eq(collectionPoints.isActive, true), or(isNull(collectionPoints.organizationId), eq(collectionPoints.organizationId, org.id)))),
   ]);
   const [{ pendingCount }] = await db
     .select({ pendingCount: sql<number>`count(*)::int` })
@@ -263,7 +269,7 @@ export default async function OrganizationPage({
               <p className="mb-4 text-xs font-semibold text-slate-500" data-testid="mission-usage">
                 {text.missionUsage(activeCount, PLANS[plan].maxActiveMissions)}
               </p>
-              <OrgMissionForm lang={lang} orgId={org.id} />
+              <OrgMissionForm lang={lang} orgId={org.id} points={orgPoints} />
             </section>
             <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
               <h2 className="font-bold text-slate-900">{text.orgMissions}</h2>
@@ -510,6 +516,7 @@ async function EventsTab({ org, lang, isOwner }: { org: NonNullable<Awaited<Retu
           people: e.people,
           actions: e.actions,
           pending: e.pending,
+          checkins: e.checkins,
           invoice: invoice
             ? {
                 id: invoice.id,
@@ -537,6 +544,7 @@ async function EventsTab({ org, lang, isOwner }: { org: NonNullable<Awaited<Retu
         };
       })}
       onCreate={createEventInvoiceAction}
+      onCheckinCode={checkinCodeAction}
       onReport={reportInvoicePaidAction}
       onCancel={cancelInvoiceAction}
     />

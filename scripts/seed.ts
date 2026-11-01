@@ -17,7 +17,7 @@ async function main() {
   }
 
   const { db, pool } = await import("../src/db");
-  const { missions, sponsors, users } = await import("../src/db/schema");
+  const { collectionPoints, missions, sponsors, users } = await import("../src/db/schema");
 
   const password = process.env.SEED_PASSWORD || "ecoverify123";
   const passwordHash = await bcrypt.hash(password, 10);
@@ -203,6 +203,43 @@ async function main() {
       .set({ sponsorId: sponsor.id, sponsorName: sponsor.name })
       .where(and(eq(missions.title, "Guarde o óleo de cozinha usado"), isNull(missions.sponsorId)));
     console.log(`✓ patrocinador de exemplo: ${sponsor.name} (30 FONE)`);
+  }
+
+  // Version 1.10: a collection point that weighs deliveries + a mission proven there (scale weight, not an estimate).
+  const [anyPoint] = await db.select({ id: collectionPoints.id }).from(collectionPoints).limit(1);
+  if (!anyPoint) {
+    const { randomInt } = await import("node:crypto");
+    const { newPartnerToken } = await import("../src/lib/benefits");
+    const [point] = await db
+      .insert(collectionPoints)
+      .values({
+        name: "Cooperativa Reciclar Juntos",
+        address: "Rua da Aurora, 100 - Boa Vista",
+        city: "Recife",
+        token: newPartnerToken(() => randomInt(0, 1_000_000) / 1_000_000),
+        createdBy: adminId,
+      })
+      .returning({ id: collectionPoints.id, token: collectionPoints.token });
+    await db.insert(missions).values({
+      ...RECIFE,
+      title: "Entregue recicláveis na cooperativa",
+      titleEn: "Drop off recyclables at the cooperative",
+      titleEs: "Entrega reciclables en la cooperativa",
+      description: "Leve plástico, papel, metal ou vidro limpos à Cooperativa Reciclar Juntos. A equipe pesa na balança e confirma pelo app.",
+      descriptionEn: "Take clean plastic, paper, metal or glass to the Reciclar Juntos cooperative. The team weighs it on the scale and confirms in the app.",
+      descriptionEs: "Lleva plástico, papel, metal o vidrio limpios a la Cooperativa Reciclar Juntos. El equipo lo pesa en la balanza y confirma en la app.",
+      context: "Tire uma foto do material na entrada da cooperativa e envie. Depois mostre o QR de Meus envios no balcão.",
+      impact: "Cada quilo pesado na cooperativa vira renda para os catadores e um registro rastreável da coleta.",
+      proofType: "partner",
+      collectionPointId: point.id,
+      latitude: "-8.057800",
+      longitude: "-34.880800",
+      category: "recycling",
+      pointsReward: 25,
+      foneReward: "5.00",
+      createdBy: adminId,
+    });
+    console.log(`✓ ponto de coleta de exemplo: /ponto/${point.token}`);
   }
 
   console.log(`\nPronto! Senha dos usuários de demonstração: ${password}`);

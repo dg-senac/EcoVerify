@@ -13,9 +13,12 @@ export function ProofTypeFields({
   defaultType = "photo",
   value,
   onChange,
+  points,
   className = "",
 }: {
   lang: Lang;
+  /** Collection points that can weigh deliveries. Without it the "collection point" type is hidden. */
+  points?: { id: string; name: string; city?: string | null }[];
   defaultType?: ProofType;
   value?: { proofType: ProofType; countItem: CountItem; countTarget: string };
   onChange?: (value: { proofType: ProofType; countItem: CountItem; countTarget: string }) => void;
@@ -34,7 +37,7 @@ export function ProofTypeFields({
     <fieldset className={`grid gap-2 rounded-2xl border border-sky-100 bg-sky-50/60 p-3 ${className}`} data-testid="proof-type-fields">
       <legend className="px-1 text-sm font-semibold text-slate-700">{T("Como a pessoa prova", "How people prove it", "Cómo se comprueba")}</legend>
       <div className="grid gap-1.5 sm:grid-cols-3">
-        {PROOF_TYPES.map((type) => (
+        {PROOF_TYPES.filter((type) => type !== "partner" || points).map((type) => (
           <label
             key={type}
             className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
@@ -47,6 +50,28 @@ export function ProofTypeFields({
         ))}
       </div>
       <p className="text-[11px] text-slate-500">{proofTypeHint(current.proofType, lang)}</p>
+      {current.proofType === "partner" && points && (
+        points.length === 0 ? (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="no-points">
+            {T("Nenhum ponto de coleta cadastrado ainda. A equipe EcoVerify cadastra os pontos parceiros.", "No collection points yet. The EcoVerify team registers partner points.", "Aún no hay puntos de recolección. El equipo EcoVerify registra los puntos socios.")}
+          </p>
+        ) : (
+          <label className="grid gap-1 text-xs font-medium text-slate-600">
+            {T("Ponto de coleta que pesa", "Collection point that weighs", "Punto de recolección que pesa")}
+            <select name="collectionPointId" defaultValue={points[0].id} className={input} data-testid="collection-point-select">
+              {points.map((p) => (
+                <option key={p.id} value={p.id}>
+                  ⚖️ {p.name}
+                  {p.city ? ` · ${p.city}` : ""}
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] font-normal text-slate-500">
+              {T("Use o endereço do ponto como local da missão: a prova é enviada de lá.", "Use the point's address as the mission location: the proof is sent from there.", "Usa la dirección del punto como ubicación de la misión: la prueba se envía desde allí.")}
+            </span>
+          </label>
+        )
+      )}
       {current.proofType === "count" && (
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <label className="grid gap-1 text-xs font-medium text-slate-600">

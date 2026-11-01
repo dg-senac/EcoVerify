@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { sweepVerifications } from "@/lib/verification-server";
 import { citizenOnly } from "@/lib/role-guard";
 import { db } from "@/db";
-import { missions, submissions } from "@/db/schema";
+import { collectionPoints, missions, submissions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { t } from "@/lib/i18n";
 import { SubmissionCard } from "@/components/submissions/submission-card";
@@ -38,12 +38,17 @@ export default async function SubmissionsPage() {
       extraProofCode: submissions.extraProofCode,
       extraProofDueAt: submissions.extraProofDueAt,
       verifyBy: submissions.verifyBy,
+      deliveryCode: submissions.deliveryCode,
+      partnerConfirmedAt: submissions.partnerConfirmedAt,
+      pointName: collectionPoints.name,
+      pointAddress: collectionPoints.address,
       submittedAt: submissions.submittedAt,
       missionTitle: missions.title,
       missionCategory: missions.category,
     })
     .from(submissions)
     .innerJoin(missions, eq(submissions.missionId, missions.id))
+    .leftJoin(collectionPoints, eq(collectionPoints.id, missions.collectionPointId))
     .where(eq(submissions.userId, user.id))
     .orderBy(desc(submissions.submittedAt));
 

@@ -4,6 +4,7 @@ import { composeRejectionMessage } from "@/lib/ai/decision";
 import { AppealForm } from "@/components/submissions/appeal-form";
 import { ExtraProofBox } from "@/components/submissions/extra-proof-box";
 import { ExtraProofForm } from "@/components/submissions/extra-proof-form";
+import { DeliveryBox } from "@/components/submissions/delivery-box";
 import { pendingStage } from "@/lib/verification";
 import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS, type Material } from "@/lib/impact";
 import { COUNT_ITEM_INFO, countItemName, isCountItem, weightSourceLabel, type WeightSource } from "@/lib/proof";
@@ -39,6 +40,10 @@ export function SubmissionCard({
     extraProofCode?: string | null;
     extraProofDueAt?: Date | null;
     verifyBy?: Date | null;
+    deliveryCode?: string | null;
+    partnerConfirmedAt?: Date | null;
+    pointName?: string | null;
+    pointAddress?: string | null;
     submittedAt: Date;
     missionTitle: string;
     missionCategory: string;
@@ -103,7 +108,17 @@ export function SubmissionCard({
             )}
           </p>
         )}
-        {submission.status === "pending" && (
+        {submission.deliveryCode && submission.pointName && (submission.partnerConfirmedAt || submission.status === "pending") && (
+          <DeliveryBox
+            lang={lang}
+            code={submission.deliveryCode}
+            pointName={submission.pointName}
+            pointAddress={submission.pointAddress}
+            confirmedKg={submission.partnerConfirmedAt ? Number(submission.weightKg ?? 0) : null}
+            dueAt={submission.verifyBy}
+          />
+        )}
+        {submission.status === "pending" && !(submission.deliveryCode && !submission.partnerConfirmedAt) && (
           <ExtraProofBox
             lang={lang}
             stage={pendingStage(submission)}
