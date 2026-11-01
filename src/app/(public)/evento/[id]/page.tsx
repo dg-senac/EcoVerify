@@ -10,6 +10,7 @@ import { EVENT_TEXT, eventUnlocked, isEvent } from "@/lib/saas/events";
 import { membershipRole, orgById } from "@/lib/saas/orgs";
 import { EventReportView } from "@/components/org/event-report";
 import { PrintButton } from "@/components/org/print-button";
+import { co2Estimate } from "@/lib/impact-factors";
 
 export const metadata: Metadata = { title: "Event report · EcoVerify", robots: { index: false } };
 
@@ -39,6 +40,7 @@ export default async function EventReportPage({ params }: { params: Promise<{ id
       name: users.name,
       photoUrl: submissions.photoUrl,
       weightKg: submissions.weightKg,
+      material: submissions.material,
       at: submissions.submittedAt,
       points: sql<number>`coalesce((select sum(pl.points)::int from ${pointsLedger} pl where pl.submission_id = ${submissions.id}), 0)`,
       checkedIn: sql<boolean>`exists (select 1 from event_checkins c where c.mission_id = ${submissions.missionId} and c.user_id = ${submissions.userId})`,
@@ -61,6 +63,7 @@ export default async function EventReportPage({ params }: { params: Promise<{ id
         endsAt: mission.endsAt!.toISOString(),
         actions: rows.length,
         recycledKg: rows.reduce((sum, r) => sum + Number(r.weightKg ?? 0), 0),
+        co2Kg: co2Estimate(rows.map((r) => ({ material: r.material, kg: r.weightKg }))).co2Kg,
         participants: rows.map((r) => ({ submissionId: r.id, name: r.name, points: r.points, at: r.at.toISOString(), checkedIn: r.checkedIn })),
         photos: rows.map((r) => r.photoUrl).filter(Boolean),
         checkins: checkins.present,

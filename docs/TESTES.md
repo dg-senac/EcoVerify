@@ -2,6 +2,8 @@
 
 Este roteiro serve para testar o EcoVerify **antes de ligar o banco de dados**. Tudo roda na **demo offline**: os dados ficam só no aparelho de quem testa (no `localStorage` do navegador ou do APK). Não há servidor, não há e-mail e nenhum FONE ou Pix de verdade é movimentado.
 
+> **Testes automáticos:** além deste roteiro manual, `npm test` roda os testes do Vitest (pasta `tests/`). Eles cobrem as regras que mexem com pontos, punições e segurança: decisão da IA, verificação automática, cartões, moderação do chat, quiz, lixões, check-in, carteira FONE, fatores de CO₂e da calculadora de impacto, as regras de privacidade do mapa, as temporadas e a Copa das Escolas e as traduções pt/en/es. Rodam em todo PR no CI e não precisam de banco.
+
 Marque cada item com `[x]` quando passar. Se algo der errado, anote no modelo do fim da página (seção 6).
 
 ---
@@ -184,7 +186,7 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 ### 3.7 Configurações, acessibilidade e LGPD
 
 - [ ] **Idioma** PT/EN/ES → o app inteiro muda, inclusive missões e notificações.
-- [ ] **Tema** claro/escuro/sistema → o modo noturno fica legível em todas as telas: missões, comprovação, moderação, admin, organizações, relatório.
+- [ ] **Tema**: o app abre sempre no **modo claro**, mesmo com o celular no modo escuro. Em Configurações, troque para escuro ou automático → o modo noturno fica legível em todas as telas: missões, comprovação, moderação, admin, organizações, relatório.
 - [ ] **Tamanho da fonte**, **Alto contraste** e **Reduzir animações** funcionam e continuam valendo depois de fechar e abrir.
 - [ ] **Exportar meus dados** → baixa um JSON com os dados da conta.
 - [ ] **Excluir minha conta** (numa conta de teste) → pede confirmação, apaga e volta para o login. Nas mensagens, o nome vira "Conta excluída".

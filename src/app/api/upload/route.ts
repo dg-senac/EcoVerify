@@ -4,6 +4,7 @@ import { detectFileType, type MediaKind } from "@/lib/file-type";
 import { rateLimit } from "@/lib/rate-limit";
 import { saveFile } from "@/lib/storage";
 import { sanitizeImage } from "@/lib/image-sanitize";
+import { canSendChatMedia, isChatMuted } from "@/lib/chat-moderation";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const KINDS: MediaKind[] = ["image", "audio", "video"];
@@ -28,6 +29,10 @@ export async function POST(request: NextRequest) {
     }
     if (!KINDS.includes(type)) {
       return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
+    }
+    // Chat media rules (src/lib/chat-moderation.ts): audio/video only 18+, nothing while muted.
+    if (!canSendChatMedia(type, !!user.adultDeclaredAt) || isChatMuted(user.chatMutedUntil)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (file.size > MAX_SIZE) {
       return NextResponse.json({ error: "File too large (max 10MB)" }, { status: 400 });

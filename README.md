@@ -17,7 +17,7 @@ O EcoVerify conecta ações sustentáveis do mundo real (reciclagem, plantio de 
 2. **Missões**: o admin cadastra missões com local no mapa, pontos e recompensa em FONE.
 3. **Comprovação no local**: o usuário vai até o ponto da missão (raio de 150 m, com checagem da precisão do GPS), tira uma foto e escreve um relato.
 4. **Moderação**: moderadores aprovam ou rejeitam. A aprovação credita os pontos e coloca o FONE na fila de pagamento, sempre uma única vez por comprovação.
-5. **Ranking e comunidade**: níveis (🌱 Iniciante → 👑 Lenda Verde), ranking público e chat da comunidade com imagens, áudio, vídeo e GIFs.
+5. **Ranking e comunidade**: níveis (🌱 Iniciante → 👑 Lenda Verde), ranking geral, ranking da **temporada** (recomeça a cada dois meses), **Copa das Escolas** e chat da comunidade com imagens, áudio, vídeo e GIFs.
 
 Perfis: **cidadão**, **moderador** e **admin**. Idiomas: 🇧🇷 PT · 🇺🇸 EN · 🇪🇸 ES. Acessibilidade: tamanho de fonte, alto contraste e redução de movimento.
 
@@ -51,6 +51,7 @@ O seed cria `admin@ecoverify.dev`, `moderador@ecoverify.dev` e `cidada@ecoverify
 | `npm run dev` | Servidor de desenvolvimento |
 | `npm run build` / `npm start` | Build e servidor de produção |
 | `npm run lint` / `npm run typecheck` / `npm run check` | Qualidade de código |
+| `npm test` / `npm run test:watch` | Testes automáticos (Vitest) das regras: IA, verificação, cartões, chat, quiz, lixões, check-in, FONE, fatores de CO₂e, privacidade do mapa, temporadas e Copa das Escolas e traduções |
 | `npm run db:push` | Aplica o schema (`src/db/schema.ts`) no banco |
 | `npm run db:generate` / `npm run db:migrate` | Migrations versionadas em `./drizzle` |
 | `npm run db:studio` | Interface visual do banco |
@@ -172,6 +173,10 @@ Detalhes, limites do plano gratuito e como trocar de provedor: [`docs/VERIFICACA
 - Tentativa de fraude pode receber **cartão amarelo** (dado por uma pessoa, nunca pela IA, sempre com explicação). **3 amarelos válidos = 14 dias de suspensão** (FONE pendente congelado); amarelo vale 6 meses; **vermelho** bloqueia e só o admin dá. Todo cartão pode ser contestado.
 - **Moderação só para admin por padrão.** `MODERATORS_ENABLED=true` libera o papel Moderador (revisar comprovações e dar amarelo).
 - Admin → Usuários tem a **Ficha** de cada pessoa e o painel de contestações. Regras completas: [`docs/CARTOES.md`](docs/CARTOES.md).
+- **Chat moderado**: denúncia com motivo (3 denúncias ocultam na hora), IA nas imagens, bloqueio pessoal, silenciar (admin), sem telefone/e-mail/links e áudio/vídeo só 18+. Regras: [`docs/MODERACAO_CHAT.md`](docs/MODERACAO_CHAT.md).
+- **Calculadora de impacto**: CO₂e evitado pela reciclagem verificada (perfil, admin + CSV, organização e relatório de mutirão), sempre com selo "estimativa" e "Como calculamos". Fatores da EPA (WARM v16) e, para óleo, da RED II; água fica de fora por falta de fonte primária. Metodologia: [`docs/IMPACTO.md`](docs/IMPACTO.md).
+- **Mapa**: missões perto de você, pontos de lixo (aberto, confirmado ou limpo) e mapa de calor das ações verificadas por área de ~1 km. Só aparecem áreas com 5 pessoas ou mais, e ninguém é exposto. O admin também vê o mapa de calor na aba Dados. Usa Leaflet + OpenStreetMap, com provedor de blocos configurável. Detalhes: [`docs/MAPA.md`](docs/MAPA.md).
+- **Temporadas e Copa das Escolas**: o ranking ganha uma temporada a cada dois meses (jan–fev, mar–abr…), e as escolas competem com os pontos dos seus 20 participantes que mais pontuaram. A escola precisa de pelo menos 3 pessoas pontuando, e missões criadas pela própria escola não contam. As campeãs da temporada anterior aparecem no ranking, e a posição da escola aparece no painel e na página pública. Detalhes: [`docs/COPA.md`](docs/COPA.md).
 
 ## Missões por região
 
@@ -231,7 +236,7 @@ Veja [`BUILD_ANDROID.md`](BUILD_ANDROID.md). O app declara as permissões de **l
 
 ## CI
 
-- **CI** (`.github/workflows/ci.yml`): lint, typecheck, auditoria de dependências, build do app web e da demo offline em todo PR.
+- **CI** (`.github/workflows/ci.yml`): lint, typecheck, testes automáticos (`npm test`), auditoria de dependências, build do app web e da demo offline em todo PR.
 - **Build Android APK** (`.github/workflows/build-android.yml`): gera o APK debug a cada push na `main`, no modo demo ou servidor conforme `CAPACITOR_SERVER_URL`. O modo aparece no resumo da execução e no título da Release.
 
 ## Roadmap

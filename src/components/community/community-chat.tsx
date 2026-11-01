@@ -1,8 +1,11 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { sendMessageAction, type ActionState } from "@/lib/actions/community";
+import { sendMessageAction, unblockChatUserAction, type ActionState } from "@/lib/actions/community";
+import { chatModText, isChatMuted, type ChatSendIssue } from "@/lib/chat-moderation";
 import { t, type Lang } from "@/lib/i18n";
+import { formatDate } from "@/lib/utils";
+import { BlockedList } from "./blocked-list";
 import { MessageActions } from "./message-actions";
 import { MediaUpload } from "./media-upload";
 import { MessageSquare, Star, X, MoreVertical, Send } from "@/components/ui/icons";
@@ -15,6 +18,10 @@ export function CommunityChat({
   currentUserId,
   currentUserName,
   favoriteMessageIds,
+  blocked,
+  chatMutedUntil,
+  adult,
+  onChanged,
 }: {
   lang: Lang;
   messages: Array<{
@@ -30,11 +37,19 @@ export function CommunityChat({
     editedAt: Date | null;
     deletedAt: Date | null;
     deleteForEveryone: boolean | null;
+    hidden?: boolean;
+    checking?: boolean;
   }>;
   currentUserId: string;
   currentUserName: string;
   favoriteMessageIds: Set<string>;
+  blocked: { id: string; name: string }[];
+  chatMutedUntil: string | null;
+  adult: boolean;
+  onChanged: () => void;
 }) {
+  const mod = chatModText(lang);
+  const muted = isChatMuted(chatMutedUntil);
   const [state, formAction, pending] = useActionState(sendMessageAction, initialState);
   const [messageText, setMessageText] = useState("");
   const [showActionsFor, setShowActionsFor] = useState<string | null>(null);
@@ -96,7 +111,9 @@ export function CommunityChat({
   });
 
   const renderMedia = (msg: typeof messages[0]) => {
-    if (!msg.mediaUrl) return null;
+    if (!msg.mediaUrl) {
+      return msg.checking ? <p className="mb-2 text-xs italic opacity-80">{mod.checkingImage}</p> : null;
+    }
 
     switch (msg.messageType) {
       case "image":
@@ -139,6 +156,7 @@ export function CommunityChat({
   };
 
   return (
+    <>
     <div className="mt-6 bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
       <div className="h-[500px] flex flex-col">
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -175,6 +193,12 @@ export function CommunityChat({
                         <p className="font-semibold">{t(lang, "chat_reply_to")}:</p>
                         <p className="truncate">{msg.replyToMessage}</p>
                       </div>
+                    )}
+                    {msg.hidden && isOwnMessage && (
+                      <p className="mb-2 rounded-lg bg-black/20 px-2 py-1 text-xs font-semibold">{mod.hiddenOwn}</p>
+                    )}
+                    {msg.checking && isOwnMessage && msg.mediaUrl && (
+                      <p className="mb-1 text-xs italic opacity-80">{mod.checkingImage}</p>
                     )}
                     {renderMedia(msg)}
                     {msg.message && (
@@ -218,7 +242,10 @@ export function CommunityChat({
                       isOwnMessage={isOwnMessage}
                       isEdited={isEdited}
                       isFavorited={isFavorited}
+                      authorId={msg.userId}
+                      authorName={msg.userName || t(lang, "user_fallback")}
                       onClose={() => setShowActionsFor(null)}
+                      onChanged={onChanged}
                     />
                   )}
                 </div>
@@ -228,6 +255,11 @@ export function CommunityChat({
           <div ref={messagesEndRef} />
         </div>
 
+        {muted && chatMutedUntil ? (
+          <p className="border-t border-slate-100 bg-slate-50 p-4 text-sm font-medium text-slate-600" data-chat-muted>
+            🔇 {mod.mutedBanner(formatDate(chatMutedUntil, lang))}
+          </p>
+        ) : (
         <form
           ref={formRef}
           onSubmit={handleSubmit}
@@ -270,6 +302,7 @@ export function CommunityChat({
             <MediaUpload
               lang={lang}
               onMediaUploaded={handleMediaUploaded}
+              allowAudioVideo={adult}
             />
             <input
               type="hidden"
@@ -332,8 +365,24 @@ export function CommunityChat({
               {t(lang, "error_generic")}
             </p>
           )}
+          {state.error && state.error in mod.errors && (
+            <p className="mt-2 text-xs font-medium text-red-500" data-chat-error>
+              {mod.errors[state.error as ChatSendIssue]}
+            </p>
+          )}
+          <p className="mt-2 text-[11px] text-slate-400">🛡️ {mod.safetyNote}</p>
         </form>
+        )}
       </div>
     </div>
+      <BlockedList
+        lang={lang}
+        blocked={blocked}
+        onUnblock={async (id) => {
+          await unblockChatUserAction(id);
+          onChanged();
+        }}
+      />
+    </>
   );
 }

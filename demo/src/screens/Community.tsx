@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { MessageSquare, Reply, Send, Trash2, X } from "lucide-react";
+import { Ban, Flag, MessageSquare, Reply, Send, Trash2, X } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { chatModText, isChatMuted, type ChatSendIssue } from "@/lib/chat-moderation";
+import { formatDate } from "@/lib/utils";
+import { BlockedList } from "@/components/community/blocked-list";
+import { ReportReasonDialog } from "@/components/community/report-reason-dialog";
 import { dt, errorText } from "../i18n";
-import { deleteChatMessage, sendChatMessage, useLang, useStore, type User } from "../store";
+import { blockChatUser, deleteChatMessage, reportChatMessage, sendChatMessage, unblockChatUser, useLang, useStore, type User } from "../store";
 import { Avatar, EmptyState, PageHeader, card, toast } from "../components/ui";
 
 function timeLabel(iso: string, lang: string) {
@@ -14,10 +18,18 @@ function timeLabel(iso: string, lang: string) {
 
 export function CommunityScreen({ user }: { user: User }) {
   const lang = useLang();
-  const chat = useStore((s) => s.chat);
+  const allChat = useStore((s) => s.chat);
   const users = useStore((s) => s.users);
+  const blocks = useStore((s) => s.chatBlocks);
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [reporting, setReporting] = useState<string | null>(null);
+  const mod = chatModText(lang);
+  const blockedIds = new Set((blocks ?? []).filter((b) => b.blockerId === user.id).map((b) => b.blockedId));
+  // Same as the server: hidden messages only reach their author; blocked people disappear.
+  const chat = allChat.filter((m) => !blockedIds.has(m.userId) && (!m.hiddenAt || m.userId === user.id));
+  const mutedUntil = users.find((u) => u.id === user.id)?.chatMutedUntil ?? null;
+  const muted = isChatMuted(mutedUntil);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,7 +44,7 @@ export function CommunityScreen({ user }: { user: User }) {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const result = sendChatMessage(text, replyTo);
-    if (result.error) return toast(errorText(lang, result.error), "error");
+    if (result.error) return toast(result.error in mod.errors ? mod.errors[result.error as ChatSendIssue] : errorText(lang, result.error), "error");
     setText("");
     setReplyTo(null);
   };
@@ -58,6 +70,7 @@ export function CommunityScreen({ user }: { user: User }) {
                         <p className="line-clamp-1 opacity-80">{quoted.deleted ? dt(lang, "message_deleted") : quoted.message}</p>
                       </div>
                     )}
+                    {mine && msg.hiddenAt && !msg.deleted && <p className="mb-1 rounded-lg bg-black/20 px-2 py-0.5 text-xs font-semibold">{mod.hiddenOwn}</p>}
                     {msg.deleted ? <i className="opacity-70">{dt(lang, "message_deleted")}</i> : <span className="whitespace-pre-wrap break-words">{msg.message}</span>}
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-400">
@@ -72,6 +85,25 @@ export function CommunityScreen({ user }: { user: User }) {
                         <Trash2 className="h-3 w-3" /> {t(lang, "chat_delete")}
                       </button>
                     )}
+                    {!mine && !msg.deleted && (
+                      <button type="button" data-chat-report={msg.id} onClick={() => setReporting(msg.id)} className="flex items-center gap-0.5 hover:text-red-600">
+                        <Flag className="h-3 w-3" /> {t(lang, "chat_report")}
+                      </button>
+                    )}
+                    {!mine && (
+                      <button
+                        type="button"
+                        data-chat-block={msg.userId}
+                        onClick={() => {
+                          if (window.confirm(mod.blockConfirm(nameOf(msg.userId)))) blockChatUser(msg.userId);
+                        }}
+                        className="flex items-center gap-0.5 hover:text-slate-700"
+                        aria-label={mod.block}
+                        title={mod.block}
+                      >
+                        <Ban className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -79,6 +111,11 @@ export function CommunityScreen({ user }: { user: User }) {
           })}
           <div ref={bottomRef} />
         </div>
+        {muted && mutedUntil ? (
+          <p className="border-t border-slate-100 bg-slate-50 p-4 text-sm font-medium text-slate-600" data-chat-muted>
+            🔇 {mod.mutedBanner(formatDate(mutedUntil, lang))}
+          </p>
+        ) : (
         <form onSubmit={submit} className="border-t border-slate-100 p-3">
           {replyMessage && (
             <div className="mb-2 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
@@ -101,8 +138,22 @@ export function CommunityScreen({ user }: { user: User }) {
               <Send className="h-5 w-5" />
             </button>
           </div>
+          <p className="mt-2 text-[11px] text-slate-400">🛡️ {mod.safetyNote}</p>
         </form>
+        )}
       </div>
+      <BlockedList
+        lang={lang}
+        blocked={[...blockedIds].map((id) => ({ id, name: nameOf(id) }))}
+        onUnblock={(id) => unblockChatUser(id)}
+      />
+      {reporting && (
+        <ReportReasonDialog
+          lang={lang}
+          onClose={() => setReporting(null)}
+          onSubmit={(reason, detail) => reportChatMessage(reporting, reason, detail).error}
+        />
+      )}
     </div>
   );
 }

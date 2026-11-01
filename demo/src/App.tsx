@@ -26,9 +26,10 @@ import { BenefitsScreen, PartnerScreen } from "./screens/Benefits";
 import { PointScreen } from "./screens/Point";
 import { QuizScreen } from "./screens/Quiz";
 import { DumpsScreen } from "./screens/Dumps";
+import { MapScreenDemo } from "./screens/Map";
 import { CertificateScreen, EventCertificateScreen, EventReportScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
 
-import { THEME_COLORS } from "@/lib/theme";
+import { DEFAULT_THEME, THEME_COLORS } from "@/lib/theme";
 
 /** Applies the user's accessibility settings to <html>, like src/app/layout.tsx. */
 function useHtmlSettings(user: User | null) {
@@ -43,7 +44,7 @@ function useHtmlSettings(user: User | null) {
   }, [lang, user?.fontSize, user?.highContrast, user?.reducedMotion]);
 
   // Theme: data-theme drives the CSS color-scheme (see src/app/theme.css); index.html applies it before the first paint.
-  const theme = user?.theme ?? "system";
+  const theme = user?.theme ?? DEFAULT_THEME;
   useEffect(() => {
     const html = document.documentElement;
     html.dataset.theme = theme;
@@ -85,7 +86,7 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
   const home = useStore((s) => homeFor(user.role, moderatorsOn(s)));
   // Staff (active moderators and admins) have their own app: citizen screens send them home.
   const staffApp = useStore((s) => isStaffExperience(user.role, moderatorsOn(s)));
-  const citizenOnly = path.startsWith("/missions") || path.startsWith("/org") || ["/submissions", "/ranking", "/beneficios", "/community", "/wallet", "/quiz", "/lixo"].includes(path);
+  const citizenOnly = path.startsWith("/missions") || path.startsWith("/org") || path.startsWith("/ranking") || ["/submissions", "/ranking", "/beneficios", "/community", "/wallet", "/quiz", "/lixo"].includes(path);
   if (staffApp && citizenOnly) return <Redirect to={home} />;
   const submit = matchRoute("/missions/:id/submit", path);
   if (submit) return <SubmitScreen key={submit.id} missionId={submit.id} />;
@@ -97,6 +98,8 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
   if (eventReport) return <EventReportScreen user={user} missionId={eventReport.id} />;
   const eventCertificate = matchRoute("/certificado/evento/:id", path);
   if (eventCertificate) return <EventCertificateScreen submissionId={eventCertificate.id} />;
+  const rankingTabRoute = matchRoute("/ranking/:tab", path);
+  if (rankingTabRoute) return <RankingScreen key={rankingTabRoute.tab} user={user} tab={rankingTabRoute.tab} />;
   const certificate = matchRoute("/certificado/:id", path);
   if (certificate) return <CertificateScreen memberId={certificate.id} />;
 
@@ -113,6 +116,8 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
       return <QuizScreen key={user.id} user={user} />;
     case "/lixo":
       return <DumpsScreen key={user.id} user={user} />;
+    case "/mapa":
+      return <MapScreenDemo />;
     case "/beneficios":
       return <BenefitsScreen user={user} />;
     case "/community":

@@ -121,7 +121,7 @@ export async function GET() {
       .from(messageFavorites)
       .where(eq(messageFavorites.userId, user.id)),
     db
-      .select({ messageId: messageReports.messageId, reason: messageReports.reason, status: messageReports.status, createdAt: messageReports.createdAt })
+      .select({ messageId: messageReports.messageId, reasonCode: messageReports.reasonCode, reason: messageReports.reason, status: messageReports.status, createdAt: messageReports.createdAt })
       .from(messageReports)
       .where(eq(messageReports.reporterId, user.id)),
     db

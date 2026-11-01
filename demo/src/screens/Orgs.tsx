@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { Award, Building2, Copy, Check, ExternalLink, FileBarChart, Plus, RefreshCw, Users } from "lucide-react";
 import { categoryEmoji, categoryLabels, t, type Lang } from "@/lib/i18n";
@@ -15,7 +15,9 @@ import { EventBadge } from "@/components/missions/event-badge";
 import { EventCertificateView, EventReportView } from "@/components/org/event-report";
 import { EVENT_PACKAGE_NAMES, EVENT_TEXT, eventPhase, eventUnlocked, isEvent, isEventPackage } from "@/lib/saas/events";
 import { proofCode } from "@/lib/impact";
+import { co2Estimate } from "@/lib/impact-factors";
 import { ImpactView } from "@/components/org/impact-view";
+import { schoolCup, seasonAt, seasonText } from "@/lib/seasons";
 import { LogoHorizontal, LogoMark } from "@/components/logo";
 import {
   DEMO_PIX,
@@ -234,6 +236,24 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
   const submissions = useStore((s) => s.submissions);
   const invoices = useStore((s) => (s.invoices ?? []).filter((i) => org && i.orgId === org.id));
   const checkins = useStore((s) => s.checkins ?? []);
+  // Schools Cup (docs/COPA.md): this school's position in the current season.
+  const allOrgs = useStore((s) => s.orgs);
+  const allMembers = useStore((s) => s.orgMembers);
+  const allUsers = useStore((s) => s.users);
+  const pointsLog = useStore((s) => s.pointsLog);
+  const [openedAt] = useState(() => Date.now());
+  const cup = useMemo(() => {
+    if (!org || org.type !== "school") return null;
+    const season = seasonAt(openedAt);
+    const players = new Set(allUsers.filter((u) => u.role === "citizen" && !u.isBanned && !u.deletedAt).map((u) => u.id));
+    const standing = schoolCup({
+      schools: (allOrgs ?? []).filter((o) => o.type === "school").map((o) => ({ id: o.id, name: o.name, city: o.city })),
+      memberships: (allMembers ?? []).filter((m) => players.has(m.userId)),
+      entries: pointsLog ?? [],
+      season,
+    }).find((row) => row.school.id === org.id);
+    return { season, standing: standing ?? null };
+  }, [org, allOrgs, allMembers, allUsers, pointsLog, openedAt]);
 
   if (!org || !role || !stats) return <EmptyState emoji="🏫" text={text.noOrgs} />;
   const manager = canManage(role);
@@ -308,6 +328,23 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
                 </div>
               ))}
             </div>
+            {cup && (
+              <button
+                type="button"
+                onClick={() => navigate("/ranking/schools")}
+                className="flex w-full min-w-0 items-center gap-3 rounded-2xl bg-gradient-to-r from-[#2cc35f] via-[#278c98] to-[#2456d0] p-4 text-left text-white shadow-md transition hover:opacity-95"
+                data-testid="org-cup-card"
+              >
+                <span className="text-3xl" aria-hidden>🏆</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-extrabold">
+                    {seasonText(lang).cupTitle} · {seasonText(lang).seasonName(cup.season)}
+                  </span>
+                  <span className="block text-sm text-white/90">{cup.standing ? seasonText(lang).cupOrgCard(cup.standing.position, cup.standing.points) : seasonText(lang).cupOrgNone}</span>
+                </span>
+                <span className="hidden shrink-0 text-sm font-bold sm:inline">{seasonText(lang).seeCup} →</span>
+              </button>
+            )}
             <div className="grid gap-6 lg:grid-cols-2">
               <section className={`${card} p-5`}>
                 <h2 className="font-bold text-slate-900">{text.orgMissions}</h2>
@@ -796,6 +833,7 @@ export function EventReportScreen({ user, missionId }: { user: User; missionId: 
           endsAt: mission.endsAt!,
           actions: approved.length,
           recycledKg: approved.reduce((sum, x) => sum + (x.weightKg ?? 0), 0),
+          co2Kg: co2Estimate(approved.map((x) => ({ material: x.material, kg: x.weightKg }))).co2Kg,
           participants: approved.map((x) => ({
             submissionId: x.id,
             name: users.find((u) => u.id === x.userId)?.name ?? "—",

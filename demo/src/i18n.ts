@@ -447,6 +447,8 @@ const demoDict = {
 } satisfies Record<string, Record<Lang, string>>;
 
 export type DemoKey = keyof typeof demoDict;
+/** Read-only view of the APK dictionary (tests check that every key has pt/en/es). */
+export const DEMO_DICT: Readonly<Record<DemoKey, Partial<Record<Lang, string>>>> = demoDict;
 
 export function dt(lang: Lang, key: DemoKey, vars?: Record<string, string | number>): string {
   let text: string = demoDict[key][lang] ?? demoDict[key].pt;

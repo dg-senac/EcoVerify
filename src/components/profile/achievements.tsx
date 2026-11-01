@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { tx, type Lang } from "@/lib/i18n";
 import { formatKg } from "@/lib/impact";
+import { formatCo2 } from "@/lib/impact-factors";
+import { Co2Banner } from "@/components/impact/co2-estimate";
 import type { Badge, PersonalImpact, Streak } from "@/lib/achievements";
 
 /**
@@ -76,6 +78,11 @@ export function ImpactCard({ lang, name, impact, streak, badgesEarned }: { lang:
           </div>
         ))}
       </div>
+      {impact.co2Kg > 0 && (
+        <div className="mt-3">
+          <Co2Banner lang={lang} scope="me" estimate={{ co2Kg: impact.co2Kg, carKm: impact.carKm, byMaterial: [] }} />
+        </div>
+      )}
       <p className="mt-2 text-[11px] text-slate-400">
         {T("Só conta o que foi aprovado (foto + GPS conferidos).", "Only approved actions count (photo + GPS checked).", "Solo cuenta lo aprobado (foto + GPS verificados).")}
       </p>
@@ -159,6 +166,13 @@ function drawShareCard(lang: Lang, name: string, impact: PersonalImpact, streak:
   ctx.font = font(800, 76);
   const shortName = name.length > 22 ? `${name.slice(0, 21)}…` : name;
   ctx.fillText(shortName, 80, 340);
+  if (impact.co2Kg > 0) {
+    // Always labelled as an estimate, like on screen.
+    ctx.font = font(600, 32);
+    ctx.globalAlpha = 0.9;
+    ctx.fillText(`🌎 ${formatCo2(impact.co2Kg, lang)} ${T("evitados · estimativa", "avoided · estimate", "evitados · estimación")}`, 80, 395);
+    ctx.globalAlpha = 1;
+  }
 
   const tiles = impactTiles(lang, impact);
   const cols = 2;

@@ -7,8 +7,11 @@ import {
   deleteMessageAction,
   toggleFavoriteAction,
   reportMessageAction,
+  blockChatUserAction,
   type ActionState,
 } from "@/lib/actions/community";
+import { chatModText } from "@/lib/chat-moderation";
+import { ReportReasonDialog } from "./report-reason-dialog";
 import { t, type Lang } from "@/lib/i18n";
 import { Edit, Trash2, Star, AlertTriangle } from "@/components/ui/icons";
 
@@ -18,7 +21,11 @@ interface MessageActionsProps {
   isOwnMessage: boolean;
   isEdited: boolean;
   isFavorited: boolean;
+  authorId: string;
+  authorName: string;
   onClose: () => void;
+  /** Called after a block, so the chat refreshes at once. */
+  onChanged?: () => void;
 }
 
 export function MessageActions({
@@ -27,7 +34,10 @@ export function MessageActions({
   isOwnMessage,
   isEdited,
   isFavorited,
+  authorId,
+  authorName,
   onClose,
+  onChanged,
 }: MessageActionsProps) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -36,7 +46,14 @@ export function MessageActions({
   const [editState, editFormAction, editPending] = useActionState(editMessageAction, {});
   const [deleteState, deleteFormAction, deletePending] = useActionState(deleteMessageAction, {});
   const [favoriteState, favoriteFormAction, favoritePending] = useActionState(toggleFavoriteAction, {});
-  const [reportState, reportFormAction, reportPending] = useActionState(reportMessageAction, {});
+  const mod = chatModText(lang);
+
+  async function block() {
+    if (!window.confirm(mod.blockConfirm(authorName))) return;
+    await blockChatUserAction(authorId);
+    onClose();
+    onChanged?.();
+  }
 
   const handleFavorite = () => {
     const formData = new FormData();
@@ -79,6 +96,15 @@ export function MessageActions({
             <AlertTriangle className="h-4 w-4" /> {t(lang, "chat_report")}
           </button>
         )}
+        {!isOwnMessage && (
+          <button
+            onClick={block}
+            data-chat-block
+            className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+          >
+            🚫 {mod.block}
+          </button>
+        )}
       </div>
 
       {showEditModal && (
@@ -104,13 +130,21 @@ export function MessageActions({
       )}
 
       {showReportModal && (
-        <ReportModal
+        <ReportReasonDialog
           lang={lang}
-          messageId={messageId}
-          onClose={() => setShowReportModal(false)}
-          state={reportState}
-          pending={reportPending}
-          formAction={reportFormAction}
+          onClose={() => {
+            setShowReportModal(false);
+            onClose();
+            onChanged?.();
+          }}
+          onSubmit={async (reason, detail) => {
+            const formData = new FormData();
+            formData.append("messageId", messageId);
+            formData.append("reasonCode", reason);
+            formData.append("reason", detail);
+            const result = await reportMessageAction({}, formData);
+            return result.error;
+          }}
         />
       )}
     </>
@@ -170,6 +204,9 @@ function EditModal({
           )}
           {state.error === "message_too_long" && (
             <p className="mt-2 text-xs font-medium text-red-500">{t(lang, "chat_error_long")}</p>
+          )}
+          {(state.error === "contact_info" || state.error === "link") && (
+            <p className="mt-2 text-xs font-medium text-red-500">{chatModText(lang).errors[state.error]}</p>
           )}
           <div className="flex gap-3 mt-4">
             <button
@@ -254,73 +291,6 @@ function DeleteModal({
               className="flex-1 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-70"
             >
               {pending ? "..." : t(lang, "chat_delete_confirm")}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function ReportModal({
-  lang,
-  messageId,
-  onClose,
-  state,
-  pending,
-  formAction,
-}: {
-  lang: Lang;
-  messageId: string;
-  onClose: () => void;
-  state: ActionState;
-  pending: boolean;
-  formAction: (formData: FormData) => void;
-}) {
-  const [reason, setReason] = useState("");
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!reason.trim()) return;
-    const formData = new FormData();
-    formData.append("messageId", messageId);
-    formData.append("reason", reason);
-    formAction(formData);
-    if (!state.error) onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-        <h3 className="text-lg font-bold text-slate-900 mb-4">{t(lang, "chat_report_title")}</h3>
-        <form onSubmit={handleSubmit}>
-          <input type="hidden" name="messageId" value={messageId} />
-          <textarea
-            name="reason"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-            rows={3}
-            maxLength={200}
-            placeholder={t(lang, "chat_report_placeholder")}
-          />
-          {state.error === "already_reported" && (
-            <p className="mt-2 text-xs font-medium text-red-500">{t(lang, "chat_error_already_reported")}</p>
-          )}
-          <div className="flex gap-3 mt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-            >
-              {t(lang, "cancel")}
-            </button>
-            <button
-              type="submit"
-              disabled={pending}
-              className="flex-1 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-70"
-            >
-              {pending ? "..." : t(lang, "chat_report_confirm")}
             </button>
           </div>
         </form>

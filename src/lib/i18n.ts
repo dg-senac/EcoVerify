@@ -54,6 +54,7 @@ const dict = {
   nav_benefits: { pt: "Benefícios", en: "Perks", es: "Beneficios" },
   nav_quiz: { pt: "Quiz do dia", en: "Daily quiz", es: "Quiz del día" },
   nav_dumps: { pt: "Lixo irregular", en: "Illegal dumping", es: "Basura irregular" },
+  nav_map: { pt: "Mapa", en: "Map", es: "Mapa" },
   nav_orgs: { pt: "Organizações", en: "Organizations", es: "Organizaciones" },
   nav_logout: { pt: "Sair", en: "Log out", es: "Salir" },
   login_title: { pt: "Entrar", en: "Sign in", es: "Iniciar sesión" },
@@ -1272,6 +1273,8 @@ const dict = {
 } as const;
 
 export type DictKey = keyof typeof dict;
+/** Read-only view of the dictionary (tests check that every key has pt/en/es). */
+export const I18N_DICT: Readonly<Record<DictKey, Partial<Record<Lang, string>>>> = dict;
 
 export function t(lang: Lang, key: DictKey): string {
   return dict[key]?.[lang] ?? dict[key]?.pt ?? String(key);

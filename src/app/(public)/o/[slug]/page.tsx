@@ -13,6 +13,8 @@ import { orgBySlug, orgImpact } from "@/lib/saas/orgs";
 import { PublicShell } from "@/components/org/public-shell";
 import { ImpactView } from "@/components/org/impact-view";
 import { pickPublicLang } from "@/lib/saas/public-lang";
+import { schoolCupStanding } from "@/lib/seasons-server";
+import { seasonText } from "@/lib/seasons";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const org = await orgBySlug((await params).slug);
@@ -37,6 +39,9 @@ export default async function PublicOrgPage({ params, searchParams }: { params: 
       .orderBy(desc(missions.createdAt))
       .limit(12),
   ]);
+  // Schools Cup position (aggregate only, like the rest of this page).
+  const cup = org.type === "school" ? await schoolCupStanding(org.id) : null;
+  const cupText = seasonText(lang);
   const locale = lang === "pt" ? "pt-BR" : lang === "es" ? "es-ES" : "en-US";
 
   return (
@@ -62,6 +67,12 @@ export default async function PublicOrgPage({ params, searchParams }: { params: 
           </p>
         </div>
       </div>
+
+      {cup?.standing?.position && (
+        <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-50 px-4 py-2 text-sm font-bold text-amber-900 ring-1 ring-amber-200" data-testid="public-org-cup">
+          🏆 {cupText.cupTitle} · {cupText.seasonName(cup.season)}: {cupText.cupPositionShort(cup.standing.position)}
+        </p>
+      )}
 
       <div className="mt-6">
         <ImpactView lang={lang} impact={impact} missionsCount={active.length} />

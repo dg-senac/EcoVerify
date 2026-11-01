@@ -1,10 +1,14 @@
 /** Colour theme preference (users.theme). "system" follows the phone / computer setting. */
 export type Theme = "system" | "light" | "dark";
 
-export const THEMES: readonly Theme[] = ["system", "light", "dark"] as const;
+/** Light order in Settings: the default first. */
+export const THEMES: readonly Theme[] = ["light", "dark", "system"] as const;
+
+/** The app always opens in light mode; dark or "follow the phone" are opt-in in Settings. */
+export const DEFAULT_THEME: Theme = "light";
 
 export function parseTheme(value: unknown): Theme {
-  return THEMES.find((theme) => theme === value) ?? "system";
+  return THEMES.find((theme) => theme === value) ?? DEFAULT_THEME;
 }
 
 /** Browser UI colour (Android status bar / address bar) for each theme. */

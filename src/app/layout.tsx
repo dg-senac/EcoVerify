@@ -4,7 +4,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 import { guestLang } from "@/lib/guest-lang";
-import { THEME_COLORS } from "@/lib/theme";
+import { DEFAULT_THEME, THEME_COLORS } from "@/lib/theme";
 import { AppSplash, SPLASH_HEAD_SCRIPT } from "@/components/brand/app-splash";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -31,7 +31,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     .join(" ");
 
   // data-theme drives the CSS color-scheme (see theme.css): no script, so no flash of the wrong theme.
-  const theme = user?.theme ?? "system";
+  const theme = user?.theme ?? DEFAULT_THEME;
   // Screen readers and the browser translator use this: it must follow the language chosen in Settings.
   const htmlLang = HTML_LANG[lang] ?? "en";
 

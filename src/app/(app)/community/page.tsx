@@ -11,8 +11,7 @@ export default async function CommunityPage() {
   if (!user) redirect("/login");
   if (user.role !== "citizen") redirect(homeFor(user.role, moderatorsEnabled()));
 
-  const { messages, favoriteIds } = await fetchCommunityMessages(user.id);
-  const favoriteMessageIds = new Set(favoriteIds);
+  const feed = await fetchCommunityMessages(user.id);
 
   return (
     <div>
@@ -21,10 +20,9 @@ export default async function CommunityPage() {
 
       <CommunityChatRealtime
         lang={user.language}
-        initialMessages={messages}
+        initial={feed}
         currentUserId={user.id}
         currentUserName={user.name}
-        initialFavoriteIds={favoriteMessageIds}
       />
     </div>
   );

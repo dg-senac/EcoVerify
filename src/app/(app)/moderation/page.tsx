@@ -15,6 +15,8 @@ import { getAiSettings, willAnalyzeWithModel } from "@/lib/ai/pipeline";
 import { ModerationCard } from "@/components/moderation/moderation-card";
 import { SuggestionCard } from "@/components/moderation/suggestion-card";
 import { Shield } from "@/components/ui/icons";
+import { chatReportQueue } from "@/lib/chat-moderation-server";
+import { ChatReportsWeb } from "@/components/moderation/chat-reports-web";
 
 function AiModeBanner({ lang, mode, hasModel }: { lang: Lang; mode: "off" | "suggest" | "auto"; hasModel: boolean }) {
   const key = mode === "off" ? "ai_mode_off" : !hasModel ? "ai_mode_no_key" : mode === "auto" ? "ai_mode_auto" : "ai_mode_suggest";
@@ -33,7 +35,7 @@ export default async function ModerationPage() {
   // Keeps the verification window moving even without a scheduler (throttled inside).
   after(() => sweepVerifications().catch((error) => console.error("[verify] sweep failed:", error)));
 
-  const [rows, recentAi, settings, suggestions, [automatic], audits] = await Promise.all([
+  const [rows, recentAi, settings, suggestions, [automatic], audits, chatReports] = await Promise.all([
     db
       .select({
         id: submissions.id,
@@ -143,6 +145,7 @@ export default async function ModerationPage() {
       .where(auditQueueCondition())
       .orderBy(asc(submissions.reviewedAt))
       .limit(20),
+    chatReportQueue(),
   ]);
 
   return (
@@ -181,6 +184,10 @@ export default async function ModerationPage() {
           ))}
         </div>
       )}
+
+      <div className="mt-10">
+        <ChatReportsWeb lang={lang} items={chatReports} isAdmin={user.role === "admin"} />
+      </div>
 
       {audits.length > 0 && (
         <section className="mt-10" data-testid="audits">

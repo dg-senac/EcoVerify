@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { missions, organizationMembers, organizations, pointsLedger, submissions, users } from "@/db/schema";
 import type { OrgRole } from "@/lib/saas/org-rules";
 import { EVENT_GRACE_HOURS, eventMemberAllowance } from "@/lib/saas/events";
+import { co2Estimate } from "@/lib/impact-factors";
 
 export type Organization = typeof organizations.$inferSelect;
 
@@ -167,10 +168,14 @@ export async function orgImpact(orgId: string) {
     .from(submissions)
     .innerJoin(missions, eq(missions.id, submissions.missionId))
     .where(and(eq(missions.organizationId, orgId), eq(submissions.status, "approved")));
-  const [recycled] = await db
-    .select({ kg: sql<string>`coalesce(sum(${submissions.weightKg}), 0)::text` })
+  // By material, for the CO₂e estimate (src/lib/impact-factors.ts).
+  const recycled = await db
+    .select({ material: submissions.material, kg: sql<string>`coalesce(sum(${submissions.weightKg}), 0)::text` })
     .from(submissions)
     .innerJoin(missions, eq(missions.id, submissions.missionId))
-    .where(and(eq(missions.organizationId, orgId), eq(submissions.status, "approved")));
-  return { ...totals, recycledKg: Number(recycled?.kg ?? 0), byCategory, byMonth, since: first?.first ?? null };
+    .where(and(eq(missions.organizationId, orgId), eq(submissions.status, "approved")))
+    .groupBy(submissions.material);
+  const recycledKg = Math.round(recycled.reduce((sum, r) => sum + Number(r.kg ?? 0), 0) * 10) / 10;
+  const co2 = co2Estimate(recycled.map((r) => ({ material: r.material, kg: r.kg })));
+  return { ...totals, recycledKg, co2, byCategory, byMonth, since: first?.first ?? null };
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Download, Monitor, Moon, Settings as SettingsIcon, Sun, Trash2 } from "lucide-react";
-import { THEMES } from "@/lib/theme";
+import { DEFAULT_THEME, THEMES } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { deleteMyAccount, exportMyData, updateSettings, useLang, type FontSize, type User } from "../store";
@@ -134,7 +134,7 @@ export function SettingsScreen({ user }: { user: User }) {
             {THEMES.map((id) => {
               const Icon = id === "system" ? Monitor : id === "light" ? Sun : Moon;
               return (
-                <button key={id} type="button" className={`${chip((user.theme ?? "system") === id)} inline-flex items-center gap-1.5`} onClick={() => updateSettings({ theme: id })}>
+                <button key={id} type="button" className={`${chip((user.theme ?? DEFAULT_THEME) === id)} inline-flex items-center gap-1.5`} onClick={() => updateSettings({ theme: id })}>
                   <Icon className="h-4 w-4" aria-hidden="true" />
                   {t(lang, id === "system" ? "theme_system" : id === "light" ? "theme_light" : "theme_dark")}
                 </button>
