@@ -52,6 +52,8 @@ const dict = {
   nav_profile: { pt: "Perfil", en: "Profile", es: "Perfil" },
   nav_settings: { pt: "Configurações", en: "Settings", es: "Configuración" },
   nav_benefits: { pt: "Benefícios", en: "Perks", es: "Beneficios" },
+  nav_quiz: { pt: "Quiz do dia", en: "Daily quiz", es: "Quiz del día" },
+  nav_dumps: { pt: "Lixo irregular", en: "Illegal dumping", es: "Basura irregular" },
   nav_orgs: { pt: "Organizações", en: "Organizations", es: "Organizaciones" },
   nav_logout: { pt: "Sair", en: "Log out", es: "Salir" },
   login_title: { pt: "Entrar", en: "Sign in", es: "Iniciar sesión" },

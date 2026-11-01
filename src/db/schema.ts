@@ -396,15 +396,34 @@ export const pointsLedger = pgTable("points_ledger", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  /** Set for mission proofs; null for points from the quiz or irregular-dump reports. */
   submissionId: uuid("submission_id")
-    .notNull()
     .references(() => submissions.id, { onDelete: "cascade" }),
+  /** submission | quiz | dump_report | dump_confirm */
+  source: varchar("source", { length: 20 }).notNull().default("submission"),
+  /** Idempotency key for non-submission points (e.g. "quiz:<user>:<day>"). */
+  refKey: varchar("ref_key", { length: 120 }),
   points: integer("points").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
-  // A submission can only ever award points once.
+  // A submission can only ever award points once (NULLs don't collide).
   uniqueIndex("points_ledger_submission_unique").on(table.submissionId),
+  uniqueIndex("points_ledger_ref_unique").on(table.refKey),
 ]);
+
+/** Daily quiz (src/lib/quiz.ts): one attempt per person per day, answers stored one by one. */
+export const quizAttempts = pgTable("quiz_attempts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  /** Brasília date, "YYYY-MM-DD". */
+  day: varchar("day", { length: 10 }).notNull(),
+  /** Index of the chosen option for each question answered so far. */
+  answers: jsonb("answers").$type<number[]>().notNull().default([]),
+  correct: integer("correct").notNull().default(0),
+  points: integer("points").notNull().default(0),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("quiz_attempts_once").on(table.userId, table.day)]);
 
 export const rewardQueue = pgTable("reward_queue", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -693,3 +712,52 @@ export const eventCheckins = pgTable("event_checkins", {
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [uniqueIndex("event_checkins_once").on(table.missionId, table.userId)]);
+
+/**
+ * Irregular dumping spots (src/lib/dumps.ts). A citizen reports with photo + GPS, the AI checks the
+ * photo, another person confirms on site, and then a cleanup mission is created at the spot.
+ * pending = AI still checking; open = waiting for a confirmation; confirmed = cleanup mission open;
+ * resolved = cleaned (approved cleanup proof); rejected; expired = nobody confirmed in time.
+ */
+export const dumpStatusEnum = pgEnum("dump_status", ["pending", "open", "confirmed", "resolved", "rejected", "expired"]);
+export const dumpSizeEnum = pgEnum("dump_size", ["small", "medium", "large"]);
+
+export const dumpReports = pgTable("dump_reports", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  photoUrl: text("photo_url").notNull(),
+  photoHash: varchar("photo_hash", { length: 64 }).notNull(),
+  photoPhash: varchar("photo_phash", { length: 16 }),
+  latitude: numeric("latitude", { precision: 10, scale: 6 }).notNull(),
+  longitude: numeric("longitude", { precision: 10, scale: 6 }).notNull(),
+  accuracyM: integer("accuracy_m"),
+  city: varchar("city", { length: 80 }),
+  stateCode: varchar("state_code", { length: 2 }),
+  size: dumpSizeEnum("size").notNull().default("medium"),
+  note: varchar("note", { length: 280 }),
+  status: dumpStatusEnum("status").notNull().default("pending"),
+  /** Short AI explanation and rejection code (not_dump, screen_photo, unclear_photo, inappropriate, admin). */
+  aiReason: text("ai_reason"),
+  rejectionCode: varchar("rejection_code", { length: 30 }),
+  /** Cleanup mission created after the confirmation. */
+  missionId: uuid("mission_id").references(() => missions.id, { onDelete: "set null" }),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("dump_reports_status_idx").on(table.status),
+  index("dump_reports_user_idx").on(table.userId),
+  uniqueIndex("dump_reports_mission_unique").on(table.missionId),
+]);
+
+/** Someone else saw the same spot (own photo + GPS nearby). One per person per report. */
+export const dumpConfirmations = pgTable("dump_confirmations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  reportId: uuid("report_id").notNull().references(() => dumpReports.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  photoUrl: text("photo_url").notNull(),
+  photoHash: varchar("photo_hash", { length: 64 }).notNull(),
+  latitude: numeric("latitude", { precision: 10, scale: 6 }).notNull(),
+  longitude: numeric("longitude", { precision: 10, scale: 6 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("dump_confirmations_once").on(table.reportId, table.userId)]);

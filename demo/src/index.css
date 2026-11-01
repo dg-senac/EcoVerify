@@ -31,6 +31,8 @@
 @source "../../src/components/moderation/trust-score.tsx";
 @source "../../src/components/moderation/audit-actions.tsx";
 @source "../../src/components/moderation/extra-proof-note.tsx";
+@source "../../src/components/quiz";
+@source "../../src/components/dumps";
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Ubuntu, sans-serif;

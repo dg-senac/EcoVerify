@@ -3,6 +3,8 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   communityChat,
+  dumpConfirmations,
+  dumpReports,
   messageFavorites,
   messageReports,
   missionRequests,
@@ -12,6 +14,7 @@ import {
   offerRedemptions,
   partnerOffers,
   pointsLedger,
+  quizAttempts,
   rewardQueue,
   submissions,
 } from "@/db/schema";
@@ -69,7 +72,7 @@ export async function GET() {
       .where(eq(submissions.userId, user.id))
       .orderBy(desc(submissions.submittedAt)),
     db
-      .select({ submissionId: pointsLedger.submissionId, points: pointsLedger.points, createdAt: pointsLedger.createdAt })
+      .select({ submissionId: pointsLedger.submissionId, source: pointsLedger.source, points: pointsLedger.points, createdAt: pointsLedger.createdAt })
       .from(pointsLedger)
       .where(eq(pointsLedger.userId, user.id))
       .orderBy(desc(pointsLedger.createdAt)),
@@ -153,6 +156,33 @@ export async function GET() {
       .where(eq(offerRedemptions.userId, user.id)),
   ]);
 
+  const [quiz, dumpsReported, dumpsConfirmed] = await Promise.all([
+    db
+      .select({ day: quizAttempts.day, correct: quizAttempts.correct, points: quizAttempts.points, finishedAt: quizAttempts.finishedAt })
+      .from(quizAttempts)
+      .where(eq(quizAttempts.userId, user.id))
+      .orderBy(desc(quizAttempts.day)),
+    db
+      .select({
+        id: dumpReports.id,
+        photoUrl: dumpReports.photoUrl,
+        latitude: dumpReports.latitude,
+        longitude: dumpReports.longitude,
+        city: dumpReports.city,
+        size: dumpReports.size,
+        note: dumpReports.note,
+        status: dumpReports.status,
+        createdAt: dumpReports.createdAt,
+      })
+      .from(dumpReports)
+      .where(eq(dumpReports.userId, user.id))
+      .orderBy(desc(dumpReports.createdAt)),
+    db
+      .select({ reportId: dumpConfirmations.reportId, photoUrl: dumpConfirmations.photoUrl, latitude: dumpConfirmations.latitude, longitude: dumpConfirmations.longitude, createdAt: dumpConfirmations.createdAt })
+      .from(dumpConfirmations)
+      .where(eq(dumpConfirmations.userId, user.id)),
+  ]);
+
   const payload = {
     format: "ecoverify-data-export",
     version: 1,
@@ -189,6 +219,9 @@ export async function GET() {
     },
     submissions: userSubmissions,
     pointsLedger: ledger,
+    dailyQuiz: quiz,
+    dumpReports: dumpsReported,
+    dumpConfirmations: dumpsConfirmed,
     foneRewards: rewards,
     notifications: userNotifications,
     communityMessages: messages,

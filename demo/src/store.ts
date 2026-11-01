@@ -35,7 +35,7 @@ import {
   type CardReason,
   type CardType,
 } from "@/lib/cards";
-import { canReview } from "@/lib/nav";
+import { canReview, isStaffExperience } from "@/lib/nav";
 import { formatDate } from "@/lib/utils";
 import type { Region, RegionRadius } from "@/lib/region";
 import { OSM_TEMPLATES, type OsmKind } from "@/lib/regional/templates";
@@ -74,6 +74,7 @@ import { MAX_AUTO_APPROVE_KG } from "@/lib/impact";
 import { deliveryError, newDeliveryCode, parseDeliveryInput, parseDeliveryQr, PARTNER_CONFIRM_HOURS, pointText, type DeliveryError } from "@/lib/partner";
 import { checkinCode, checkinCodeExpiresAt, checkinPhase, checkinQrPayload, checkinWindow, isValidCheckinCode, parseCheckinQr, type CheckinError } from "@/lib/saas/checkin";
 import { formatKg } from "@/lib/impact";
+import { QUIZ_SIZE, checkQuizAnswer, quizDay, quizPoints, type QuizAnswerResponse } from "@/lib/quiz";
 import {
   addHours,
   EXTRA_PROOF_HOURS,
@@ -342,7 +343,11 @@ export type State = {
   /** Collection points that weigh deliveries and event check-ins (src/lib/partner.ts, src/lib/saas/checkin.ts). */
   collectionPoints?: DemoPoint[];
   checkins?: DemoCheckin[];
+  /** Daily quiz attempts (src/lib/quiz.ts). */
+  quiz?: DemoQuizAttempt[];
 };
+
+export type DemoQuizAttempt = { userId: string; day: string; answers: number[]; correct: number; points: number; finishedAt: string | null };
 
 export type DemoOffer = {
   id: string;
@@ -2591,6 +2596,41 @@ export async function checkinDisplay(missionId: string): Promise<{ error?: strin
   const at = new Date();
   const code = await checkinCode(secret, missionId, checkinWindow(at));
   return { code, payload: checkinQrPayload(missionId, code), expiresAt: checkinCodeExpiresAt(at).toISOString(), present: (state.checkins ?? []).filter((c) => c.missionId === missionId).length };
+}
+
+/* ------------------------------------------------------------------ */
+/* Daily quiz (same rules as src/lib/actions/quiz.ts)                  */
+/* ------------------------------------------------------------------ */
+
+export function quizAttemptOf(s: State, userId: string, day: string): DemoQuizAttempt | null {
+  return (s.quiz ?? []).find((a) => a.userId === userId && a.day === day) ?? null;
+}
+
+export async function answerQuiz(day: string, index: number, choice: number): Promise<QuizAnswerResponse> {
+  const user = me();
+  if (!user || user.isBanned || isStaffExperience(user.role, moderatorsOn())) return { error: "not_allowed" };
+  if (day !== quizDay()) return { error: "new_day" };
+  if (!Number.isInteger(index) || index < 0 || index >= QUIZ_SIZE) return { error: "invalid" };
+  const result = checkQuizAnswer(day, index, choice, user.language);
+  if (!result) return { error: "invalid" };
+  const attempt = quizAttemptOf(state, user.id, day) ?? { userId: user.id, day, answers: [], correct: 0, points: 0, finishedAt: null };
+  if (index < attempt.answers.length) {
+    const stored = checkQuizAnswer(day, index, attempt.answers[index], user.language);
+    if (!stored) return { error: "invalid" };
+    return attempt.finishedAt ? { ...stored, finished: { correct: attempt.correct, points: attempt.points } } : stored;
+  }
+  if (index > attempt.answers.length || attempt.finishedAt) return { error: "invalid" };
+  const answers = [...attempt.answers, choice];
+  const correct = attempt.correct + (result.correct ? 1 : 0);
+  const finishing = answers.length === QUIZ_SIZE;
+  const points = finishing ? quizPoints(correct) : 0;
+  const updated: DemoQuizAttempt = { ...attempt, answers, correct, points, finishedAt: finishing ? now() : null };
+  commit((s) => ({
+    ...s,
+    quiz: [...(s.quiz ?? []).filter((a) => !(a.userId === user.id && a.day === day)), updated],
+    users: finishing ? s.users.map((u) => (u.id === user.id ? { ...u, totalPoints: u.totalPoints + points } : u)) : s.users,
+  }));
+  return finishing ? { ...result, finished: { correct, points } } : result;
 }
 
 // Deadlines that passed while the app was closed.

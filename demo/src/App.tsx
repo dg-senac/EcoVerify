@@ -24,6 +24,7 @@ import { LegalScreen } from "./screens/Legal";
 import { TransparencyScreen } from "./screens/Transparency";
 import { BenefitsScreen, PartnerScreen } from "./screens/Benefits";
 import { PointScreen } from "./screens/Point";
+import { QuizScreen } from "./screens/Quiz";
 import { CertificateScreen, EventCertificateScreen, EventReportScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
 
 import { THEME_COLORS } from "@/lib/theme";
@@ -83,7 +84,7 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
   const home = useStore((s) => homeFor(user.role, moderatorsOn(s)));
   // Staff (active moderators and admins) have their own app: citizen screens send them home.
   const staffApp = useStore((s) => isStaffExperience(user.role, moderatorsOn(s)));
-  const citizenOnly = path.startsWith("/missions") || path.startsWith("/org") || ["/submissions", "/ranking", "/beneficios", "/community", "/wallet"].includes(path);
+  const citizenOnly = path.startsWith("/missions") || path.startsWith("/org") || ["/submissions", "/ranking", "/beneficios", "/community", "/wallet", "/quiz", "/lixo"].includes(path);
   if (staffApp && citizenOnly) return <Redirect to={home} />;
   const submit = matchRoute("/missions/:id/submit", path);
   if (submit) return <SubmitScreen key={submit.id} missionId={submit.id} />;
@@ -107,6 +108,8 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
       return <SubmissionsScreen user={user} />;
     case "/ranking":
       return <RankingScreen user={user} />;
+    case "/quiz":
+      return <QuizScreen key={user.id} user={user} />;
     case "/beneficios":
       return <BenefitsScreen user={user} />;
     case "/community":

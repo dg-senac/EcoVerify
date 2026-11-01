@@ -3,14 +3,16 @@ import { Sprout } from "lucide-react";
 import { t, tf } from "@/lib/i18n";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { groupMissionsByRegion, MIN_LOCAL_MISSIONS } from "@/lib/region";
-import { myOrgs, requestMissionsHere, seedExampleMissions, useLang, useStore, type Mission, type User, type SubmissionStatus } from "../store";
+import { myOrgs, quizAttemptOf, requestMissionsHere, seedExampleMissions, useLang, useStore, type Mission, type User, type SubmissionStatus } from "../store";
 import { ORG_TEXT } from "@/lib/saas/org-text";
 import { eventPhase } from "@/lib/saas/events";
-import { Link } from "../router";
+import { Link, navigate } from "../router";
 import { MissionCard } from "../components/MissionCard";
 import { RegionBar } from "../components/RegionBar";
 import { EmptyState, PageHeader, btnPrimary } from "../components/ui";
 import { dt } from "../i18n";
+import { quizDay, quizText } from "@/lib/quiz";
+import { QuizCard, QUIZ_CARD_BUTTON } from "@/components/quiz/quiz-view";
 
 function Grid({ items, myStatus }: { items: (Mission & { distanceKm?: number })[]; myStatus: Map<string, SubmissionStatus> }) {
   const lang = useLang();
@@ -36,6 +38,8 @@ export function MissionsScreen({ user }: { user: User }) {
   // Finished events leave the list (the organization still sees them in its Events tab).
   const orgMissions = missions.filter((m) => m.isActive && m.organizationId && orgIds.has(m.organizationId) && eventPhase(m) !== "closed");
   const [seeding, setSeeding] = useState(false);
+  const quizToday = useStore((s) => quizAttemptOf(s, user.id, quizDay()));
+  const quizDone = quizToday?.finishedAt ? quizToday.points : null;
 
   // Latest status of my submission for each mission (a rejected one can be resent).
   const myStatus = new Map<string, SubmissionStatus>();
@@ -64,6 +68,19 @@ export function MissionsScreen({ user }: { user: User }) {
   const header = (
     <>
       <PageHeader title={t(lang, "missions_title")} subtitle={t(lang, "missions_subtitle")} icon={Sprout} />
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="mission-extras">
+        <QuizCard
+          lang={lang}
+          donePoints={quizDone}
+          action={
+            quizDone === null ? (
+              <button type="button" className={QUIZ_CARD_BUTTON} onClick={() => navigate("/quiz")} data-testid="quiz-open">
+                {quizText(lang).play}
+              </button>
+            ) : null
+          }
+        />
+      </div>
       {orgMissions.length > 0 && (
         <section className="mb-8" data-testid="section-org">
           <h2 className="text-lg font-bold text-slate-900">
