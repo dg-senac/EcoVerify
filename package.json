@@ -7,7 +7,9 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "check": "npm run lint && npm run typecheck",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "demo:dev": "vite --config demo/vite.config.mts",
     "demo:build": "vite build --config demo/vite.config.mts",
     "demo:preview": "vite preview --config demo/vite.config.mts",
@@ -51,7 +53,8 @@
     "tailwindcss": "4.1.17",
     "tsx": "^4.23.13",
     "typescript": "5.9.3",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
   },
   "version": "1.9.1",
   "engines": {

@@ -33,6 +33,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Unit tests (Vitest)
+        run: npm test
+
       - name: Security audit (production dependencies)
         run: npm audit --omit=dev --audit-level=high
 

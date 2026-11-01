@@ -1272,6 +1272,8 @@ const dict = {
 } as const;
 
 export type DictKey = keyof typeof dict;
+/** Read-only view of the dictionary (tests check that every key has pt/en/es). */
+export const I18N_DICT: Readonly<Record<DictKey, Partial<Record<Lang, string>>>> = dict;
 
 export function t(lang: Lang, key: DictKey): string {
   return dict[key]?.[lang] ?? dict[key]?.pt ?? String(key);

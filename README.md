@@ -51,6 +51,7 @@ O seed cria `admin@ecoverify.dev`, `moderador@ecoverify.dev` e `cidada@ecoverify
 | `npm run dev` | Servidor de desenvolvimento |
 | `npm run build` / `npm start` | Build e servidor de produção |
 | `npm run lint` / `npm run typecheck` / `npm run check` | Qualidade de código |
+| `npm test` / `npm run test:watch` | Testes automáticos (Vitest) das regras: IA, verificação, cartões, chat, quiz, lixões, check-in, FONE e traduções |
 | `npm run db:push` | Aplica o schema (`src/db/schema.ts`) no banco |
 | `npm run db:generate` / `npm run db:migrate` | Migrations versionadas em `./drizzle` |
 | `npm run db:studio` | Interface visual do banco |
@@ -232,7 +233,7 @@ Veja [`BUILD_ANDROID.md`](BUILD_ANDROID.md). O app declara as permissões de **l
 
 ## CI
 
-- **CI** (`.github/workflows/ci.yml`): lint, typecheck, auditoria de dependências, build do app web e da demo offline em todo PR.
+- **CI** (`.github/workflows/ci.yml`): lint, typecheck, testes automáticos (`npm test`), auditoria de dependências, build do app web e da demo offline em todo PR.
 - **Build Android APK** (`.github/workflows/build-android.yml`): gera o APK debug a cada push na `main`, no modo demo ou servidor conforme `CAPACITOR_SERVER_URL`. O modo aparece no resumo da execução e no título da Release.
 
 ## Roadmap
