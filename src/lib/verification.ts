@@ -251,10 +251,13 @@ export function pendingStage(s: {
   aiStatus?: string | null;
   extraProofStatus?: string | null;
   appealedAt?: unknown;
-}): PendingStage {
+  /** End of the verification window; when given, a closed window means the team is looking at it. */
+  verifyBy?: Date | string | null;
+}, now: Date = new Date()): PendingStage {
   if (s.appealedAt) return "team";
   if (s.extraProofStatus === "requested") return "extra_proof";
   if (s.extraProofStatus === "sent") return "extra_sent";
-  if (s.aiStatus === "queued" || s.aiStatus === "failed") return "analyzing";
+  const windowOpen = s.verifyBy === undefined || (s.verifyBy !== null && new Date(s.verifyBy) > now);
+  if ((s.aiStatus === "queued" || s.aiStatus === "failed") && windowOpen) return "analyzing";
   return "team";
 }

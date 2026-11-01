@@ -1,5 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { sweepVerifications } from "@/lib/verification-server";
 import { citizenOnly } from "@/lib/role-guard";
 import { db } from "@/db";
 import { missions, submissions } from "@/db/schema";
@@ -12,6 +14,8 @@ export default async function SubmissionsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   citizenOnly(user.role);
+  // Keeps the verification window moving even without a scheduler (throttled inside).
+  after(() => sweepVerifications().catch((error) => console.error("[verify] sweep failed:", error)));
 
   const rows = await db
     .select({
@@ -30,6 +34,10 @@ export default async function SubmissionsPage() {
       decidedBy: submissions.decidedBy,
       aiStatus: submissions.aiStatus,
       appealedAt: submissions.appealedAt,
+      extraProofStatus: submissions.extraProofStatus,
+      extraProofCode: submissions.extraProofCode,
+      extraProofDueAt: submissions.extraProofDueAt,
+      verifyBy: submissions.verifyBy,
       submittedAt: submissions.submittedAt,
       missionTitle: missions.title,
       missionCategory: missions.category,

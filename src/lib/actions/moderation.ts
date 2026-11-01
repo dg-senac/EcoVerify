@@ -17,6 +17,7 @@ import { moderatorsEnabled } from "@/lib/staff-config";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
 import { parseWeightKg } from "@/lib/impact";
 import { countRule, estimatedKg, MAX_ITEM_COUNT } from "@/lib/proof";
+import { confirmAudit, revokeApproval } from "@/lib/verification-server";
 
 export type ModerationActionState = { error?: string; success?: boolean };
 
@@ -200,4 +201,50 @@ export async function getUserHistory(userId: string) {
     .innerJoin(missions, eq(submissions.missionId, missions.id))
     .where(eq(submissions.userId, userId))
     .orderBy(sql`${submissions.submittedAt} desc`);
+}
+
+/* ------------------------------------------------------------------ */
+/* Sample audit of automatic approvals (src/lib/verification.ts)       */
+/* ------------------------------------------------------------------ */
+
+async function auditTarget(submissionId: string) {
+  const auditor = await assertModerator();
+  const [row] = await db.select({ userId: submissions.userId }).from(submissions).where(eq(submissions.id, submissionId)).limit(1);
+  if (!row) return { auditor, error: "not_found" as const };
+  if (row.userId === auditor.id) return { auditor, error: "own_submission" as const };
+  return { auditor, userId: row.userId };
+}
+
+export async function confirmAuditAction(_prev: ModerationActionState, formData: FormData): Promise<ModerationActionState> {
+  const submissionId = String(formData.get("submissionId") ?? "");
+  const target = await auditTarget(submissionId);
+  if ("error" in target && target.error) return { error: target.error };
+  if (!(await confirmAudit(submissionId, target.auditor.id))) return { error: "already_reviewed" };
+  revalidatePath("/moderation");
+  return { success: true };
+}
+
+/** The approval is undone (points back, unpaid FONE cancelled); the auditor explains why. */
+export async function revokeAuditAction(_prev: ModerationActionState, formData: FormData): Promise<ModerationActionState> {
+  const submissionId = String(formData.get("submissionId") ?? "");
+  const target = await auditTarget(submissionId);
+  if ("error" in target && target.error) return { error: target.error };
+  const codeInput = String(formData.get("reasonCode") ?? "");
+  const code = isRejectionCode(codeInput) ? codeInput : null;
+  const typed = String(formData.get("reason") ?? "").trim().slice(0, 1000);
+  const reason = typed || (code ? REJECTION_REASONS[code].pt : "");
+  if (reason.length < 10) return { error: "audit_reason_short" };
+  const giveCard = formData.get("giveCard") === "on";
+  if (giveCard && reason.length < CARD_NOTE_MIN) return { error: "card_note_short" };
+
+  const revoked = await revokeApproval(submissionId, target.auditor.id, { code, text: reason });
+  if (!revoked) return { error: "already_reviewed" };
+  if (giveCard && target.userId) {
+    await issueCard({ userId: target.userId, type: "yellow", reason: cardReasonForRejection(code), note: reason, issuerId: target.auditor.id, submissionId });
+    revalidatePath("/admin");
+  }
+  revalidatePath("/moderation");
+  revalidatePath("/submissions");
+  revalidatePath("/ranking");
+  return { success: true, ...(revoked.paidFone ? { error: "audit_fone_already_paid" } : {}) };
 }

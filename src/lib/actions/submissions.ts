@@ -16,6 +16,7 @@ import { prepareProofPhoto } from "@/lib/ai/photo";
 import { getAiSettings, runProofVerification, willAnalyzeWithModel } from "@/lib/ai/pipeline";
 import { checkCountInput, proofTypeOf } from "@/lib/proof";
 import { eventSubmissionError } from "@/lib/saas/events";
+import { addHours, VERIFY_WINDOW_HOURS } from "@/lib/verification";
 
 export type SubmissionActionState = { error?: string; success?: boolean };
 
@@ -194,6 +195,8 @@ export async function createSubmissionAction(
         photoBeforeUrl: before?.url ?? null,
         photoBeforeHash: before?.hash ?? null,
         aiStatus: willAnalyzeWithModel(aiConfig) ? "queued" : null,
+        gpsAccuracy: accuracy === null ? null : Math.round(accuracy),
+        verifyBy: addHours(new Date(), VERIFY_WINDOW_HOURS),
       })
       .returning({ id: submissions.id });
     submissionId = created.id;
@@ -275,5 +278,61 @@ export async function appealSubmissionAction(_prev: AppealActionState, formData:
 
   revalidatePath("/submissions");
   revalidatePath("/moderation");
+  return { success: true };
+}
+
+export type ExtraProofActionState = { error?: string; success?: boolean };
+
+/**
+ * The extra photo asked by the automatic verification (src/lib/verification.ts): the person shows a
+ * paper with the handwritten code next to the place or the items. The AI then compares it with the
+ * original photo.
+ */
+export async function submitExtraProofAction(_prev: ExtraProofActionState, formData: FormData): Promise<ExtraProofActionState> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.isBanned) return { error: "banned" };
+  const submissionId = String(formData.get("submissionId") ?? "");
+  const photo = formData.get("photo");
+  if (!(photo instanceof File) || photo.size === 0) return { error: "photo_required" };
+  if (photo.size > MAX_PHOTO_SIZE) return { error: "photo_too_large" };
+
+  const [submission] = await db
+    .select({ id: submissions.id, status: submissions.status, extraProofStatus: submissions.extraProofStatus, extraProofDueAt: submissions.extraProofDueAt })
+    .from(submissions)
+    .where(and(eq(submissions.id, submissionId), eq(submissions.userId, user.id)))
+    .limit(1);
+  if (!submission || submission.status !== "pending" || submission.extraProofStatus !== "requested") return { error: "extra_proof_not_open" };
+  if (submission.extraProofDueAt && submission.extraProofDueAt < new Date()) return { error: "extra_proof_not_open" };
+
+  const buffer = Buffer.from(await photo.arrayBuffer());
+  const detected = detectFileType(buffer, "image");
+  if (!detected || detected.contentType === "image/gif") return { error: "invalid_photo" };
+  const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+  const [used] = await db
+    .select({ id: submissions.id })
+    .from(submissions)
+    .where(or(eq(submissions.photoHash, hash), eq(submissions.photoBeforeHash, hash), eq(submissions.extraPhotoHash, hash)))
+    .limit(1);
+  if (used) return { error: "duplicate_photo" };
+  const prepared = await prepareProofPhoto(buffer);
+  if (!prepared) return { error: "invalid_photo" };
+  const url = await saveFile("proofs", prepared.buffer, prepared.extension, prepared.contentType);
+
+  const updated = await db
+    .update(submissions)
+    .set({ extraProofStatus: "sent", extraPhotoUrl: url, extraPhotoHash: hash, verifyBy: addHours(new Date(), VERIFY_WINDOW_HOURS) })
+    .where(and(eq(submissions.id, submissionId), eq(submissions.status, "pending"), eq(submissions.extraProofStatus, "requested")))
+    .returning({ id: submissions.id });
+  if (updated.length === 0) return { error: "extra_proof_not_open" };
+
+  after(async () => {
+    try {
+      await runProofVerification(submissionId);
+    } catch (error) {
+      console.error("[ai] extra proof check crashed:", error);
+    }
+  });
+  revalidatePath("/submissions");
   return { success: true };
 }

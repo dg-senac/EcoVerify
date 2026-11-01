@@ -296,10 +296,12 @@ export async function sweepVerifications(options: { force?: boolean; limit?: num
 /** SQL condition: the proof is still being handled automatically (not for the moderators yet). */
 export function inAutomaticVerification() {
   const now = new Date();
-  return or(
+  const condition = or(
     eq(submissions.extraProofStatus, "requested"),
     and(isNull(submissions.appealedAt), gt(submissions.verifyBy, now), or(inArray(submissions.aiStatus, ["queued", "failed"]), eq(submissions.extraProofStatus, "sent"))),
   );
+  // NULL columns must count as "not in verification" (NOT NULL would hide the row from both lists).
+  return sql<boolean>`coalesce((${condition}), false)`;
 }
 
 /* ------------------------------------------------------------------ */

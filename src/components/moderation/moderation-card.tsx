@@ -10,6 +10,8 @@ import { RejectModal } from "@/components/moderation/reject-modal";
 import { HistoryPanel } from "@/components/moderation/history-panel";
 import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS, type Material } from "@/lib/impact";
 import { ProofEvidence } from "@/components/moderation/proof-evidence";
+import { TrustScore } from "@/components/moderation/trust-score";
+import { ExtraProofNote } from "@/components/moderation/extra-proof-note";
 import type { WeightSource } from "@/lib/proof";
 
 const initialState: ModerationActionState = {};
@@ -49,6 +51,10 @@ export function ModerationCard({
     missionCategory: string;
     authorId: string;
     authorName: string;
+    trustScore?: number | null;
+    extraProofCode?: string | null;
+    extraProofStatus?: string | null;
+    extraPhotoUrl?: string | null;
   };
 }) {
   const [state, formAction, pending] = useActionState(approveSubmissionAction, initialState);
@@ -119,6 +125,8 @@ export function ModerationCard({
             📍 {Number(submission.latitude).toFixed(4)}, {Number(submission.longitude).toFixed(4)}
           </p>
         )}
+        <ExtraProofNote lang={lang} code={submission.extraProofCode} status={submission.extraProofStatus} photoUrl={submission.extraPhotoUrl} />
+        <TrustScore lang={lang} score={submission.trustScore} factors={submission.aiChecks?.trustFactors} />
 
         {!submission.appealedAt && (
           <AiPanel

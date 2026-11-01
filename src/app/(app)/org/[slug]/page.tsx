@@ -2,7 +2,8 @@ import Link from "next/link";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { notFound, redirect } from "next/navigation";
 import { citizenOnly } from "@/lib/role-guard";
-import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, not, sql } from "drizzle-orm";
+import { inAutomaticVerification } from "@/lib/verification-server";
 import { Award, ExternalLink, FileBarChart, Users } from "lucide-react";
 import { db } from "@/db";
 import { invoices, missions, submissions, users } from "@/db/schema";
@@ -66,7 +67,7 @@ export default async function OrganizationPage({
     .select({ pendingCount: sql<number>`count(*)::int` })
     .from(submissions)
     .innerJoin(missions, eq(missions.id, submissions.missionId))
-    .where(and(eq(missions.organizationId, org.id), eq(submissions.status, "pending")));
+    .where(and(eq(missions.organizationId, org.id), eq(submissions.status, "pending"), not(inAutomaticVerification())));
   const mine = await db
     .select({ missionId: submissions.missionId })
     .from(submissions)
@@ -398,11 +399,16 @@ async function ModerationTab({ orgId, lang, userId }: { orgId: string; lang: "pt
       aiChecks: submissions.aiChecks,
       appealedAt: submissions.appealedAt,
       appealMessage: submissions.appealMessage,
+      trustScore: submissions.trustScore,
+      extraProofCode: submissions.extraProofCode,
+      extraProofStatus: submissions.extraProofStatus,
+      extraPhotoUrl: submissions.extraPhotoUrl,
     })
     .from(submissions)
     .innerJoin(missions, eq(submissions.missionId, missions.id))
     .innerJoin(users, eq(submissions.userId, users.id))
-    .where(and(eq(missions.organizationId, orgId), eq(submissions.status, "pending")))
+    // Org managers, like moderators, are the last resort after the automatic verification.
+    .where(and(eq(missions.organizationId, orgId), eq(submissions.status, "pending"), not(inAutomaticVerification())))
     .orderBy(
       sql`${submissions.appealedAt} is null`,
       sql`${submissions.aiReasonCode} is distinct from 'internet_copy'`,

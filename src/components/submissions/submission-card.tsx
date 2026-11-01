@@ -2,6 +2,9 @@ import { categoryEmoji, t, type Lang } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { composeRejectionMessage } from "@/lib/ai/decision";
 import { AppealForm } from "@/components/submissions/appeal-form";
+import { ExtraProofBox } from "@/components/submissions/extra-proof-box";
+import { ExtraProofForm } from "@/components/submissions/extra-proof-form";
+import { pendingStage } from "@/lib/verification";
 import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS, type Material } from "@/lib/impact";
 import { COUNT_ITEM_INFO, countItemName, isCountItem, weightSourceLabel, type WeightSource } from "@/lib/proof";
 
@@ -32,6 +35,10 @@ export function SubmissionCard({
     decidedBy: "human" | "ai" | null;
     aiStatus: "queued" | "done" | "failed" | null;
     appealedAt: Date | null;
+    extraProofStatus?: string | null;
+    extraProofCode?: string | null;
+    extraProofDueAt?: Date | null;
+    verifyBy?: Date | null;
     submittedAt: Date;
     missionTitle: string;
     missionCategory: string;
@@ -95,6 +102,16 @@ export function SubmissionCard({
               <span className="font-normal text-slate-400"> ({t(lang, "recycling_weight_corrected")})</span>
             )}
           </p>
+        )}
+        {submission.status === "pending" && (
+          <ExtraProofBox
+            lang={lang}
+            stage={pendingStage(submission)}
+            code={submission.extraProofCode}
+            dueAt={submission.extraProofDueAt}
+          >
+            <ExtraProofForm lang={lang} submissionId={submission.id} />
+          </ExtraProofBox>
         )}
         {submission.status === "rejected" && reasonText && (
           <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
