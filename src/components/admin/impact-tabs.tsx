@@ -17,6 +17,8 @@ import {
   type KgBucket,
   type RecyclingSummary,
 } from "@/lib/impact";
+import { co2Estimate, formatCo2 } from "@/lib/impact-factors";
+import { Co2Banner } from "@/components/impact/co2-estimate";
 
 /**
  * Admin → ♻️ Reciclagem and Admin → 📊 Dados (docs/MONETIZACAO.md, sections 6 and 7).
@@ -100,6 +102,27 @@ const VIEW_LABELS: Record<DataView, Record<Lang, string>> = {
   grid: { pt: "Por área (~1 km)", en: "By area (~1 km)", es: "Por área (~1 km)" },
 };
 
+/** CO₂e avoided, total and by material — always labelled as an estimate (src/lib/impact-factors.ts). */
+function ClimateEstimate({ lang, summary }: { lang: Lang; summary: RecyclingSummary }) {
+  const estimate = co2Estimate(summary.byMaterial.map((b) => ({ material: b.material, kg: b.kg })));
+  if (estimate.co2Kg <= 0) return null;
+  return (
+    <section className="grid gap-3" data-testid="climate-estimate">
+      <Co2Banner lang={lang} scope="group" estimate={estimate} />
+      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {estimate.byMaterial.map((b) => (
+          <li key={b.material} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-black/5 bg-white px-3 py-2 text-sm shadow-sm">
+            <span className="min-w-0 truncate font-semibold text-slate-700">
+              {MATERIAL_EMOJI[b.material]} {MATERIAL_LABELS[b.material][lang]} · <span className="font-normal text-slate-500">{formatKg(b.kg, lang)}</span>
+            </span>
+            <span className="shrink-0 font-bold text-emerald-700">{formatCo2(b.co2Kg, lang)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function RecyclingTab({
   lang = "pt",
   summary,
@@ -125,12 +148,14 @@ export function RecyclingTab({
         />
       </div>
 
+      {summary.deliveries > 0 && <ClimateEstimate lang={lang} summary={summary} />}
+
       <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-bold text-slate-900">🧾 {T("Coletas comprovadas", "Verified collections", "Recolecciones comprobadas")}</h2>
             <p className="mt-1 max-w-xl text-xs text-slate-500">
-              {T("Uma linha por entrega aprovada: data, cidade, ponto, material, kg e código da comprovação. Sem nomes. Serve de relatório para a cooperativa parceira e para a empresa que patrocina a campanha. O peso vem da balança do ponto de coleta parceiro ou é estimado pela contagem de itens; não é uma pesagem certificada.", "One row per approved delivery: date, city, point, material, kg and proof code. No names. Works as a report for the partner cooperative and the company sponsoring the campaign. The weight comes from the partner collection point's scale or is estimated from the item count; it is not a certified weighing.", "Una fila por entrega aprobada: fecha, ciudad, punto, material, kg y código del comprobante. Sin nombres. Sirve de informe para la cooperativa aliada y la empresa que patrocina la campaña. El peso viene de la balanza del punto de recolección socio o se estima por el conteo de artículos; no es un pesaje certificado.")}
+              {T("Uma linha por entrega aprovada: data, cidade, ponto, material, kg, CO₂e estimado e código da comprovação. Sem nomes. Serve de relatório para a cooperativa parceira e para a empresa que patrocina a campanha. O peso vem da balança do ponto de coleta parceiro ou é estimado pela contagem de itens; não é uma pesagem certificada.", "One row per approved delivery: date, city, point, material, kg, estimated CO₂e and proof code. No names. Works as a report for the partner cooperative and the company sponsoring the campaign. The weight comes from the partner collection point's scale or is estimated from the item count; it is not a certified weighing.", "Una fila por entrega aprobada: fecha, ciudad, punto, material, kg, CO₂e estimado y código del comprobante. Sin nombres. Sirve de informe para la cooperativa aliada y la empresa que patrocina la campaña. El peso viene de la balanza del punto de recolección socio o se estima por el conteo de artículos; no es un pesaje certificado.")}
             </p>
           </div>
           <CsvButton

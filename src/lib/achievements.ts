@@ -4,6 +4,7 @@
  * Nothing is stored: everything is derived, so rules can change without migrations.
  */
 import { tx, type Lang } from "@/lib/i18n";
+import { co2Estimate } from "@/lib/impact-factors";
 
 export type ActionCategory = "planting" | "donation" | "recycling" | "cleanup" | "other";
 
@@ -13,6 +14,8 @@ export interface ApprovedAction {
   at: string | Date;
   /** Recycling: weight in kg after review. */
   weightKg?: number | string | null;
+  /** Recycling: material delivered (used for the CO₂e estimate; missing = mixed recyclables). */
+  material?: string | null;
   /** The mission was a dated event (mutirão). */
   isEvent?: boolean;
 }
@@ -88,6 +91,10 @@ export function weeklyStreak(actions: ApprovedAction[], now: Date = new Date()):
 export interface PersonalImpact {
   actions: number;
   recycledKg: number;
+  /** ESTIMATE of kg CO₂e avoided by the recycling (src/lib/impact-factors.ts). Always shown with an "estimate" label. */
+  co2Kg: number;
+  /** Same CO₂e as this many km by an average gasoline car (estimate). */
+  carKm: number;
   recyclingDeliveries: number;
   plantings: number;
   cleanups: number;
@@ -100,9 +107,12 @@ export interface PersonalImpact {
 export function personalImpact(actions: ApprovedAction[]): PersonalImpact {
   const count = (c: string) => actions.filter((a) => a.category === c).length;
   const recycledKg = actions.reduce((sum, a) => sum + (a.category === "recycling" ? Number(a.weightKg ?? 0) || 0 : 0), 0);
+  const co2 = co2Estimate(actions.filter((a) => a.category === "recycling").map((a) => ({ material: a.material, kg: a.weightKg })));
   return {
     actions: actions.length,
     recycledKg: Math.round(recycledKg * 10) / 10,
+    co2Kg: co2.co2Kg,
+    carKm: co2.carKm,
     recyclingDeliveries: count("recycling"),
     plantings: count("planting"),
     cleanups: count("cleanup"),

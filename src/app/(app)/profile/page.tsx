@@ -62,11 +62,11 @@ export default async function ProfilePage() {
     ? []
     : (
         await db
-          .select({ category: missions.category, at: submissions.submittedAt, weightKg: submissions.weightKg, startsAt: missions.startsAt })
+          .select({ category: missions.category, at: submissions.submittedAt, weightKg: submissions.weightKg, material: submissions.material, startsAt: missions.startsAt })
           .from(submissions)
           .innerJoin(missions, eq(submissions.missionId, missions.id))
           .where(and(eq(submissions.userId, user.id), eq(submissions.status, "approved")))
-      ).map((row) => ({ category: row.category, at: row.at, weightKg: row.weightKg, isEvent: !!row.startsAt }));
+      ).map((row) => ({ category: row.category, at: row.at, weightKg: row.weightKg, material: row.material, isEvent: !!row.startsAt }));
   const streak = weeklyStreak(actions);
   const impact = personalImpact(actions);
   const badges = badgesFor(actions, user.language);

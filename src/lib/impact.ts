@@ -5,6 +5,7 @@
  */
 import type { Lang } from "@/lib/i18n";
 import { weightSourceLabel, type WeightSource } from "@/lib/proof";
+import { co2AvoidedKg } from "@/lib/impact-factors";
 
 /* ------------------------------------------------------------------ */
 /* Recycling: material and weight                                      */
@@ -158,7 +159,7 @@ export function proofCode(submissionId: string): string {
 export function recyclingCsv(allRows: ImpactRow[]): string {
   const rows = recyclingRows(allRows).sort((a, b) => b.approvedAt.localeCompare(a.approvedAt));
   return toCsv(
-    ["data", "cidade", "uf", "ponto", "material", "itens", "kg", "origem_do_peso", "codigo_comprovacao"],
+    ["data", "cidade", "uf", "ponto", "material", "itens", "kg", "kg_co2e_evitado_estimativa", "origem_do_peso", "codigo_comprovacao"],
     rows.map((row) => [
       row.approvedAt.slice(0, 10),
       row.city ?? "",
@@ -167,6 +168,7 @@ export function recyclingCsv(allRows: ImpactRow[]): string {
       MATERIAL_LABELS[row.material as Material].pt,
       row.itemCount == null ? "" : String(row.itemCount),
       formatDecimal(row.weightKg ?? 0),
+      formatDecimal(co2AvoidedKg(row.material, row.weightKg)),
       weightSourceLabel(weightSourceOf(row), "pt"),
       proofCode(row.submissionId),
     ]),

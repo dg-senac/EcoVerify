@@ -51,7 +51,7 @@ O seed cria `admin@ecoverify.dev`, `moderador@ecoverify.dev` e `cidada@ecoverify
 | `npm run dev` | Servidor de desenvolvimento |
 | `npm run build` / `npm start` | Build e servidor de produção |
 | `npm run lint` / `npm run typecheck` / `npm run check` | Qualidade de código |
-| `npm test` / `npm run test:watch` | Testes automáticos (Vitest) das regras: IA, verificação, cartões, chat, quiz, lixões, check-in, FONE e traduções |
+| `npm test` / `npm run test:watch` | Testes automáticos (Vitest) das regras: IA, verificação, cartões, chat, quiz, lixões, check-in, FONE, fatores de CO₂e e traduções |
 | `npm run db:push` | Aplica o schema (`src/db/schema.ts`) no banco |
 | `npm run db:generate` / `npm run db:migrate` | Migrations versionadas em `./drizzle` |
 | `npm run db:studio` | Interface visual do banco |
@@ -174,6 +174,7 @@ Detalhes, limites do plano gratuito e como trocar de provedor: [`docs/VERIFICACA
 - **Moderação só para admin por padrão.** `MODERATORS_ENABLED=true` libera o papel Moderador (revisar comprovações e dar amarelo).
 - Admin → Usuários tem a **Ficha** de cada pessoa e o painel de contestações. Regras completas: [`docs/CARTOES.md`](docs/CARTOES.md).
 - **Chat moderado**: denúncia com motivo (3 denúncias ocultam na hora), IA nas imagens, bloqueio pessoal, silenciar (admin), sem telefone/e-mail/links e áudio/vídeo só 18+. Regras: [`docs/MODERACAO_CHAT.md`](docs/MODERACAO_CHAT.md).
+- **Calculadora de impacto**: CO₂e evitado pela reciclagem verificada (perfil, admin + CSV, organização e relatório de mutirão), sempre com selo "estimativa" e "Como calculamos". Fatores da EPA (WARM v16) e, para óleo, da RED II; água fica de fora por falta de fonte primária. Metodologia: [`docs/IMPACTO.md`](docs/IMPACTO.md).
 
 ## Missões por região
 

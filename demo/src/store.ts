@@ -122,6 +122,7 @@ import {
   type TrustInput,
   type VerificationPlan,
 } from "@/lib/verification";
+import { co2Estimate } from "@/lib/impact-factors";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -2290,6 +2291,8 @@ export function orgStats(s: State, orgId: string) {
       byCategory: [...byCategory].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count),
       byMonth: [...byMonth].map(([month, count]) => ({ month, count })).sort((a, b) => a.month.localeCompare(b.month)),
       since: dates[0] ?? null,
+      recycledKg: Math.round(approved.reduce((sum, x) => sum + (x.weightKg ?? 0), 0) * 10) / 10,
+      co2: co2Estimate(approved.map((x) => ({ material: x.material, kg: x.weightKg }))),
     },
   };
 }

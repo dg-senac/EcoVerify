@@ -15,6 +15,7 @@ import { EventBadge } from "@/components/missions/event-badge";
 import { EventCertificateView, EventReportView } from "@/components/org/event-report";
 import { EVENT_PACKAGE_NAMES, EVENT_TEXT, eventPhase, eventUnlocked, isEvent, isEventPackage } from "@/lib/saas/events";
 import { proofCode } from "@/lib/impact";
+import { co2Estimate } from "@/lib/impact-factors";
 import { ImpactView } from "@/components/org/impact-view";
 import { LogoHorizontal, LogoMark } from "@/components/logo";
 import {
@@ -796,6 +797,7 @@ export function EventReportScreen({ user, missionId }: { user: User; missionId: 
           endsAt: mission.endsAt!,
           actions: approved.length,
           recycledKg: approved.reduce((sum, x) => sum + (x.weightKg ?? 0), 0),
+          co2Kg: co2Estimate(approved.map((x) => ({ material: x.material, kg: x.weightKg }))).co2Kg,
           participants: approved.map((x) => ({
             submissionId: x.id,
             name: users.find((u) => u.id === x.userId)?.name ?? "—",

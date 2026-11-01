@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Award, Camera, Recycle, Users } from "lucide-react";
 import { categoryEmoji, categoryLabels, tx, type Lang } from "@/lib/i18n";
 import { formatKg } from "@/lib/impact";
+import { formatCo2 } from "@/lib/impact-factors";
 import { EVENT_TEXT, formatEventWindow } from "@/lib/saas/events";
 import { checkinText } from "@/lib/saas/checkin";
 import { LogoHorizontal, LogoMark } from "@/components/logo";
@@ -15,6 +16,8 @@ export interface EventReportData {
   endsAt: string;
   actions: number;
   recycledKg: number;
+  /** ESTIMATE of kg CO₂e avoided by the recycling of the event (src/lib/impact-factors.ts). */
+  co2Kg?: number;
   participants: { submissionId: string; name: string; points: number; at: string; checkedIn?: boolean }[];
   photos: string[];
   /** Presences confirmed with the organizer's rotating QR (src/lib/saas/checkin.ts). */
@@ -42,6 +45,9 @@ export function EventReportView({
     { icon: <Users className="h-5 w-5" />, value: data.participants.length.toLocaleString(locale), label: text.participants },
     { icon: <span className="text-lg">{categoryEmoji[data.category] ?? "🌱"}</span>, value: data.actions.toLocaleString(locale), label: text.actions },
     ...(data.recycledKg > 0 ? [{ icon: <Recycle className="h-5 w-5" />, value: formatKg(data.recycledKg, lang), label: text.reportKg }] : []),
+    ...(data.co2Kg && data.co2Kg > 0
+      ? [{ icon: <span className="text-lg">🌎</span>, value: formatCo2(data.co2Kg, lang), label: tx(lang, "CO₂e evitado (estimativa*)", "CO₂e avoided (estimate*)", "CO₂e evitado (estimación*)") }]
+      : []),
     { icon: <Camera className="h-5 w-5" />, value: data.photos.length.toLocaleString(locale), label: text.reportPhotos },
     ...(data.checkins ? [{ icon: <span className="text-lg">📍</span>, value: data.checkins.toLocaleString(locale), label: tx(lang, "Check-ins no local", "On-site check-ins", "Check-ins en el lugar") }] : []),
   ];
@@ -76,6 +82,17 @@ export function EventReportView({
             </div>
           ))}
         </div>
+        {!!data.co2Kg && data.co2Kg > 0 && (
+          <p className="mt-2 text-[11px] text-slate-400" data-testid="event-co2-note">
+            *{" "}
+            {tx(
+              lang,
+              "Estimativa: kg de cada material × fatores médios da EPA (WARM v16) e, para óleo, da diretiva europeia RED II. O peso é estimado pela contagem ou pesado no ponto parceiro. Não é crédito de carbono.",
+              "Estimate: kg of each material × average factors from the US EPA (WARM v16) and, for oil, the EU RED II directive. The weight is estimated from the count or weighed at the partner point. Not a carbon credit.",
+              "Estimación: kg de cada material × factores promedio de la EPA (WARM v16) y, para el aceite, de la directiva europea RED II. El peso se estima por el conteo o se pesa en el punto socio. No es crédito de carbono.",
+            )}
+          </p>
+        )}
 
         <section className="mt-6 print:break-inside-avoid">
           <h2 className="font-bold text-slate-900">{text.reportPhotos}</h2>

@@ -40,7 +40,7 @@ export function ProfileScreen({ user }: { user: User }) {
       .filter((x) => x.userId === user.id && x.status === "approved")
       .map((x) => {
         const mission = s.missions.find((m) => m.id === x.missionId);
-        return { category: mission?.category ?? "other", at: x.submittedAt, weightKg: x.weightKg ?? null, isEvent: !!mission?.startsAt };
+        return { category: mission?.category ?? "other", at: x.submittedAt, weightKg: x.weightKg ?? null, material: x.material ?? null, isEvent: !!mission?.startsAt };
       }),
   );
   const streak = weeklyStreak(actions);

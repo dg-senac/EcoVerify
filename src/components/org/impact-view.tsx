@@ -1,6 +1,8 @@
 import { categoryEmoji, categoryLabels, type Lang } from "@/lib/i18n";
 import { ORG_TEXT } from "@/lib/saas/org-text";
 import { formatKg } from "@/lib/impact";
+import type { Co2Estimate } from "@/lib/impact-factors";
+import { Co2Banner } from "@/components/impact/co2-estimate";
 
 export interface ImpactData {
   actions: number;
@@ -8,6 +10,8 @@ export interface ImpactData {
   points: number;
   /** kg of approved recycling deliveries (0 = no recycling missions). */
   recycledKg?: number;
+  /** ESTIMATE of CO₂e avoided by that recycling (shown with an "estimate" label and the sources). */
+  co2?: Co2Estimate;
   byCategory: { category: string; count: number }[];
   byMonth: { month: string; count: number }[];
 }
@@ -51,6 +55,8 @@ export function ImpactView({ lang, impact, missionsCount }: { lang: Lang; impact
           </span>
         </p>
       )}
+
+      {impact.co2 && <Co2Banner lang={lang} scope="group" estimate={impact.co2} />}
 
       <div className="grid gap-5 md:grid-cols-2">
         <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm print:break-inside-avoid print:shadow-none">
