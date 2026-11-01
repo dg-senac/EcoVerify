@@ -8,7 +8,7 @@ import { registerText } from "./seed-text";
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 14;
+export const STATE_VERSION = 15;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -435,8 +435,27 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       photo: P("🧹", "#7dd3fc", "#0284c7", ({ pt: "Saco de lixo cheio", en: "Full bag of litter", es: "Bolsa de basura llena" })),
       report: L({ pt: "Fiz uma caminhada na orla recolhendo lixo e enchi um saco grande com plástico, isopor e bitucas de cigarro.", en: "I walked along the seafront picking up litter and filled a large bag with plastic, styrofoam and cigarette butts.", es: "Caminé por la costanera recogiendo basura y llené una bolsa grande con plástico, poliestireno y colillas." }),
       status: "approved",
-      reviewedBy: DEMO_IDS.moderator,
+      // Approved by the automatic verification and drawn for the sample audit (Moderation → Auditoria).
+      photoBefore: P("🗑️", "#fde68a", "#b45309", ({ pt: "Antes: orla com lixo", en: "Before: littered seafront", es: "Antes: costanera con basura" })),
+      reviewedBy: null,
       rejectionReason: null,
+      decidedBy: "ai",
+      aiStatus: "done",
+      aiModel: "simulated",
+      aiVerdict: "approve",
+      aiConfidence: 90,
+      aiReasonCode: null,
+      aiSummary: L({ pt: "Saco de lixo cheio na orla, compatível com a missão de limpeza.", en: "Full bag of litter on the seafront, consistent with the clean-up mission.", es: "Bolsa de basura llena en la costanera, compatible con la misión de limpieza." }),
+      trustScore: 82,
+      aiChecks: {
+        trustFactors: [
+          { key: "ai_approve", points: 45 },
+          { key: "gps_precise", points: 20 },
+          { key: "history_new", points: 7 },
+          { key: "evidence_before_after", points: 10 },
+        ],
+      },
+      auditStatus: "pending",
       submittedAt: ago(2 * DAY),
       reviewedAt: ago(1 * DAY),
     }),

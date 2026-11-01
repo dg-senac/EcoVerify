@@ -2,7 +2,7 @@ import "server-only";
 import { and, count, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { missions, notifications, pointsLedger, rewardQueue, submissions, userCards, users } from "@/db/schema";
-import { REJECTION_REASONS, decideProof, type AiAnalysis, type AiChecks, type AiSettingsValues, type ProofDecision } from "@/lib/ai/decision";
+import { REJECTION_REASONS, composeRejectionMessage, decideProof, isRejectionCode, type AiAnalysis, type AiChecks, type AiSettingsValues, type ProofDecision } from "@/lib/ai/decision";
 import { isCardActive } from "@/lib/cards";
 import { tx, type Lang } from "@/lib/i18n";
 import { MAX_AUTO_APPROVE_KG } from "@/lib/impact";
@@ -341,8 +341,8 @@ export async function revokeApproval(submissionId: string, auditorId: string, re
         reviewedBy: auditorId,
         decidedBy: "human",
         reviewedAt: new Date(),
-        rejectionReason: reason.text,
-        rejectionCode: reason.code,
+        rejectionReason: reason.text || (isRejectionCode(reason.code) ? REJECTION_REASONS[reason.code].pt : ""),
+        rejectionCode: isRejectionCode(reason.code) ? reason.code : null,
       })
       .where(eq(submissions.id, submissionId));
     const ledger = await t.delete(pointsLedger).where(eq(pointsLedger.submissionId, submissionId)).returning({ points: pointsLedger.points });
@@ -360,13 +360,15 @@ export async function revokeApproval(submissionId: string, auditorId: string, re
     return { userId: submission.userId, title: row.title, points, paidFone: !!paid };
   });
   if (!result) return null;
+  // Catalogued reason in the person's language plus the auditor's own words.
+  const why = (lang: Lang) => composeRejectionMessage(isRejectionCode(reason.code) ? reason.code : null, reason.text, lang).replace(/[.!\s]+$/, "") + ".";
   await notifyUser(result.userId, (lang) => ({
     title: tx(lang, "Comprovação revista pela auditoria", "Proof reviewed by the audit", "Comprobación revisada por la auditoría"),
     message: tx(
       lang,
-      `A auditoria por amostragem revisou sua comprovação para "${result.title}" e não pôde mantê-la. Motivo: ${reason.text} Os ${result.points} pontos foram retirados.`,
-      `The sample audit reviewed your proof for "${result.title}" and could not keep it. Reason: ${reason.text} The ${result.points} points were removed.`,
-      `La auditoría por muestreo revisó tu comprobación para "${result.title}" y no pudo mantenerla. Motivo: ${reason.text} Se retiraron los ${result.points} puntos.`,
+      `A auditoria por amostragem revisou sua comprovação para "${result.title}" e não pôde mantê-la. Motivo: ${why(lang)} Os ${result.points} pontos foram retirados.`,
+      `The sample audit reviewed your proof for "${result.title}" and could not keep it. Reason: ${why(lang)} The ${result.points} points were removed.`,
+      `La auditoría por muestreo revisó tu comprobación para "${result.title}" y no pudo mantenerla. Motivo: ${why(lang)} Se retiraron los ${result.points} puntos.`,
     ),
   }));
   return { paidFone: result.paidFone };

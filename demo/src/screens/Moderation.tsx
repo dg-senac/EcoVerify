@@ -3,7 +3,7 @@ import { Check, MapPin, Shield, X as XIcon, AlertTriangle, Navigation } from "lu
 import { categoryEmoji, t } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { dt, errorText } from "../i18n";
-import { approveSubmission, localizedTitle, rejectSubmission, useLang, useStore, type User } from "../store";
+import { approveSubmission, confirmAudit, localizedTitle, rejectSubmission, revokeAudit, useLang, useStore, type Submission, type User } from "../store";
 import { distanceMeters, formatDistance } from "../media";
 import { Avatar, EmptyState, Modal, PageHeader, btnDanger, btnPrimary, btnSecondary, card, toast } from "../components/ui";
 import { PhotoViewer } from "../components/PhotoViewer";
@@ -21,6 +21,10 @@ import {
 import { CARDABLE_REJECTIONS } from "@/lib/cards";
 import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS } from "@/lib/impact";
 import { ProofEvidence } from "@/components/moderation/proof-evidence";
+import { TrustScore } from "@/components/moderation/trust-score";
+import { ExtraProofNote } from "@/components/moderation/extra-proof-note";
+import { AuditActions } from "@/components/moderation/audit-actions";
+import { tx, type Lang } from "@/lib/i18n";
 
 export function ModerationScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -37,8 +41,11 @@ export function ModerationScreen({ user }: { user: User }) {
   const [weights, setWeights] = useState<Record<string, string>>({});
 
   // Appeals first (a person must answer them), then possible internet copies, then oldest first.
+  // The moderator is the last resort: proofs waiting for the extra photo are not shown yet.
+  const waitingExtra = submissions.filter((s) => s.status === "pending" && s.extraProofStatus === "requested").length;
+  const audits = submissions.filter((s) => s.status === "approved" && s.auditStatus === "pending");
   const pending = submissions
-    .filter((s) => s.status === "pending")
+    .filter((s) => s.status === "pending" && s.extraProofStatus !== "requested")
     .sort(
       (a, b) =>
         Number(!!b.appealedAt) - Number(!!a.appealedAt) ||
@@ -98,6 +105,17 @@ export function ModerationScreen({ user }: { user: User }) {
   return (
     <>
       <PageHeader title={t(lang, "moderation_title")} subtitle={t(lang, "moderation_subtitle")} icon={Shield} />
+      {waitingExtra > 0 && (
+        <p className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" data-testid="auto-verifying">
+          🔎 {waitingExtra}{" "}
+          {tx(
+            lang,
+            "comprovação(ões) em verificação automática (aguardando prova extra). Só chegam aqui se a dúvida continuar.",
+            "proof(s) under automatic verification (waiting for an extra proof). They only come here if the doubt remains.",
+            "comprobación(es) en verificación automática (esperando prueba extra). Solo llegan aquí si la duda continúa.",
+          )}
+        </p>
+      )}
       {pending.length === 0 ? (
         <EmptyState emoji="✅" text={t(lang, "moderation_empty")} />
       ) : (
@@ -141,6 +159,10 @@ export function ModerationScreen({ user }: { user: User }) {
                       beforeUrl={sub.photoBefore ?? null}
                       afterUrl={sub.photo}
                     />
+                  </div>
+                  <div className="-mt-3">
+                    <ExtraProofNote lang={lang} code={sub.extraProofCode} status={sub.extraProofStatus} photoUrl={sub.extraPhoto} />
+                    <TrustScore lang={lang} score={sub.trustScore} factors={sub.aiChecks?.trustFactors} />
                   </div>
                   {sub.itemCount != null && !own && (
                     <label className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
@@ -235,6 +257,36 @@ export function ModerationScreen({ user }: { user: User }) {
             );
           })}
         </div>
+      )}
+
+      {audits.length > 0 && (
+        <section className="mt-8" data-testid="audits">
+          <h2 className="text-lg font-bold text-slate-900">🔍 {tx(lang, "Auditoria por amostragem", "Sample audit", "Auditoría por muestreo")}</h2>
+          <p className="text-xs text-slate-500">
+            {tx(
+              lang,
+              "Algumas aprovações automáticas são sorteadas para conferência. Confirme ou revogue (os pontos voltam).",
+              "Some automatic approvals are drawn for a check. Confirm or revoke them (the points are taken back).",
+              "Algunas aprobaciones automáticas se sortean para revisión. Confírmalas o revócalas (los puntos se retiran).",
+            )}
+          </p>
+          <div className="mt-3 grid gap-4 lg:grid-cols-2">
+            {audits.map((sub) => (
+              <AuditItem
+                key={sub.id}
+                lang={lang}
+                sub={sub}
+                own={sub.userId === user.id}
+                missionTitle={(() => {
+                  const m = missions.find((mm) => mm.id === sub.missionId);
+                  return m ? localizedTitle(m, lang) : "";
+                })()}
+                countItem={missions.find((m) => m.id === sub.missionId)?.countItem ?? null}
+                authorName={users.find((u) => u.id === sub.userId)?.name ?? ""}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {recentAuto.length > 0 && (
@@ -335,5 +387,55 @@ export function ModerationScreen({ user }: { user: User }) {
       )}
       {viewing && <PhotoViewer src={viewing} onClose={() => setViewing(null)} />}
     </>
+  );
+}
+
+/** One automatic approval drawn for the sample audit (same as AuditCard on the web). */
+function AuditItem({ lang, sub, own, missionTitle, countItem, authorName }: { lang: Lang; sub: Submission; own: boolean; missionTitle: string; countItem: string | null; authorName: string }) {
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className={`${card} overflow-hidden`} data-testid="audit-card">
+      <img src={sub.photo} alt={missionTitle} className="h-44 w-full object-cover" />
+      <div className="p-4">
+        <p className="font-bold text-slate-900">{missionTitle}</p>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {authorName} · 🤖 {tx(lang, "aprovada automaticamente", "approved automatically", "aprobada automáticamente")}
+          {sub.reviewedAt ? ` · ${formatDate(sub.reviewedAt, lang)}` : ""}
+        </p>
+        <p className="mt-2 text-sm text-slate-700">{sub.report}</p>
+        {sub.aiSummary && <p className="mt-1 text-xs italic text-slate-500">🤖 {sub.aiSummary}</p>}
+        <ProofEvidence
+          lang={lang}
+          countItem={countItem}
+          itemCount={sub.itemCount ?? null}
+          aiItemCount={sub.aiChecks?.itemCount ?? null}
+          weightKg={sub.weightKg ?? null}
+          weightSource={sub.weightSource ?? null}
+          beforeUrl={sub.photoBefore ?? null}
+          afterUrl={sub.photo}
+        />
+        <ExtraProofNote lang={lang} code={sub.extraProofCode} status={sub.extraProofStatus} photoUrl={sub.extraPhoto} />
+        <TrustScore lang={lang} score={sub.trustScore} factors={sub.aiChecks?.trustFactors} />
+        {own ? (
+          <p className="mt-3 text-xs text-slate-500">{tx(lang, "Você não pode auditar a sua própria comprovação.", "You cannot audit your own proof.", "No puedes auditar tu propia comprobación.")}</p>
+        ) : (
+          <AuditActions
+            lang={lang}
+            error={error}
+            onConfirm={() => {
+              const result = confirmAudit(sub.id);
+              if (result.error) setError(errorText(lang, result.error));
+              else toast(tx(lang, "Auditoria concluída: aprovação mantida.", "Audit done: approval kept.", "Auditoría hecha: aprobación mantenida."));
+            }}
+            onRevoke={({ code, reason, giveCard }) => {
+              const result = revokeAudit(sub.id, code, reason, giveCard);
+              if (result.error) return setError(errorText(lang, result.error));
+              toast(tx(lang, "Aprovação revogada e pontos retirados.", "Approval revoked and points taken back.", "Aprobación revocada y puntos retirados."));
+              if (result.paidFone) toast(tx(lang, "O FONE já tinha sido pago: avise o admin.", "The FONE had already been paid: tell the admin.", "El FONE ya se había pagado: avisa al admin."), "error");
+            }}
+          />
+        )}
+      </div>
+    </div>
   );
 }

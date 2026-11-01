@@ -237,7 +237,8 @@ export async function revokeAuditAction(_prev: ModerationActionState, formData: 
   const giveCard = formData.get("giveCard") === "on";
   if (giveCard && reason.length < CARD_NOTE_MIN) return { error: "card_note_short" };
 
-  const revoked = await revokeApproval(submissionId, target.auditor.id, { code, text: reason });
+  // Only the auditor's own words are passed: the catalogued reason is translated for the person.
+  const revoked = await revokeApproval(submissionId, target.auditor.id, { code, text: typed });
   if (!revoked) return { error: "already_reviewed" };
   if (giveCard && target.userId) {
     await issueCard({ userId: target.userId, type: "yellow", reason: cardReasonForRejection(code), note: reason, issuerId: target.auditor.id, submissionId });

@@ -19,7 +19,7 @@ import {
   rejectionReasonText,
   validateRejection,
   type AiAnalysis, type AiChecks, type AiVerdict, type RejectionCode } from "@/lib/ai/decision";
-import { simulateAnalysis, simulateWebSearch, type SampleKind } from "./demoAi";
+import { simulateAnalysis, simulateExtraAnalysis, simulateWebSearch, type SampleKind } from "./demoAi";
 import { webVerdict } from "@/lib/ai/web-detection-core";
 import {
   CARD_APPEAL_MIN,
@@ -69,7 +69,21 @@ import {
   type ValidateError,
 } from "@/lib/benefits";
 import { parseWeightKg, type ImpactRow, type Material } from "@/lib/impact";
-import { checkCountInput, countRule, estimatedKg, MAX_ITEM_COUNT, proofTypeOf, type CountItem, type ProofType, type WeightSource } from "@/lib/proof";
+import { checkCountInput, countCheck, countRule, estimatedKg, MAX_ITEM_COUNT, proofTypeOf, type CountItem, type ProofType, type WeightSource } from "@/lib/proof";
+import { MAX_AUTO_APPROVE_KG } from "@/lib/impact";
+import {
+  addHours,
+  EXTRA_PROOF_HOURS,
+  extraProofVerdict,
+  newChallengeCode,
+  planVerification,
+  shouldAudit,
+  trustScore,
+  VERIFY_WINDOW_HOURS,
+  type ExtraProofStatus,
+  type TrustInput,
+  type VerificationPlan,
+} from "@/lib/verification";
 
 /* ------------------------------------------------------------------ */
 /* Types (mirror src/db/schema.ts)                                     */
@@ -206,6 +220,18 @@ export type Submission = {
   rejectionCode?: RejectionCode | null;
   appealedAt?: string | null;
   appealMessage?: string | null;
+  /* Verification window (src/lib/verification.ts). */
+  trustScore?: number | null;
+  verifyBy?: string | null;
+  extraProofStatus?: ExtraProofStatus | null;
+  extraProofCode?: string | null;
+  extraProofDueAt?: string | null;
+  extraPhoto?: string | null;
+  extraPhotoHash?: string | null;
+  /** Sample audit of an automatic approval. */
+  auditStatus?: "pending" | "ok" | "revoked" | null;
+  auditedBy?: string | null;
+  auditedAt?: string | null;
 };
 
 export type Reward = {
@@ -732,7 +758,7 @@ export function checkProof(input: NewSubmission): Result {
   if (mine.filter((s) => new Date(s.submittedAt) >= startOfToday).length >= DAILY_SUBMISSION_LIMIT) {
     return { error: "error_daily_limit" };
   }
-  const used = (hash: string) => state.submissions.some((s) => s.photoHash === hash || s.photoBeforeHash === hash);
+  const used = (hash: string) => state.submissions.some((s) => s.photoHash === hash || s.photoBeforeHash === hash || s.extraPhotoHash === hash);
   if (used(input.photoHash) || (input.photoBeforeHash && used(input.photoBeforeHash))) return { error: "error_duplicate_photo" };
   return {};
 }
@@ -766,6 +792,26 @@ export function submitProof(input: NewSubmission): Result {
     declaredCount: counted.count,
   });
   const webChecks = web ? { webChecked: true, webFullMatches: web.fullMatches, webPages: web.pages, webPartialCount: web.partialCount, webBestGuess: web.bestGuess } : {};
+  // Same as planAfterAnalysis (src/lib/verification-server.ts). There is no retry in the app, so a
+  // proof without analysis is planned as if its window were over.
+  const trust = trustScore({
+    analysis,
+    proofType,
+    declaredCount: counted.count,
+    location: { accuracy: input.accuracy, simulated: input.simulatedLocation, anywhere: mission.scope === "anywhere" },
+    history: historyFor(state, user.id, ""),
+    web: webVerdict(web),
+  });
+  const plan = planVerification({
+    mode: DEFAULT_AI_SETTINGS.mode,
+    decision,
+    analyzed: !!analysis,
+    aiExpected: false,
+    score: trust.score,
+    extraProofAsked: false,
+    windowClosed: true,
+    capExceeded: capExceeded(mission, counted.weightKg),
+  });
   const submission: Submission = {
     id: uid(),
     userId: user.id,
@@ -794,12 +840,13 @@ export function submitProof(input: NewSubmission): Result {
     aiConfidence: analysis ? decision.confidence : null,
     aiReasonCode: decision.reasonCode,
     aiSummary: analysis ? analysis.explanation : null,
-    aiChecks: analysis ? { ...analysis, ...webChecks } : null,
+    aiChecks: analysis ? { ...analysis, ...webChecks, trustFactors: trust.factors } : { trustFactors: trust.factors },
+    trustScore: trust.score,
+    verifyBy: plan.action === "review" ? now() : addHours(new Date(), VERIFY_WINDOW_HOURS).toISOString(),
   };
   const ok = commit((s) => {
     const next: State = { ...s, submissions: [submission, ...s.submissions] };
-    if (decision.action === "approve") return applyApproval(next, submission.id, null);
-    if (decision.action === "reject" && decision.reasonCode) return applyRejection(next, submission.id, null, decision.reasonCode, "");
+    if (plan.action === "approve" || plan.action === "reject" || plan.action === "extra_proof") return applyPlan(next, plan, submission.id);
     // Possible copy from the internet: never decided by the AI, the staff is alerted.
     if (decision.reasonCode === "internet_copy") {
       return {
@@ -813,6 +860,229 @@ export function submitProof(input: NewSubmission): Result {
     return next;
   });
   return ok ? {} : { error: "storage" };
+}
+
+/* ------------------------------------------------------------------ */
+/* Verification window: score, extra proof, sample audit               */
+/* (same rules as src/lib/verification-server.ts)                      */
+/* ------------------------------------------------------------------ */
+
+function patchSubmission(s: State, id: string, patch: Partial<Submission>): State {
+  return { ...s, submissions: s.submissions.map((x) => (x.id === id ? { ...x, ...patch } : x)) };
+}
+
+function historyFor(s: State, userId: string, exceptId: string): TrustInput["history"] {
+  const mine = s.submissions.filter((x) => x.userId === userId && x.id !== exceptId);
+  const author = userById(userId, s);
+  return {
+    approved: mine.filter((x) => x.status === "approved").length,
+    rejected: mine.filter((x) => x.status === "rejected").length,
+    activeCards: cardsOf(s, userId).filter((card) => isCardActive(card)).length,
+    accountAgeDays: author ? Math.floor((Date.now() - new Date(author.createdAt).getTime()) / 86_400_000) : 0,
+  };
+}
+
+function capExceeded(mission: Mission, weightKg: number | null | undefined) {
+  return Number(mission.foneReward) > DEFAULT_AI_SETTINGS.maxAutoApproveFone || Number(weightKg ?? 0) > MAX_AUTO_APPROVE_KG;
+}
+
+function applyPlan(s: State, plan: VerificationPlan, submissionId: string): State {
+  const sub = s.submissions.find((x) => x.id === submissionId);
+  const mission = sub && s.missions.find((m) => m.id === sub.missionId);
+  if (!sub || !mission) return s;
+  switch (plan.action) {
+    case "approve": {
+      const approvedBefore = historyFor(s, sub.userId, sub.id).approved;
+      const next = applyApproval(s, sub.id, null);
+      return shouldAudit({ approvedBefore, forced: plan.forceAudit, random: Math.random() }) ? patchSubmission(next, sub.id, { auditStatus: "pending" }) : next;
+    }
+    case "reject":
+      return applyRejection(s, sub.id, null, plan.reasonCode, "");
+    case "extra_proof": {
+      const code = newChallengeCode();
+      const next = patchSubmission(s, sub.id, { extraProofStatus: "requested", extraProofCode: code, extraProofDueAt: addHours(new Date(), EXTRA_PROOF_HOURS).toISOString() });
+      return {
+        ...next,
+        notifications: notify(next, sub.userId, (l) => ({
+          title: tx(l, "📸 Falta uma prova extra", "📸 One extra proof needed", "📸 Falta una prueba extra"),
+          message: tx(
+            l,
+            `Para concluir a verificação de "${localizedTitle(mission, l)}", escreva o código ${code} num papel e tire uma foto dele junto do local ou dos itens. Envie em "Minhas Submissões" em até ${EXTRA_PROOF_HOURS} horas.`,
+            `To finish checking "${localizedTitle(mission, l)}", write the code ${code} on a piece of paper and take a photo of it next to the place or the items. Send it in "My Submissions" within ${EXTRA_PROOF_HOURS} hours.`,
+            `Para terminar la verificación de "${localizedTitle(mission, l)}", escribe el código ${code} en un papel y toma una foto junto al lugar o los artículos. Envíala en "Mis Envíos" en hasta ${EXTRA_PROOF_HOURS} horas.`,
+          ),
+        })),
+      };
+    }
+    default:
+      return s;
+  }
+}
+
+/** Same as planAfterExtraProof: the AI compared the extra photo (with the code) with the original. */
+function finishExtraProof(s: State, submissionId: string, extra: AiAnalysis | null): State {
+  const sub = s.submissions.find((x) => x.id === submissionId);
+  const mission = sub && s.missions.find((m) => m.id === sub.missionId);
+  if (!sub || !mission) return s;
+  // Nobody could look at the extra photo (no AI for this camera photo): a person decides.
+  if (!extra) return patchSubmission(s, sub.id, { extraProofStatus: "failed", verifyBy: now() });
+  const verdict = extraProofVerdict(extra);
+  const checks = sub.aiChecks ?? {};
+  const original = checks.verdict ? (checks as AiAnalysis) : null;
+  const proofType = proofTypeOf(mission);
+  const extraCountOk = proofType === "count" && countCheck(sub.itemCount, extra.itemCount) === "ok";
+  const analysis = original ? { ...original, itemCount: extraCountOk ? extra.itemCount : original.itemCount } : null;
+  const trust = trustScore({
+    analysis,
+    proofType,
+    declaredCount: sub.itemCount,
+    location: { accuracy: sub.accuracy, simulated: sub.simulatedLocation, anywhere: mission.scope === "anywhere" },
+    history: historyFor(s, sub.userId, sub.id),
+    extraProofOk: verdict === "ok",
+  });
+  let plan: VerificationPlan;
+  if (verdict === "failed") {
+    const extraDecision = decideProof({ settings: DEFAULT_AI_SETTINGS, analysis: extra, similar: null, foneReward: Number(mission.foneReward) });
+    plan = extraDecision.action === "reject" && extraDecision.reasonCode ? { action: "reject", reasonCode: extraDecision.reasonCode } : { action: "review" };
+  } else {
+    const reasonCode = sub.aiReasonCode === "count_mismatch" && extraCountOk ? null : (sub.aiReasonCode ?? null);
+    plan = planVerification({
+      mode: DEFAULT_AI_SETTINGS.mode,
+      decision: {
+        action: "review",
+        verdict: reasonCode ? (sub.aiVerdict ?? "review") : sub.aiVerdict === "reject" && !extraCountOk ? "reject" : "approve",
+        confidence: sub.aiConfidence ?? 0,
+        reasonCode,
+      },
+      analyzed: true,
+      aiExpected: true,
+      score: trust.score,
+      extraProofAsked: true,
+      windowClosed: false,
+      capExceeded: capExceeded(mission, sub.weightKg),
+      extraProofOk: true,
+    });
+  }
+  const next = patchSubmission(s, sub.id, {
+    extraProofStatus: verdict,
+    trustScore: trust.score,
+    aiChecks: { ...checks, trustFactors: trust.factors, extra },
+    verifyBy: plan.action === "review" ? now() : sub.verifyBy,
+  });
+  return applyPlan(next, plan, sub.id);
+}
+
+export type ExtraProofInput = {
+  submissionId: string;
+  photo: string;
+  photoHash: string;
+  /** The sample photo with the code (simulated analysis). */
+  sample?: boolean;
+  /** Camera/gallery photo analysed with the tester's own Gemini key. */
+  realAi?: { analysis: AiAnalysis; model: string } | { failed: true } | null;
+};
+
+/** Error codes: extra_proof_not_open, photo_required, duplicate_photo, storage. */
+export function submitExtraProof(input: ExtraProofInput): Result {
+  const user = me();
+  if (!user) return { error: "extra_proof_not_open" };
+  const sub = state.submissions.find((x) => x.id === input.submissionId && x.userId === user.id);
+  if (!sub || sub.status !== "pending" || sub.extraProofStatus !== "requested") return { error: "extra_proof_not_open" };
+  if (sub.extraProofDueAt && new Date(sub.extraProofDueAt) < new Date()) return { error: "extra_proof_not_open" };
+  if (!input.photo) return { error: "photo_required" };
+  const used = state.submissions.some((x) => x.photoHash === input.photoHash || x.photoBeforeHash === input.photoHash || x.extraPhotoHash === input.photoHash);
+  if (used) return { error: "duplicate_photo" };
+  const mission = state.missions.find((m) => m.id === sub.missionId);
+  if (!mission) return { error: "extra_proof_not_open" };
+  const real = input.sample ? null : (input.realAi ?? null);
+  const extra = input.sample
+    ? simulateExtraAnalysis(user.language, { proofType: proofTypeOf(mission), declaredCount: sub.itemCount ?? null })
+    : real && "analysis" in real
+      ? real.analysis
+      : null;
+  const ok = commit((s) =>
+    finishExtraProof(
+      patchSubmission(s, sub.id, { extraProofStatus: "sent", extraPhoto: input.photo, extraPhotoHash: input.photoHash, verifyBy: addHours(new Date(), VERIFY_WINDOW_HOURS).toISOString() }),
+      sub.id,
+      extra,
+    ),
+  );
+  return ok ? {} : { error: "storage" };
+}
+
+const extraProofOverdue = (x: Submission) =>
+  x.status === "pending" && x.extraProofStatus === "requested" && !!x.extraProofDueAt && new Date(x.extraProofDueAt) < new Date();
+
+/** Extra proofs not sent in time are refused (same as sweepVerifications). */
+function sweepState(s: State): State {
+  let next = s;
+  for (const sub of s.submissions.filter(extraProofOverdue)) {
+    next = patchSubmission(applyRejection(next, sub.id, null, "extra_proof_missing", ""), sub.id, { extraProofStatus: "expired", verifyBy: null });
+  }
+  return next;
+}
+
+export function sweepDemoVerifications() {
+  if (state.submissions.some(extraProofOverdue)) commit(sweepState);
+}
+
+export function confirmAudit(submissionId: string): Result {
+  const auditor = me();
+  if (!canModerate(auditor)) return { error: "error_generic" };
+  const sub = state.submissions.find((x) => x.id === submissionId);
+  if (!sub || sub.status !== "approved" || sub.auditStatus !== "pending") return { error: "error_generic" };
+  if (sub.userId === auditor.id) return { error: "own_submission_warning" };
+  commit((s) => patchSubmission(s, sub.id, { auditStatus: "ok", auditedBy: auditor.id, auditedAt: now() }));
+  return {};
+}
+
+/** Same as revokeApproval: rejected, points back, unpaid FONE cancelled, the person is told why. */
+export function revokeAudit(submissionId: string, code: RejectionCode | null, reason: string, giveCard: boolean): Result & { paidFone?: boolean } {
+  const auditor = me();
+  if (!canModerate(auditor)) return { error: "error_generic" };
+  const sub = state.submissions.find((x) => x.id === submissionId);
+  const mission = sub && state.missions.find((m) => m.id === sub.missionId);
+  if (!sub || !mission || sub.status !== "approved" || sub.auditStatus !== "pending") return { error: "error_generic" };
+  if (sub.userId === auditor.id) return { error: "own_submission_warning" };
+  const typed = reason.trim().slice(0, 1000);
+  const text = typed || (code ? (rejectionReasonText(code, "pt") ?? "") : "");
+  if (text.length < 10) return { error: "reason_too_short" };
+  if (giveCard && text.length < CARD_NOTE_MIN) return { error: "card_note_short" };
+  const paidFone = state.rewards.some((r) => r.submissionId === sub.id && r.status === "paid");
+  const points = mission.pointsReward;
+  commit((s) => {
+    let next: State = {
+      ...patchSubmission(s, sub.id, {
+        status: "rejected",
+        auditStatus: "revoked",
+        auditedBy: auditor.id,
+        auditedAt: now(),
+        reviewedBy: auditor.id,
+        decidedBy: "human",
+        reviewedAt: now(),
+        rejectionReason: text,
+        rejectionCode: code,
+      }),
+      users: s.users.map((u) => (u.id === sub.userId ? { ...u, totalPoints: Math.max(0, u.totalPoints - points) } : u)),
+      rewards: s.rewards.filter((r) => r.submissionId !== sub.id || r.status === "paid"),
+    };
+    const why = (l: Lang) => composeRejectionMessage(code, typed, l).replace(/[.!\s]+$/, "") + ".";
+    next = {
+      ...next,
+      notifications: notify(next, sub.userId, (l) => ({
+        title: tx(l, "Comprovação revista pela auditoria", "Proof reviewed by the audit", "Comprobación revisada por la auditoría"),
+        message: tx(
+          l,
+          `A auditoria por amostragem revisou sua comprovação para "${localizedTitle(mission, l)}" e não pôde mantê-la. Motivo: ${why(l)} Os ${points} pontos foram retirados.`,
+          `The sample audit reviewed your proof for "${localizedTitle(mission, l)}" and could not keep it. Reason: ${why(l)} The ${points} points were removed.`,
+          `La auditoría por muestreo revisó tu comprobación para "${localizedTitle(mission, l)}" y no pudo mantenerla. Motivo: ${why(l)} Se retiraron los ${points} puntos.`,
+        ),
+      })),
+    };
+    if (!giveCard) return next;
+    return applyCard(next, { userId: sub.userId, type: "yellow", reason: cardReasonForRejection(code), note: text, issuerId: auditor.id, submissionId: sub.id });
+  });
+  return paidFone ? { paidFone: true } : {};
 }
 
 /* ------------------------------------------------------------------ */
@@ -2081,3 +2351,6 @@ export function regenerateOfferToken(offerId: string): Result {
   commit((s) => ({ ...s, offers: (s.offers ?? []).map((o) => (o.id === offerId ? { ...o, partnerToken: newPartnerToken() } : o)) }));
   return {};
 }
+
+// Deadlines that passed while the app was closed.
+sweepDemoVerifications();

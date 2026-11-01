@@ -106,8 +106,9 @@ export function trustScore(input: TrustInput): { score: number; factors: TrustFa
 
   // Where the photo was taken (up to 20).
   const { accuracy, simulated, anywhere } = input.location;
-  if (simulated) add("gps_mission_point", 10);
-  else if (anywhere) add("gps_anywhere", 15);
+  // "Anywhere" missions don't depend on the place, so the mission point button costs nothing there.
+  if (anywhere) add("gps_anywhere", 15);
+  else if (simulated) add("gps_mission_point", 10);
   else if (accuracy !== null && accuracy <= 30) add("gps_precise", 20);
   else add("gps_ok", 15);
 

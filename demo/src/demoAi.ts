@@ -174,3 +174,79 @@ export function simulateWebSearch(sample: SampleKind | null): WebMatches | null 
     bestGuess: "tree planting",
   };
 }
+
+/**
+ * Sample "extra proof": the scene of the mission with a sheet of paper and the code written by hand.
+ * Random details keep every sample unique (duplicate-photo rule).
+ */
+export function drawExtraProofPhoto(kind: SampleKind, code: string): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 800;
+  canvas.height = 600;
+  const ctx = canvas.getContext("2d");
+  return ctx ? paintPaper(ctx, code, kind) : "";
+}
+
+function paintPaper(ctx: CanvasRenderingContext2D, code: string, kind: SampleKind): string {
+  const [from, to] = GRADIENTS[kind];
+  const gradient = ctx.createLinearGradient(0, 0, 0, 600);
+  gradient.addColorStop(0, from);
+  gradient.addColorStop(1, to);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 800, 600);
+  for (let i = 0; i < 30; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${(Math.random() * 0.25).toFixed(2)})`;
+    ctx.beginPath();
+    ctx.arc(Math.random() * 800, Math.random() * 600, 6 + Math.random() * 40, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.font = "180px serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(sampleEmoji(kind), 250, 300);
+  // The sheet of paper, slightly rotated, with the code "handwritten".
+  ctx.save();
+  ctx.translate(560, 310);
+  ctx.rotate((-6 + Math.random() * 12) * (Math.PI / 180));
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = "#fefce8";
+  ctx.fillRect(-150, -110, 300, 220);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(59,130,246,0.25)";
+  for (let y = -70; y < 110; y += 32) {
+    ctx.beginPath();
+    ctx.moveTo(-140, y);
+    ctx.lineTo(140, y);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#1e3a8a";
+  ctx.font = "italic bold 92px 'Comic Sans MS', 'Segoe Print', cursive";
+  ctx.fillText(code, 0, 8);
+  ctx.restore();
+  return ctx.canvas.toDataURL("image/jpeg", 0.8);
+}
+
+/** Simulated analysis of the sample extra proof: the code is readable and it is the same place. */
+export function simulateExtraAnalysis(lang: Lang, proof: { proofType?: ProofType; declaredCount?: number | null } = {}): AiAnalysis {
+  return {
+    whatIsVisible: dt(lang, "sim_seen", { what: "📄" }),
+    matchesMission: true,
+    isRealPhoto: true,
+    screenOrPrint: false,
+    aiGeneratedOrEdited: false,
+    inappropriate: false,
+    tooDarkOrBlurry: false,
+    reportConsistent: true,
+    identifiableFaces: false,
+    internetCopy: false,
+    internetSigns: "",
+    verdict: "approve",
+    reasonCode: null,
+    confidence: 93,
+    explanation: dt(lang, "sim_match"),
+    sameScene: true,
+    codeVisible: true,
+    ...(proof.proofType === "count" && proof.declaredCount ? { itemCount: proof.declaredCount } : {}),
+  };
+}

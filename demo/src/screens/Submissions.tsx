@@ -12,6 +12,9 @@ import { PhotoViewer } from "../components/PhotoViewer";
 import { FoneAmount } from "@/components/brand/fone";
 import { formatKg, MATERIAL_EMOJI, MATERIAL_LABELS } from "@/lib/impact";
 import { COUNT_ITEM_INFO, countItemName, isCountItem, weightSourceLabel } from "@/lib/proof";
+import { pendingStage } from "@/lib/verification";
+import { ExtraProofBox } from "@/components/submissions/extra-proof-box";
+import { ExtraProofUploader } from "../components/ExtraProofUploader";
 
 export function SubmissionsScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -74,6 +77,11 @@ export function SubmissionsScreen({ user }: { user: User }) {
                         <span className="font-normal text-slate-400"> ({t(lang, "recycling_weight_corrected")})</span>
                       )}
                     </p>
+                  )}
+                  {sub.status === "pending" && mission && (
+                    <ExtraProofBox lang={lang} stage={pendingStage(sub)} code={sub.extraProofCode} dueAt={sub.extraProofDueAt}>
+                      <ExtraProofUploader lang={lang} sub={sub} mission={mission} />
+                    </ExtraProofBox>
                   )}
                   {sub.status === "approved" && mission && (
                     <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
