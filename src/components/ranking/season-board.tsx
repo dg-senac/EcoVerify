@@ -132,6 +132,7 @@ export function SeasonBoard({
 
       {tab !== "all" && (
         <div className="mb-5 overflow-hidden rounded-3xl bg-gradient-to-r from-[#2cc35f] via-[#278c98] to-[#2456d0] p-5 text-white shadow-md" data-testid="season-banner">
+          {tab === "schools" && <p className="mb-1 text-xs font-bold uppercase tracking-wider text-white/85">🏆 {text.cupTitle}</p>}
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <p className="text-lg font-extrabold">{text.seasonName(season)}</p>
             <p className="text-sm font-semibold text-white/85">⏳ {text.daysLeft(left)}</p>
@@ -214,12 +215,12 @@ export function SeasonBoard({
                     <span className="w-8 shrink-0 text-center text-lg font-extrabold text-slate-400">
                       {ranked ? (row.position! <= 3 ? MEDALS[row.position! - 1] : text.cupPositionShort(row.position!)) : "·"}
                     </span>
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-xl" aria-hidden>
+                    <span className="hidden h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-xl sm:grid" aria-hidden>
                       🏫
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-slate-900">{row.school.name}</p>
-                      <p className="truncate text-xs text-slate-500">
+                      <p className="line-clamp-2 break-words font-semibold leading-snug text-slate-900">{row.school.name}</p>
+                      <p className="mt-0.5 text-xs leading-snug text-slate-500">
                         {row.school.city ? `${row.school.city} · ` : ""}
                         {ranked ? text.cupActive(row.active) : text.cupWaiting(CUP_MIN_ACTIVE - row.active)}
                       </p>

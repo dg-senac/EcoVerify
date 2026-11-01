@@ -271,7 +271,7 @@ export interface SeasonText {
 const pt: SeasonText = {
   tabSeason: "Temporada",
   tabAll: "Geral",
-  tabSchools: "Copa das Escolas",
+  tabSchools: "Escolas",
   seasonName: (s) => `Temporada ${s.index} · ${seasonMonths(s, "pt")}`,
   daysLeft: (d) => (d === 1 ? "termina hoje" : `termina em ${d} dias`),
   seasonIntro: "O ranking da temporada recomeça a cada dois meses: todo mundo tem chance de chegar ao topo.",
@@ -306,7 +306,7 @@ const pt: SeasonText = {
 const en: SeasonText = {
   tabSeason: "Season",
   tabAll: "All time",
-  tabSchools: "Schools Cup",
+  tabSchools: "Schools",
   seasonName: (s) => `Season ${s.index} · ${seasonMonths(s, "en")}`,
   daysLeft: (d) => (d === 1 ? "ends today" : `ends in ${d} days`),
   seasonIntro: "The season ranking restarts every two months: everyone has a chance to reach the top.",
@@ -341,7 +341,7 @@ const en: SeasonText = {
 const es: SeasonText = {
   tabSeason: "Temporada",
   tabAll: "General",
-  tabSchools: "Copa de las Escuelas",
+  tabSchools: "Escuelas",
   seasonName: (s) => `Temporada ${s.index} · ${seasonMonths(s, "es")}`,
   daysLeft: (d) => (d === 1 ? "termina hoy" : `termina en ${d} días`),
   seasonIntro: "La clasificación de la temporada vuelve a empezar cada dos meses: todos tienen la oportunidad de llegar arriba.",
