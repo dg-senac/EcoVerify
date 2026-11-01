@@ -3,7 +3,7 @@ import { Check, MapPin, Shield, X as XIcon, AlertTriangle, Navigation } from "lu
 import { categoryEmoji, t } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { dt, errorText } from "../i18n";
-import { approveSubmission, confirmAudit, inDemoVerification, localizedTitle, rejectSubmission, revokeAudit, useLang, useStore, type Submission, type User } from "../store";
+import { approveSubmission, chatReportQueueOf, confirmAudit, inDemoVerification, muteChatUser, reviewChatMessage, localizedTitle, rejectSubmission, revokeAudit, useLang, useStore, type Submission, type User } from "../store";
 import { distanceMeters, formatDistance } from "../media";
 import { Avatar, EmptyState, Modal, PageHeader, btnDanger, btnPrimary, btnSecondary, card, toast } from "../components/ui";
 import { PhotoViewer } from "../components/PhotoViewer";
@@ -25,12 +25,14 @@ import { TrustScore } from "@/components/moderation/trust-score";
 import { ExtraProofNote } from "@/components/moderation/extra-proof-note";
 import { AuditActions } from "@/components/moderation/audit-actions";
 import { tx, type Lang } from "@/lib/i18n";
+import { ChatReportsPanel } from "@/components/community/chat-reports-panel";
 
 export function ModerationScreen({ user }: { user: User }) {
   const lang = useLang();
   const submissions = useStore((s) => s.submissions);
   const missions = useStore((s) => s.missions);
   const users = useStore((s) => s.users);
+  const chatReports = useStore(chatReportQueueOf);
   const [viewing, setViewing] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -258,6 +260,17 @@ export function ModerationScreen({ user }: { user: User }) {
           })}
         </div>
       )}
+
+      <div className="mt-8">
+        <ChatReportsPanel
+          lang={lang}
+          items={chatReports}
+          isAdmin={user.role === "admin"}
+          onKeep={(id) => reviewChatMessage(id, "keep")}
+          onRemove={(id, note) => reviewChatMessage(id, "remove", note)}
+          onMute={(userId, hours) => muteChatUser(userId, hours)}
+        />
+      </div>
 
       {audits.length > 0 && (
         <section className="mt-8" data-testid="audits">

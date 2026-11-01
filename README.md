@@ -172,6 +172,7 @@ Detalhes, limites do plano gratuito e como trocar de provedor: [`docs/VERIFICACA
 - Tentativa de fraude pode receber **cartão amarelo** (dado por uma pessoa, nunca pela IA, sempre com explicação). **3 amarelos válidos = 14 dias de suspensão** (FONE pendente congelado); amarelo vale 6 meses; **vermelho** bloqueia e só o admin dá. Todo cartão pode ser contestado.
 - **Moderação só para admin por padrão.** `MODERATORS_ENABLED=true` libera o papel Moderador (revisar comprovações e dar amarelo).
 - Admin → Usuários tem a **Ficha** de cada pessoa e o painel de contestações. Regras completas: [`docs/CARTOES.md`](docs/CARTOES.md).
+- **Chat moderado**: denúncia com motivo (3 denúncias ocultam na hora), IA nas imagens, bloqueio pessoal, silenciar (admin), sem telefone/e-mail/links e áudio/vídeo só 18+. Regras: [`docs/MODERACAO_CHAT.md`](docs/MODERACAO_CHAT.md).
 
 ## Missões por região
 

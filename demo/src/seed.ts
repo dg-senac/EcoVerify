@@ -1,4 +1,4 @@
-import type { ChatMessage, DemoCheckin, DemoDump, DemoDumpConfirmation, DemoInvoice, DemoOffer, DemoPoint, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
+import type { ChatMessage, DemoChatReport, DemoCheckin, DemoDump, DemoDumpConfirmation, DemoInvoice, DemoOffer, DemoPoint, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { COUNT_ITEM_INFO, countRule, estimatedKg } from "@/lib/proof";
@@ -9,7 +9,7 @@ import { CLEANUP_POINTS, cleanupMission } from "@/lib/dumps";
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 17;
+export const STATE_VERSION = 18;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -478,6 +478,17 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     { id: "c3", userId: "u-bot-3", message: L({ pt: "Dica: no Marco Zero o ponto de coleta fica do lado do centro de artesanato ♻️", en: "Tip: at Marco Zero the collection point is next to the craft centre ♻️", es: "Dato: en el Marco Zero el punto de recolección está al lado del centro de artesanía ♻️" }), replyToId: null, deleted: false, createdAt: ago(1 * DAY) },
     { id: "c4", userId: "u-bot-4", message: L({ pt: "Valeu, Pedro! Entreguei meus recicláveis lá ontem.", en: "Thanks, Pedro! I dropped off my recyclables there yesterday.", es: "¡Gracias, Pedro! Entregué mis reciclables ahí ayer." }), replyToId: "c3", deleted: false, createdAt: ago(1 * DAY - 60 * 60 * 1000) },
     { id: "c5", userId: "u-bot-5", message: L({ pt: "Primeira missão aprovada! Bora subir no ranking 💪🌱", en: "First mission approved! Let's climb the ranking 💪🌱", es: "¡Primera misión aprobada! A subir en el ranking 💪🌱" }), replyToId: null, deleted: false, createdAt: ago(6 * 60 * 60 * 1000) },
+
+    // Chat moderation examples (Moderation → Chat reports): one already hidden by 3 reports, one with 1 report.
+    { id: "c6", userId: "u-bot-5", message: L({ pt: "Mutirão é coisa de otário, ninguém liga pra isso 🙄", en: "Clean-ups are for suckers, nobody cares about this 🙄", es: "Las jornadas son de tontos, a nadie le importa esto 🙄" }), replyToId: null, deleted: false, createdAt: ago(5 * 60 * 60 * 1000), hiddenAt: ago(4 * 60 * 60 * 1000), hiddenReason: "reports" },
+    { id: "c7", userId: "u-bot-4", message: L({ pt: "Alguém quer comprar rifa? Me chamem no privado!", en: "Anyone want to buy a raffle ticket? DM me!", es: "¿Alguien quiere comprar una rifa? ¡Escríbanme en privado!" }), replyToId: null, deleted: false, createdAt: ago(3 * 60 * 60 * 1000) },
+  ];
+
+  const chatReports: DemoChatReport[] = [
+    { id: "cr1", messageId: "c6", reporterId: "u-bot-1", reasonCode: "offense", detail: "", status: "pending", createdAt: ago(4.8 * 60 * 60 * 1000) },
+    { id: "cr2", messageId: "c6", reporterId: "u-bot-2", reasonCode: "offense", detail: "", status: "pending", createdAt: ago(4.5 * 60 * 60 * 1000) },
+    { id: "cr3", messageId: "c6", reporterId: "u-bot-3", reasonCode: "offense", detail: "", status: "pending", createdAt: ago(4 * 60 * 60 * 1000) },
+    { id: "cr4", messageId: "c7", reporterId: "u-bot-1", reasonCode: "spam", detail: "", status: "pending", createdAt: ago(2 * 60 * 60 * 1000) },
   ];
 
   /* SaaS: a school on a free trial (teacher Juliana runs it, Maria takes part) and a paying company. */
@@ -1014,6 +1025,8 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     rewards,
     notifications,
     chat,
+    chatReports,
+    chatBlocks: [],
     region: null,
     missionRequests: [],
     seededCities: [],

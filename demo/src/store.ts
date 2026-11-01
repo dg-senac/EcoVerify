@@ -37,6 +37,18 @@ import {
 } from "@/lib/cards";
 import { canReview, isStaffExperience } from "@/lib/nav";
 import { formatDate } from "@/lib/utils";
+import {
+  CHAT_REPORT_DETAIL_MAX,
+  chatModText,
+  chatTextIssue,
+  isChatMuteHours,
+  isChatMuted,
+  isChatReportReason,
+  shouldHideForReports,
+  type ChatHiddenReason,
+  type ChatReportItem,
+  type ChatReportReason,
+} from "@/lib/chat-moderation";
 import type { Region, RegionRadius } from "@/lib/region";
 import { OSM_TEMPLATES, type OsmKind } from "@/lib/regional/templates";
 import {
@@ -138,6 +150,8 @@ export type User = {
   /** 3rd yellow card: suspended until this date (kept after it ends, like users.suspended_until). */
   suspendedUntil?: string | null;
   suspensionReason?: string | null;
+  /** Staff mute in the community chat (can read, can't send). */
+  chatMutedUntil?: string | null;
   createdAt: string;
   /** LGPD: when the Terms of Use / Privacy Policy were accepted (like users.terms_accepted_at). */
   termsAcceptedAt?: string | null;
@@ -326,7 +340,22 @@ export type ChatMessage = {
   replyToId: string | null;
   deleted: boolean;
   createdAt: string;
+  /** Hidden from everybody but the author (reports / staff), like community_chat.hidden_at. */
+  hiddenAt?: string | null;
+  hiddenReason?: ChatHiddenReason | null;
 };
+
+/** Chat report (src/lib/chat-moderation.ts). status: pending | dismissed | upheld. */
+export type DemoChatReport = {
+  id: string;
+  messageId: string;
+  reporterId: string;
+  reasonCode: ChatReportReason;
+  detail: string;
+  status: "pending" | "dismissed" | "upheld";
+  createdAt: string;
+};
+export type DemoChatBlock = { blockerId: string; blockedId: string; createdAt: string };
 
 export type State = {
   version: number;
@@ -370,6 +399,9 @@ export type State = {
   /** Irregular dumping spots and their confirmations (src/lib/dumps.ts). */
   dumps?: DemoDump[];
   dumpConfirmations?: DemoDumpConfirmation[];
+  /** Chat moderation: reports and personal blocks (src/lib/chat-moderation.ts). */
+  chatReports?: DemoChatReport[];
+  chatBlocks?: DemoChatBlock[];
 };
 
 export type DemoDump = {
@@ -1935,16 +1967,21 @@ export function markAllNotificationsRead() {
 export function sendChatMessage(text: string, replyToId: string | null): Result {
   const user = me();
   if (!user || user.role !== "citizen" || user.isBanned) return { error: "error_generic" };
+  if (isChatMuted(user.chatMutedUntil)) return { error: "muted" };
   const message = text.trim();
   if (!message) return { error: "chat_error_empty" };
   if (message.length > 1000) return { error: "chat_error_long" };
+  // Same safety rules as the server: no phone numbers, e-mails or links in the public chat.
+  const issue = chatTextIssue(message);
+  if (issue) return { error: issue };
   const entry: ChatMessage = { id: uid(), userId: user.id, message, replyToId, deleted: false, createdAt: now() };
   const ok = commit((s) => ({ ...s, chat: [...s.chat, entry] }));
   if (!ok) return { error: "storage" };
 
   // A fictional member sometimes answers, so the community feels alive in the demo.
   if (Math.random() < 0.7) {
-    const bots = state.users.filter((u) => u.isBot && !u.isBanned && u.role === "citizen");
+    const blocked = new Set((state.chatBlocks ?? []).filter((b) => b.blockerId === user.id).map((b) => b.blockedId));
+    const bots = state.users.filter((u) => u.isBot && !u.isBanned && u.role === "citizen" && !blocked.has(u.id));
     const bot = bots[Math.floor(Math.random() * bots.length)];
     const replies = botReplies[user.language];
     if (bot) {
@@ -1963,6 +2000,113 @@ export function deleteChatMessage(id: string) {
   const user = me();
   if (!user) return;
   commit((s) => ({ ...s, chat: s.chat.map((m) => (m.id === id && m.userId === user.id ? { ...m, deleted: true, message: "" } : m)) }));
+}
+
+/** Report with a reason; 3 people (2 for sexual content / violence) hide the message at once. */
+export function reportChatMessage(messageId: string, reason: string, detail: string): Result {
+  const user = me();
+  if (!user || user.role !== "citizen") return { error: "error_generic" };
+  if (!isChatReportReason(reason) || detail.length > CHAT_REPORT_DETAIL_MAX) return { error: "error_generic" };
+  const message = state.chat.find((m) => m.id === messageId);
+  if (!message || message.userId === user.id) return { error: "error_generic" };
+  if ((state.chatReports ?? []).some((r) => r.messageId === messageId && r.reporterId === user.id)) return { error: "already_reported" };
+  const ok = commit((s) => {
+    const report: DemoChatReport = { id: uid(), messageId, reporterId: user.id, reasonCode: reason, detail: detail.trim(), status: "pending", createdAt: now() };
+    const chatReports = [...(s.chatReports ?? []), report];
+    const pending = chatReports.filter((r) => r.messageId === messageId && r.status === "pending").map((r) => r.reasonCode);
+    if (message.hiddenAt || !shouldHideForReports(pending)) return { ...s, chatReports };
+    const author = userById(message.userId, s)?.name ?? "?";
+    return {
+      ...s,
+      chatReports,
+      chat: s.chat.map((m) => (m.id === messageId ? { ...m, hiddenAt: now(), hiddenReason: "reports" as const } : m)),
+      notifications: notifyStaff(s, ["moderator", "admin"], (lang) => {
+        const text = chatModText(lang);
+        return { title: text.staffHiddenTitle, message: text.staffHidden(author, text.hiddenBy.reports) };
+      }),
+    };
+  });
+  return ok ? {} : { error: "storage" };
+}
+
+export function blockChatUser(blockedId: string): Result {
+  const user = me();
+  if (!user || blockedId === user.id || !userById(blockedId)) return { error: "error_generic" };
+  if ((state.chatBlocks ?? []).some((b) => b.blockerId === user.id && b.blockedId === blockedId)) return {};
+  return commit((s) => ({ ...s, chatBlocks: [...(s.chatBlocks ?? []), { blockerId: user.id, blockedId, createdAt: now() }] })) ? {} : { error: "storage" };
+}
+
+export function unblockChatUser(blockedId: string) {
+  const user = me();
+  if (!user) return;
+  commit((s) => ({ ...s, chatBlocks: (s.chatBlocks ?? []).filter((b) => !(b.blockerId === user.id && b.blockedId === blockedId)) }));
+}
+
+/** Staff: keep (visible again) or remove (hidden for good, author told; optional yellow card). */
+export function reviewChatMessage(messageId: string, decision: "keep" | "remove", cardNote?: string): Result {
+  const staff = me();
+  if (!canModerate(staff)) return { error: "error_generic" };
+  const message = state.chat.find((m) => m.id === messageId);
+  if (!message) return { error: "error_generic" };
+  const note = cardNote?.trim() ?? "";
+  if (cardNote !== undefined && note.length < CARD_NOTE_MIN) return { error: "card_note_short" };
+  const status = decision === "keep" ? ("dismissed" as const) : ("upheld" as const);
+  const ok = commit((s) => {
+    let next: State = {
+      ...s,
+      chatReports: (s.chatReports ?? []).map((r) => (r.messageId === messageId && r.status === "pending" ? { ...r, status } : r)),
+      chat: s.chat.map((m) =>
+        m.id !== messageId ? m : decision === "keep" ? { ...m, hiddenAt: null, hiddenReason: null } : { ...m, hiddenAt: m.hiddenAt ?? now(), hiddenReason: "staff" as const },
+      ),
+    };
+    if (decision === "remove") {
+      next = { ...next, notifications: notify(next, message.userId, (lang) => ({ title: chatModText(lang).removedTitle, message: chatModText(lang).removed })) };
+      if (note && message.userId !== staff.id) next = applyCard(next, { userId: message.userId, type: "yellow", reason: "chat_offense", note, issuerId: staff.id });
+    }
+    return next;
+  });
+  return ok ? {} : { error: "storage" };
+}
+
+/** Admin: mute someone in the chat; hours = 0 lifts it. */
+export function muteChatUser(userId: string, hours: number): Result {
+  const staff = me();
+  if (!staff || staff.role !== "admin" || userId === staff.id) return { error: "error_generic" };
+  if (hours !== 0 && !isChatMuteHours(hours)) return { error: "error_generic" };
+  const until = hours === 0 ? null : new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+  const ok = commit((s) => ({
+    ...s,
+    users: s.users.map((u) => (u.id === userId ? { ...u, chatMutedUntil: until } : u)),
+    notifications: until
+      ? notify(s, userId, (lang) => ({ title: chatModText(lang).mutedTitle, message: chatModText(lang).mutedMsg(formatDate(until, lang)) }))
+      : s.notifications,
+  }));
+  return ok ? {} : { error: "storage" };
+}
+
+/** Staff queue (same shape as the server's chatReportQueue). */
+export function chatReportQueueOf(s: State): ChatReportItem[] {
+  const reports = s.chatReports ?? [];
+  const pendingIds = new Set(reports.filter((r) => r.status === "pending").map((r) => r.messageId));
+  const name = (id: string) => s.users.find((u) => u.id === id)?.name ?? "—";
+  return s.chat
+    .filter((m) => !m.deleted && (pendingIds.has(m.id) || (!!m.hiddenAt && (m.hiddenReason === "reports" || m.hiddenReason === "ai"))))
+    .sort((a, b) => Number(!!b.hiddenAt) - Number(!!a.hiddenAt) || b.createdAt.localeCompare(a.createdAt))
+    .map((m) => ({
+      messageId: m.id,
+      authorId: m.userId,
+      authorName: name(m.userId),
+      authorMutedUntil: s.users.find((u) => u.id === m.userId)?.chatMutedUntil ?? null,
+      text: m.message,
+      messageType: "text",
+      mediaUrl: null,
+      createdAt: m.createdAt,
+      hidden: !!m.hiddenAt,
+      hiddenReason: m.hiddenReason ?? null,
+      reports: reports
+        .filter((r) => r.messageId === m.id && r.status === "pending")
+        .map((r) => ({ reason: r.reasonCode, detail: r.detail || null, reporterName: name(r.reporterId), createdAt: r.createdAt })),
+    }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -2019,6 +2163,8 @@ export function exportMyData(): string | null {
     foneRewards: state.rewards.filter((r) => r.userId === user.id),
     notifications: state.notifications.filter((n) => n.userId === user.id),
     communityMessages: state.chat.filter((c) => c.userId === user.id && !c.deleted),
+    chatReports: (state.chatReports ?? []).filter((r) => r.reporterId === user.id).map(({ messageId, reasonCode, detail, status, createdAt }) => ({ messageId, reasonCode, detail, status, createdAt })),
+    chatBlocks: (state.chatBlocks ?? []).filter((b) => b.blockerId === user.id).map(({ blockedId, createdAt }) => ({ blockedId, createdAt })),
     missionRequests: (state.missionRequests ?? []).filter((r) => r.userId === user.id).map(({ city, uf, createdAt }) => ({ city, uf, createdAt })),
     benefitCodes: (state.redemptions ?? [])
       .filter((r) => r.userId === user.id)
@@ -2061,6 +2207,8 @@ export function deleteMyAccount(confirmed: boolean): Result {
       missionRequests: (s.missionRequests ?? []).filter((r) => r.userId !== user.id),
       region: null,
       chat: s.chat.map((c) => (c.userId === user.id ? { ...c, message: "", deleted: true } : c)),
+      chatReports: (s.chatReports ?? []).filter((r) => r.reporterId !== user.id),
+      chatBlocks: (s.chatBlocks ?? []).filter((b) => b.blockerId !== user.id && b.blockedId !== user.id),
       users: s.users.map((u) =>
         u.id === user.id
           ? {
