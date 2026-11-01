@@ -11,6 +11,7 @@ import {
   uuid,
   index,
   uniqueIndex,
+  primaryKey,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
@@ -91,6 +92,8 @@ export const users = pgTable("users", {
    * whether a new card is a repeat offence. The ban_appeal_* columns hold the appeal.
    */
   suspendedUntil: timestamp("suspended_until", { withTimezone: true }),
+  /** Staff mute in the community chat: can read but not send until then. */
+  chatMutedUntil: timestamp("chat_muted_until", { withTimezone: true }),
   suspensionReason: text("suspension_reason"),
   /** E-mail ownership confirmed through the link sent by e-mail. */
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
@@ -521,6 +524,11 @@ export const communityChat = pgTable("community_chat", {
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   deletedBy: uuid("deleted_by").references(() => users.id),
   deleteForEveryone: boolean("delete_for_everyone").default(false),
+  /** Hidden from everybody but the author (reports / AI / staff). See src/lib/chat-moderation.ts. */
+  hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+  hiddenReason: varchar("hidden_reason", { length: 20 }),
+  /** Image check by the AI: "checking" (others don't see the media yet), "ok", "flagged". */
+  aiStatus: varchar("ai_status", { length: 20 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("community_chat_created_idx").on(table.createdAt),
@@ -547,11 +555,28 @@ export const messageReports = pgTable("message_reports", {
   reporterId: uuid("reporter_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  /** Free-text detail (optional since the reason code). */
   reason: varchar("reason", { length: 200 }).notNull(),
+  /** offense | sexual | violence | personal_data | spam | other */
+  reasonCode: varchar("reason_code", { length: 20 }).default("other").notNull(),
+  /** pending | dismissed (message kept) | upheld (message removed) */
   status: varchar("status", { length: 20 }).default("pending").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("message_reports_unique").on(table.messageId, table.reporterId),
+]);
+
+/** Personal block: the blocker stops seeing the blocked person's chat messages. */
+export const chatBlocks = pgTable("chat_blocks", {
+  blockerId: uuid("blocker_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  blockedId: uuid("blocked_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  primaryKey({ columns: [table.blockerId, table.blockedId] }),
 ]);
 
 /* ------------------------------------------------------------------ */

@@ -1,17 +1,32 @@
 import "server-only";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, notInArray, or, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { communityChat, messageFavorites, users } from "@/db/schema";
+import { chatBlocks, communityChat, messageFavorites, users } from "@/db/schema";
 
 const MESSAGE_LIMIT = 50;
 
 /**
- * Latest community messages (oldest → newest for display) plus the user's favorites.
+ * Latest community messages (oldest → newest for display) plus the user's favorites, blocks and
+ * mute. Everything sensitive is decided here, so it never reaches the browser:
  *
- * Content of messages deleted "for everyone" is stripped on the server, so it never
- * reaches the browser (previously the text was still present in the JSON).
+ * - content of messages deleted "for everyone" is stripped;
+ * - hidden messages (reports / AI / staff) only reach their author, flagged as hidden;
+ * - messages of people the user blocked are left out;
+ * - an image still being checked by the AI is only shown to its author.
  */
 export async function fetchCommunityMessages(userId: string) {
+  const [blocked, [me]] = await Promise.all([
+    db
+      .select({ id: chatBlocks.blockedId, name: users.name })
+      .from(chatBlocks)
+      .innerJoin(users, eq(users.id, chatBlocks.blockedId))
+      .where(eq(chatBlocks.blockerId, userId)),
+    db.select({ chatMutedUntil: users.chatMutedUntil, adultDeclaredAt: users.adultDeclaredAt }).from(users).where(eq(users.id, userId)),
+  ]);
+
+  const filters: SQL[] = [or(isNull(communityChat.hiddenAt), eq(communityChat.userId, userId))!];
+  if (blocked.length > 0) filters.push(notInArray(communityChat.userId, blocked.map((b) => b.id)));
+
   const latest = await db
     .select({
       id: communityChat.id,
@@ -26,25 +41,39 @@ export async function fetchCommunityMessages(userId: string) {
       editedAt: communityChat.editedAt,
       deletedAt: communityChat.deletedAt,
       deleteForEveryone: communityChat.deleteForEveryone,
+      hiddenAt: communityChat.hiddenAt,
+      aiStatus: communityChat.aiStatus,
     })
     .from(communityChat)
     .leftJoin(users, eq(communityChat.userId, users.id))
+    .where(and(...filters))
     .orderBy(desc(communityChat.createdAt))
     .limit(MESSAGE_LIMIT);
 
-  const messages = latest.reverse().map((message) =>
-    message.deletedAt && message.deleteForEveryone
-      ? { ...message, message: null, mediaUrl: null, replyToMessage: null }
-      : message,
-  );
+  const messages = latest.reverse().map(({ hiddenAt, aiStatus, ...message }) => {
+    const own = message.userId === userId;
+    const base = { ...message, hidden: !!hiddenAt, checking: aiStatus === "checking" };
+    if (message.deletedAt && message.deleteForEveryone) return { ...base, message: null, mediaUrl: null, replyToMessage: null };
+    if (base.checking && !own) return { ...base, mediaUrl: null };
+    return base;
+  });
 
   const favorites = await db
     .select({ messageId: messageFavorites.messageId })
     .from(messageFavorites)
     .where(eq(messageFavorites.userId, userId));
 
-  return { messages, favoriteIds: favorites.map((favorite) => favorite.messageId) };
+  return {
+    messages,
+    favoriteIds: favorites.map((favorite) => favorite.messageId),
+    blocked: blocked.map((b) => ({ id: b.id, name: b.name })),
+    chatMutedUntil: me?.chatMutedUntil?.toISOString() ?? null,
+    adult: !!me?.adultDeclaredAt,
+  };
 }
+
+export type CommunityFeed = Awaited<ReturnType<typeof fetchCommunityMessages>>;
+export type CommunityMessage = CommunityFeed["messages"][number];
 
 const MEDIA_PATTERNS: Record<string, RegExp> = {
   image: /^\/api\/files\/image\/[a-zA-Z0-9-]+\.[a-z0-9]{2,5}$/,

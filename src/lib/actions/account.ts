@@ -3,10 +3,11 @@
 import crypto from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   authTokens,
+  chatBlocks,
   communityChat,
   messageFavorites,
   messageReports,
@@ -185,6 +186,7 @@ export async function deleteAccountAction(_prev: ActionState, formData: FormData
       .where(eq(communityChat.userId, user.id));
     await tx.delete(messageFavorites).where(eq(messageFavorites.userId, user.id));
     await tx.delete(messageReports).where(eq(messageReports.reporterId, user.id));
+    await tx.delete(chatBlocks).where(or(eq(chatBlocks.blockerId, user.id), eq(chatBlocks.blockedId, user.id)));
     await tx.delete(missionRequests).where(eq(missionRequests.userId, user.id));
     // Approved suggestions became public missions and stay (the link to the person is anonymised with the account).
     await tx

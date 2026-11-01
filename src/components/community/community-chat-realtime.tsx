@@ -1,66 +1,52 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { Lang } from "@/lib/i18n";
+import type { CommunityFeed } from "@/lib/community";
 import { CommunityChat } from "./community-chat";
 import { useRealtimeMessages } from "./use-realtime-messages";
 
 interface CommunityChatRealtimeProps {
-  lang: any;
-  initialMessages: Array<{
-    id: string;
-    message: string | null;
-    messageType: string;
-    mediaUrl: string | null;
-    replyToId: string | null;
-    replyToMessage: string | null;
-    userId: string;
-    userName: string | null;
-    createdAt: Date;
-    editedAt: Date | null;
-    deletedAt: Date | null;
-    deleteForEveryone: boolean | null;
-  }>;
+  lang: Lang;
+  initial: CommunityFeed;
   currentUserId: string;
   currentUserName: string;
-  initialFavoriteIds: Set<string>;
 }
 
-export function CommunityChatRealtime({
-  lang,
-  initialMessages,
-  currentUserId,
-  currentUserName,
-  initialFavoriteIds,
-}: CommunityChatRealtimeProps) {
-  const [messages, setMessages] = useState(initialMessages);
-  const [favoriteIds, setFavoriteIds] = useState(initialFavoriteIds);
-  const { shouldRefresh } = useRealtimeMessages(5000); // Atualiza a cada 5 segundos
+export function CommunityChatRealtime({ lang, initial, currentUserId, currentUserName }: CommunityChatRealtimeProps) {
+  const [feed, setFeed] = useState(initial);
+  const [favoriteIds, setFavoriteIds] = useState(() => new Set(initial.favoriteIds));
+  const { shouldRefresh } = useRealtimeMessages(5000); // refresh every 5 seconds
+
+  const fetchMessages = useCallback(async () => {
+    try {
+      const response = await fetch("/api/community/messages");
+      if (response.ok) {
+        const data = (await response.json()) as CommunityFeed;
+        setFeed(data);
+        setFavoriteIds(new Set(data.favoriteIds));
+      }
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    }
+  }, []);
 
   useEffect(() => {
-    // Buscar mensagens atualizadas
-    const fetchMessages = async () => {
-      try {
-        const response = await fetch("/api/community/messages");
-        if (response.ok) {
-          const data = await response.json();
-          setMessages(data.messages);
-          setFavoriteIds(new Set(data.favoriteIds));
-        }
-      } catch (error) {
-        console.error("Error fetching messages:", error);
-      }
-    };
-
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchMessages();
-  }, [shouldRefresh]);
+  }, [shouldRefresh, fetchMessages]);
 
   return (
     <CommunityChat
       lang={lang}
-      messages={messages}
+      messages={feed.messages}
       currentUserId={currentUserId}
       currentUserName={currentUserName}
       favoriteMessageIds={favoriteIds}
+      blocked={feed.blocked}
+      chatMutedUntil={feed.chatMutedUntil}
+      adult={feed.adult}
+      onChanged={fetchMessages}
     />
   );
 }

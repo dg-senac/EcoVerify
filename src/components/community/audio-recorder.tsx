@@ -183,6 +183,7 @@ export function AudioRecorder({ lang, onAudioRecorded }: AudioRecorderProps) {
     <>
       {!showPreview ? (
         <button
+          type="button"
           onMouseDown={startRecording}
           onMouseUp={stopRecording}
           onMouseLeave={stopRecording}
@@ -203,6 +204,7 @@ export function AudioRecorder({ lang, onAudioRecorded }: AudioRecorderProps) {
       ) : (
         <div className="flex items-center gap-2 bg-slate-50 rounded-full px-3 py-2">
           <button
+            type="button"
             onClick={() => {
               if (audioUrl) {
                 const audio = new Audio(audioUrl);
@@ -226,6 +228,7 @@ export function AudioRecorder({ lang, onAudioRecorded }: AudioRecorderProps) {
           </div>
           
           <button
+            type="button"
             onClick={handleSend}
             className="p-1 rounded-full bg-emerald-500 text-white hover:bg-emerald-600"
             title={t(lang, "chat_send_audio")}
@@ -234,6 +237,7 @@ export function AudioRecorder({ lang, onAudioRecorded }: AudioRecorderProps) {
           </button>
           
           <button
+            type="button"
             onClick={handleCancel}
             className="p-1 rounded-full hover:bg-slate-200"
             title={t(lang, "chat_cancel")}
@@ -262,6 +266,7 @@ export function AudioRecorder({ lang, onAudioRecorded }: AudioRecorderProps) {
                 {t(lang, "chat_recording")}
               </p>
               <button
+                type="button"
                 onMouseUp={stopRecording}
                 onTouchEnd={(e) => {
                   e.preventDefault();

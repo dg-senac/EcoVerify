@@ -1,13 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { communityChat, messageFavorites, messageReports, notifications, users } from "@/db/schema";
+import { chatBlocks, communityChat, messageFavorites, messageReports, notifications, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { isAllowedMediaUrl } from "@/lib/community";
 import { rateLimit } from "@/lib/rate-limit";
+import {
+  CHAT_REPORT_DETAIL_MAX,
+  canSendChatMedia,
+  chatTextIssue,
+  isChatMuted,
+  isChatReportReason,
+  shouldHideForReports,
+} from "@/lib/chat-moderation";
+import { chatImagesCheckedByAi, checkChatImage, hideChatMessage } from "@/lib/chat-moderation-server";
 export type ActionState = { error?: string };
 
 const MESSAGE_TYPES = ["text", "image", "audio", "video", "gif"] as const;
@@ -19,6 +29,7 @@ export async function sendMessageAction(_prev: ActionState, formData: FormData):
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "citizen") return { error: "not_citizen" };
+  if (isChatMuted(user.chatMutedUntil)) return { error: "muted" };
 
   if (!rateLimit(`chat:${user.id}`, 20, 60 * 1000)) {
     return { error: "too_many_messages" };
@@ -44,6 +55,10 @@ export async function sendMessageAction(_prev: ActionState, formData: FormData):
   if (message && message.length > 1000) {
     return { error: "message_too_long" };
   }
+  // Safety rules (src/lib/chat-moderation.ts): no contact data or links; audio/video only 18+.
+  const textIssue = chatTextIssue(message);
+  if (textIssue) return { error: textIssue };
+  if (!canSendChatMedia(messageType, !!user.adultDeclaredAt)) return { error: "adult_media" };
 
   // The quoted text is read from the database instead of trusting the client,
   // so nobody can fake a reply quoting something another user never said.
@@ -66,14 +81,21 @@ export async function sendMessageAction(_prev: ActionState, formData: FormData):
     }
   }
 
-  await db.insert(communityChat).values({
-    message: message || null,
-    messageType,
-    mediaUrl: messageType === "text" ? null : mediaUrl,
-    replyToId,
-    replyToMessage,
-    userId: user.id,
-  });
+  const checkImage = messageType === "image" && (await chatImagesCheckedByAi());
+  const [created] = await db
+    .insert(communityChat)
+    .values({
+      message: message || null,
+      messageType,
+      mediaUrl: messageType === "text" ? null : mediaUrl,
+      replyToId,
+      replyToMessage,
+      userId: user.id,
+      aiStatus: checkImage ? "checking" : null,
+    })
+    .returning({ id: communityChat.id });
+  // Others only see the image after the AI checks it (an inappropriate one is hidden + staff alert).
+  if (checkImage && created && mediaUrl) after(() => checkChatImage(created.id, mediaUrl));
 
   // Notify other citizens with a single query (previously one INSERT per user per message).
   // Users that already have an unread community notification don't get another one.
@@ -111,6 +133,8 @@ export async function editMessageAction(_prev: ActionState, formData: FormData):
   if (newMessage.length > 1000) {
     return { error: "message_too_long" };
   }
+  const textIssue = chatTextIssue(newMessage);
+  if (textIssue) return { error: textIssue };
 
   // Verificar se a mensagem pertence ao usuário e se já foi editada
   const existingMessage = await db
@@ -230,40 +254,69 @@ export async function toggleFavoriteAction(_prev: ActionState, formData: FormDat
   return {};
 }
 
+/**
+ * Report with a reason. Enough different people reporting (3, or 2 for sexual content/violence)
+ * hide the message at once; the staff then keeps or removes it (Moderation → Chat reports).
+ */
 export async function reportMessageAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "citizen") return { error: "not_citizen" };
 
   const messageId = String(formData.get("messageId") ?? "");
-  const reason = String(formData.get("reason") ?? "").trim();
+  const reasonCode = String(formData.get("reasonCode") ?? "");
+  const detail = String(formData.get("reason") ?? "").trim();
 
-  if (!messageId || !reason || reason.length > 200) {
+  if (!UUID_PATTERN.test(messageId) || !isChatReportReason(reasonCode) || detail.length > CHAT_REPORT_DETAIL_MAX) {
     return { error: "invalid" };
   }
+  if (!rateLimit(`chat-report:${user.id}`, 10, 60 * 60 * 1000)) return { error: "too_many_messages" };
 
-  // Verificar se já denunciou
-  const existingReport = await db
-    .select()
-    .from(messageReports)
-    .where(
-      and(
-        eq(messageReports.messageId, messageId),
-        eq(messageReports.reporterId, user.id)
-      )
-    )
+  const [target] = await db
+    .select({ userId: communityChat.userId, hiddenAt: communityChat.hiddenAt })
+    .from(communityChat)
+    .where(eq(communityChat.id, messageId))
     .limit(1);
+  if (!target) return { error: "not_found" };
+  if (target.userId === user.id) return { error: "invalid" };
 
-  if (existingReport[0]) {
-    return { error: "already_reported" };
+  const inserted = await db
+    .insert(messageReports)
+    .values({ messageId, reporterId: user.id, reason: detail, reasonCode })
+    .onConflictDoNothing()
+    .returning({ id: messageReports.id });
+  if (inserted.length === 0) return { error: "already_reported" };
+
+  if (!target.hiddenAt) {
+    const reports = await db
+      .select({ reason: messageReports.reasonCode })
+      .from(messageReports)
+      .where(and(eq(messageReports.messageId, messageId), eq(messageReports.status, "pending")));
+    if (shouldHideForReports(reports.map((r) => r.reason))) await hideChatMessage(messageId, "reports");
   }
 
-  await db.insert(messageReports).values({
-    messageId,
-    reporterId: user.id,
-    reason,
-  });
+  revalidatePath("/community");
+  return {};
+}
 
+/** Personal block: stop seeing someone's messages (they are not told). */
+export async function blockChatUserAction(blockedId: string): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.role !== "citizen") return { error: "not_citizen" };
+  if (!UUID_PATTERN.test(blockedId) || blockedId === user.id) return { error: "invalid" };
+  const [target] = await db.select({ id: users.id }).from(users).where(eq(users.id, blockedId)).limit(1);
+  if (!target) return { error: "not_found" };
+  await db.insert(chatBlocks).values({ blockerId: user.id, blockedId }).onConflictDoNothing();
+  revalidatePath("/community");
+  return {};
+}
+
+export async function unblockChatUserAction(blockedId: string): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (!UUID_PATTERN.test(blockedId)) return { error: "invalid" };
+  await db.delete(chatBlocks).where(and(eq(chatBlocks.blockerId, user.id), eq(chatBlocks.blockedId, blockedId)));
   revalidatePath("/community");
   return {};
 }
