@@ -26,6 +26,7 @@ import { BenefitsScreen, PartnerScreen } from "./screens/Benefits";
 import { PointScreen } from "./screens/Point";
 import { QuizScreen } from "./screens/Quiz";
 import { DumpsScreen } from "./screens/Dumps";
+import { MapScreenDemo } from "./screens/Map";
 import { CertificateScreen, EventCertificateScreen, EventReportScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
 
 import { THEME_COLORS } from "@/lib/theme";
@@ -113,6 +114,8 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
       return <QuizScreen key={user.id} user={user} />;
     case "/lixo":
       return <DumpsScreen key={user.id} user={user} />;
+    case "/mapa":
+      return <MapScreenDemo />;
     case "/beneficios":
       return <BenefitsScreen user={user} />;
     case "/community":

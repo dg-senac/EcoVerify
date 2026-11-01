@@ -8,6 +8,7 @@ import { quizDay, quizText } from "@/lib/quiz";
 import { QuizCard, QUIZ_CARD_BUTTON } from "@/components/quiz/quiz-view";
 import { DumpCta, DUMP_CTA_BUTTON } from "@/components/dumps/dump-cta";
 import { dumpText } from "@/lib/dumps";
+import { mapText } from "@/lib/map";
 import { myOrganizationIds } from "@/lib/saas/orgs";
 import { ORG_TEXT } from "@/lib/saas/org-text";
 import { getCurrentUser } from "@/lib/auth";
@@ -165,12 +166,21 @@ export default async function MissionsPage() {
           <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">{t(lang, "missions_title")}</h1>
           <p className="mt-1 text-sm text-slate-500">{t(lang, "missions_subtitle")}</p>
         </div>
-        <Link
-          href="/missions/suggest"
-          className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-        >
-          🙋 {t(lang, "region_suggest")}
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/mapa"
+            className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+            data-testid="missions-map-link"
+          >
+            🗺️ {mapText(lang).seeOnMap}
+          </Link>
+          <Link
+            href="/missions/suggest"
+            className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            🙋 {t(lang, "region_suggest")}
+          </Link>
+        </div>
       </div>
       <RegionBar lang={lang} region={region} />
       {extras}

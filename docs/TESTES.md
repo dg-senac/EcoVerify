@@ -2,7 +2,7 @@
 
 Este roteiro serve para testar o EcoVerify **antes de ligar o banco de dados**. Tudo roda na **demo offline**: os dados ficam só no aparelho de quem testa (no `localStorage` do navegador ou do APK). Não há servidor, não há e-mail e nenhum FONE ou Pix de verdade é movimentado.
 
-> **Testes automáticos:** além deste roteiro manual, `npm test` roda os testes do Vitest (pasta `tests/`). Eles cobrem as regras que mexem com pontos, punições e segurança: decisão da IA, verificação automática, cartões, moderação do chat, quiz, lixões, check-in, carteira FONE, fatores de CO₂e da calculadora de impacto e as traduções pt/en/es. Rodam em todo PR no CI e não precisam de banco.
+> **Testes automáticos:** além deste roteiro manual, `npm test` roda os testes do Vitest (pasta `tests/`). Eles cobrem as regras que mexem com pontos, punições e segurança: decisão da IA, verificação automática, cartões, moderação do chat, quiz, lixões, check-in, carteira FONE, fatores de CO₂e da calculadora de impacto, as regras de privacidade do mapa e as traduções pt/en/es. Rodam em todo PR no CI e não precisam de banco.
 
 Marque cada item com `[x]` quando passar. Se algo der errado, anote no modelo do fim da página (seção 6).
 

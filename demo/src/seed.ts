@@ -9,7 +9,7 @@ import { CLEANUP_POINTS, cleanupMission } from "@/lib/dumps";
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 18;
+export const STATE_VERSION = 19;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -641,6 +641,8 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     4,
     { proofType: "before_after" },
   );
+  // A dated event at a real place (Posto 7): local, so its verified actions count on the map (≥5 people per area).
+  Object.assign(beachCleanup, { scope: "local", latitude: -8.1196, longitude: -34.8956, city: "Recife", stateCode: "PE" });
   const parkCleanup = eventMission(
     "m-ev-jaqueira",
     collective.id,

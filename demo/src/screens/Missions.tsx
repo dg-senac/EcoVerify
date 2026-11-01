@@ -15,6 +15,7 @@ import { quizDay, quizText } from "@/lib/quiz";
 import { QuizCard, QUIZ_CARD_BUTTON } from "@/components/quiz/quiz-view";
 import { DumpCta, DUMP_CTA_BUTTON } from "@/components/dumps/dump-cta";
 import { dumpText } from "@/lib/dumps";
+import { mapText } from "@/lib/map";
 
 function Grid({ items, myStatus }: { items: (Mission & { distanceKm?: number })[]; myStatus: Map<string, SubmissionStatus> }) {
   const lang = useLang();
@@ -69,7 +70,21 @@ export function MissionsScreen({ user }: { user: User }) {
   const orgText = ORG_TEXT[lang];
   const header = (
     <>
-      <PageHeader title={t(lang, "missions_title")} subtitle={t(lang, "missions_subtitle")} icon={Sprout} />
+      <PageHeader
+        title={t(lang, "missions_title")}
+        subtitle={t(lang, "missions_subtitle")}
+        icon={Sprout}
+        action={
+          <button
+            type="button"
+            onClick={() => navigate("/mapa")}
+            className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+            data-testid="missions-map-link"
+          >
+            🗺️ {mapText(lang).seeOnMap}
+          </button>
+        }
+      />
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="mission-extras">
         <QuizCard
           lang={lang}

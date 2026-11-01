@@ -19,6 +19,8 @@ import {
 } from "@/lib/impact";
 import { co2Estimate, formatCo2 } from "@/lib/impact-factors";
 import { Co2Banner } from "@/components/impact/co2-estimate";
+import { heatPinsFromTable } from "@/lib/map";
+import { EcoMap } from "@/components/map/eco-map";
 
 /**
  * Admin → ♻️ Reciclagem and Admin → 📊 Dados (docs/MONETIZACAO.md, sections 6 and 7).
@@ -263,6 +265,15 @@ export function DataTab({
         <Stat label={T("Pessoas", "People", "Personas")} value={table.totals.people ? String(table.totals.people) : `< ${MIN_PEOPLE_PER_ROW}`} />
         <Stat label={T("Reciclado", "Recycled", "Reciclado")} value={table.totals.people ? formatKg(table.totals.kg, lang) : "—"} />
       </div>
+
+      {view === "grid" && table.rows.length > 0 && (
+        <section className="grid gap-2" data-testid="data-heat-map">
+          <EcoMap pins={heatPinsFromTable(table, lang)} label={T("Mapa de calor das ações verificadas", "Heat map of verified actions", "Mapa de calor de las acciones verificadas")} className="h-[420px]" />
+          <p className="text-xs text-slate-500">
+            🔥 {T(`Cada quadrado é uma área de ~1 km com ${MIN_PEOPLE_PER_ROW} pessoas ou mais; quanto mais vermelho, mais ações verificadas.`, `Each square is a ~1 km area with ${MIN_PEOPLE_PER_ROW} or more people; the redder, the more verified actions.`, `Cada cuadrado es un área de ~1 km con ${MIN_PEOPLE_PER_ROW} personas o más; cuanto más rojo, más acciones verificadas.`)}
+          </p>
+        </section>
+      )}
 
       <section className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
         {table.rows.length === 0 ? (
