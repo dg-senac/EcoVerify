@@ -1,69 +1,65 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import Link from "next/link";
+import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { citizenOnly } from "@/lib/role-guard";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { t } from "@/lib/i18n";
-import { initials } from "@/lib/utils";
-import { Trophy, Medal } from "@/components/ui/icons";
+import { RANKING_LIMIT } from "@/lib/seasons";
+import { loadSeasonBoard } from "@/lib/seasons-server";
+import { SeasonBoard, rankingTab } from "@/components/ranking/season-board";
+import { Trophy } from "@/components/ui/icons";
 
-const medalColors = ["text-amber-400", "text-slate-400", "text-amber-600"];
-const RANKING_LIMIT = 100;
+export const dynamic = "force-dynamic";
 
-export default async function RankingPage() {
+export default async function RankingPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   citizenOnly(user.role);
+  const query = await searchParams;
+  const now = new Date();
 
-  const visible = await db
-    .select({ id: users.id, name: users.name, totalPoints: users.totalPoints })
-    .from(users)
-    .where(and(eq(users.isBanned, false), isNull(users.deletedAt)))
-    .orderBy(desc(users.totalPoints), users.createdAt)
-    .limit(RANKING_LIMIT);
+  const [board, allTime] = await Promise.all([
+    loadSeasonBoard(user.id, now),
+    db
+      .select({ id: users.id, name: users.name, points: users.totalPoints })
+      .from(users)
+      // Staff never play: only citizens in good standing.
+      .where(and(eq(users.role, "citizen"), eq(users.isBanned, false), isNull(users.deletedAt), gt(users.totalPoints, 0)))
+      .orderBy(desc(users.totalPoints), users.createdAt)
+      .limit(RANKING_LIMIT),
+  ]);
 
   return (
-    <div>
-      <div className="flex items-center gap-3">
+    <div className="mx-auto max-w-3xl">
+      <div className="mb-5 flex items-center gap-3">
         <Trophy className="h-8 w-8 text-amber-500" />
         <div>
           <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">{t(user.language, "ranking_title")}</h1>
           <p className="text-sm text-slate-500">{t(user.language, "ranking_subtitle")}</p>
         </div>
       </div>
-
-      <div className="mt-6 space-y-2">
-        {visible.map((row, index) => {
-          const isPodium = index < 3;
-          const isMe = row.id === user.id;
-          return (
-            <div
-              key={row.id}
-              className={`flex items-center gap-4 rounded-2xl border px-4 py-3 shadow-sm animate-slide-up ${
-                isPodium
-                  ? "border-amber-200 bg-gradient-to-r from-amber-50 to-white"
-                  : "border-black/5 bg-white"
-              } ${isMe ? "ring-2 ring-emerald-400" : ""}`}
-            >
-              <div className="grid h-10 w-10 shrink-0 place-items-center text-xl font-bold text-slate-500">
-                {isPodium ? <Medal className={`h-6 w-6 ${medalColors[index]}`} /> : index + 1}
-              </div>
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-bold text-white">
-                {initials(row.name)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold text-slate-900">
-                  {row.name} {isMe && <span className="text-xs font-normal text-emerald-600">{t(user.language, "you_suffix")}</span>}
-                </p>
-              </div>
-              <p className="text-lg font-extrabold text-emerald-700">
-                {row.totalPoints} <span className="text-xs font-medium text-slate-400">{t(user.language, "points")}</span>
-              </p>
-            </div>
-          );
-        })}
-      </div>
+      <SeasonBoard
+        lang={user.language}
+        viewerId={user.id}
+        initialTab={rankingTab(query.tab)}
+        seasonId={board.season.id}
+        previousId={board.previous.id}
+        now={now.getTime()}
+        people={board.people.slice(0, RANKING_LIMIT)}
+        viewerRank={board.people.find((r) => r.item.id === user.id) ?? null}
+        previousPeople={board.previousPeople}
+        allTime={allTime}
+        cup={board.cup.slice(0, RANKING_LIMIT)}
+        previousCup={board.previousCup}
+        mySchoolId={board.mySchoolId}
+        joinHintAction={
+          <Link href="/org" className="font-bold text-emerald-700 underline underline-offset-2">
+            {t(user.language, "nav_orgs")} →
+          </Link>
+        }
+      />
     </div>
   );
 }

@@ -1,15 +1,16 @@
-import type { ChatMessage, DemoChatReport, DemoCheckin, DemoDump, DemoDumpConfirmation, DemoInvoice, DemoOffer, DemoPoint, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
+import type { ChatMessage, DemoPointEntry, DemoChatReport, DemoCheckin, DemoDump, DemoDumpConfirmation, DemoInvoice, DemoOffer, DemoPoint, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { COUNT_ITEM_INFO, countRule, estimatedKg } from "@/lib/proof";
 import { DEFAULT_LANG, type Lang } from "@/lib/i18n";
 import { registerText } from "./seed-text";
 import { CLEANUP_POINTS, cleanupMission } from "@/lib/dumps";
+import { previousSeason, seasonAt } from "@/lib/seasons";
 
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 19;
+export const STATE_VERSION = 20;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -1017,6 +1018,96 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     },
   ];
 
+  /*
+   * Seasons and the Schools Cup (docs/COPA.md): two more schools and the points ledger. Approved proofs
+   * become ledger rows; the extra rows stand for daily quizzes and rubbish reports, spread over the
+   * current and the previous season so the season ranking and the Cup always have something to show.
+   */
+  const season = seasonAt(Date.now());
+  const lastSeason = previousSeason(season);
+  for (const [id, name, email] of [
+    ["u-bot-6", "Camila Ferreira", "camila@ecoverify.dev"],
+    ["u-bot-7", "Thiago Melo", "thiago@ecoverify.dev"],
+    ["u-bot-8", "Larissa Andrade", "larissa@ecoverify.dev"],
+    ["u-bot-9", "Gabriel Nunes", "gabriel@ecoverify.dev"],
+    ["u-bot-10", "Sofia Barros", "sofia@ecoverify.dev"],
+    ["u-bot-11", "Vinícius Prado", "vinicius@ecoverify.dev"],
+  ]) {
+    users.push(person({ id, name, email, isBot: true, createdAt: ago(160 * DAY) }, lang));
+  }
+  const otherSchool = (id: string, name: string, slug: string, city: string, inviteCode: string, ownerId: string): DemoOrg => ({
+    id,
+    name,
+    slug,
+    type: "school",
+    city,
+    plan: "free",
+    billingCycle: "monthly",
+    subscriptionStatus: "active",
+    currentPeriodEnd: null,
+    trialUsed: false,
+    inviteCode,
+    ownerId,
+    createdAt: ago(150 * DAY),
+  });
+  const marAzul = otherSchool("org-mar-azul", "Colégio Mar Azul", "colegio-mar-azul", "Olinda", "MARAZUL1", "u-bot-6");
+  const capibaribeSchool = otherSchool("org-capibaribe", "Escola Municipal Capibaribe", "escola-municipal-capibaribe", "Recife", "CAPIBA22", "u-bot-9");
+  orgMembers.push(
+    orgMember(marAzul.id, "u-bot-6", "owner", 150),
+    orgMember(marAzul.id, "u-bot-7", "member", 140),
+    orgMember(marAzul.id, "u-bot-8", "member", 130),
+    orgMember(capibaribeSchool.id, "u-bot-9", "owner", 140),
+    orgMember(capibaribeSchool.id, "u-bot-10", "member", 135),
+    orgMember(capibaribeSchool.id, "u-bot-11", "member", 130),
+  );
+  const joinedAt = (userId: string) => Math.min(...orgMembers.filter((m) => m.userId === userId && [school.id, marAzul.id, capibaribeSchool.id].includes(m.orgId)).map((m) => new Date(m.joinedAt).getTime()), Date.now());
+  /** A moment in the current season, at fraction f of the time between max(season start, joining) and now. */
+  const current = (userId: string, f: number) => {
+    const start = Math.max(season.start.getTime(), joinedAt(userId));
+    return new Date(start + f * Math.max(0, Date.now() - start)).toISOString();
+  };
+  const previous = (f: number) => new Date(lastSeason.start.getTime() + f * (lastSeason.end.getTime() - lastSeason.start.getTime())).toISOString();
+  const extraPoints: DemoPointEntry[] = [
+    // Current season.
+    ...([
+      ["u-bot-1", 60, 0.5],
+      ["u-bot-2", 45, 0.3],
+      ["u-bot-2", 30, 0.8],
+      ["u-bot-3", 40, 0.6],
+      ["u-bot-4", 25, 0.4],
+      [DEMO_IDS.citizen, 20, 0.7],
+      ["u-bot-5", 10, 0.2],
+      ["u-bot-6", 35, 0.5],
+      ["u-bot-7", 30, 0.6],
+      ["u-bot-8", 20, 0.3],
+      ["u-bot-9", 50, 0.4],
+      ["u-bot-10", 15, 0.7],
+    ] as const).map(([userId, points, f]) => ({ userId, points, at: current(userId, f), cup: true })),
+    // Previous season: Colégio Mar Azul won it, Escola Municipal Capibaribe came second.
+    ...([
+      ["u-bot-6", 80, 0.3],
+      ["u-bot-7", 70, 0.5],
+      ["u-bot-8", 55, 0.7],
+      ["u-bot-9", 60, 0.4],
+      ["u-bot-10", 45, 0.6],
+      ["u-bot-11", 40, 0.2],
+      ["u-bot-1", 90, 0.5],
+      ["u-bot-2", 50, 0.4],
+      ["u-bot-3", 35, 0.6],
+    ] as const).map(([userId, points, f]) => ({ userId, points, at: previous(f), cup: true })),
+  ];
+  for (const entry of extraPoints) {
+    const owner = users.find((u) => u.id === entry.userId);
+    if (owner) owner.totalPoints += entry.points;
+  }
+  const pointsLog: DemoPointEntry[] = [
+    ...submissions.flatMap((x) => {
+      const mission = missions.find((m) => m.id === x.missionId);
+      return x.status === "approved" && x.reviewedAt && mission ? [{ userId: x.userId, points: mission.pointsReward, at: x.reviewedAt, cup: !mission.organizationId, submissionId: x.id }] : [];
+    }),
+    ...extraPoints,
+  ];
+
   return {
     version: STATE_VERSION,
     currentUserId: null,
@@ -1033,7 +1124,7 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     missionRequests: [],
     seededCities: [],
     payoutSettings: { minPayoutFone: 5, holdDays: 7, monthlyBudgetFone: 500, maxFonePerUserMonth: 100 },
-    orgs: [school, company, collective],
+    orgs: [school, company, collective, marAzul, capibaribeSchool],
     orgMembers,
     invoices,
     sponsors: [{ id: "sp-recicla", name: "Cooperativa Reciclar Juntos", budgetFone: "30.00", isActive: true, createdAt: ago(20 * DAY) }],
@@ -1064,6 +1155,7 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     checkins,
     dumps,
     dumpConfirmations,
+    pointsLog,
   };
 }
 

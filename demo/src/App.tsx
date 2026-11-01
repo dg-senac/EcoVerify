@@ -86,7 +86,7 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
   const home = useStore((s) => homeFor(user.role, moderatorsOn(s)));
   // Staff (active moderators and admins) have their own app: citizen screens send them home.
   const staffApp = useStore((s) => isStaffExperience(user.role, moderatorsOn(s)));
-  const citizenOnly = path.startsWith("/missions") || path.startsWith("/org") || ["/submissions", "/ranking", "/beneficios", "/community", "/wallet", "/quiz", "/lixo"].includes(path);
+  const citizenOnly = path.startsWith("/missions") || path.startsWith("/org") || path.startsWith("/ranking") || ["/submissions", "/ranking", "/beneficios", "/community", "/wallet", "/quiz", "/lixo"].includes(path);
   if (staffApp && citizenOnly) return <Redirect to={home} />;
   const submit = matchRoute("/missions/:id/submit", path);
   if (submit) return <SubmitScreen key={submit.id} missionId={submit.id} />;
@@ -98,6 +98,8 @@ function AuthedRoutes({ user, path }: { user: User; path: string }) {
   if (eventReport) return <EventReportScreen user={user} missionId={eventReport.id} />;
   const eventCertificate = matchRoute("/certificado/evento/:id", path);
   if (eventCertificate) return <EventCertificateScreen submissionId={eventCertificate.id} />;
+  const rankingTabRoute = matchRoute("/ranking/:tab", path);
+  if (rankingTabRoute) return <RankingScreen key={rankingTabRoute.tab} user={user} tab={rankingTabRoute.tab} />;
   const certificate = matchRoute("/certificado/:id", path);
   if (certificate) return <CertificateScreen memberId={certificate.id} />;
 

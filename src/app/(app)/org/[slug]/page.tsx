@@ -26,6 +26,8 @@ import { BillingPanel } from "@/components/org/billing-panel";
 import { EventsPanel } from "@/components/org/events-panel";
 import { EventBadge } from "@/components/missions/event-badge";
 import { EVENT_PACKAGE_NAMES, EVENT_TEXT, eventPhase, eventUnlocked, isEventPackage } from "@/lib/saas/events";
+import { schoolCupStanding } from "@/lib/seasons-server";
+import { seasonText } from "@/lib/seasons";
 import { InviteBox, LeaveOrgButton, MemberControls, OrgMissionForm, OrgSettingsForm, ToggleMissionButton } from "@/components/org/org-controls";
 
 const TABS = ["overview", "missions", "events", "moderation", "members", "plan", "report"] as const;
@@ -69,6 +71,9 @@ export default async function OrganizationPage({
       .from(collectionPoints)
       .where(and(eq(collectionPoints.isActive, true), or(isNull(collectionPoints.organizationId), eq(collectionPoints.organizationId, org.id)))),
   ]);
+  // Schools Cup (docs/COPA.md): this school's position in the current season.
+  const cup = org.type === "school" && tab === "overview" ? await schoolCupStanding(org.id) : null;
+  const cupText = seasonText(lang);
   const [{ pendingCount }] = await db
     .select({ pendingCount: sql<number>`count(*)::int` })
     .from(submissions)
@@ -170,6 +175,23 @@ export default async function OrganizationPage({
                 </div>
               ))}
             </div>
+
+            {cup && (
+              <Link
+                href="/ranking?tab=schools"
+                className="flex min-w-0 items-center gap-3 rounded-2xl bg-gradient-to-r from-[#2cc35f] via-[#278c98] to-[#2456d0] p-4 text-white shadow-md transition hover:opacity-95"
+                data-testid="org-cup-card"
+              >
+                <span className="text-3xl" aria-hidden>🏆</span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-extrabold">
+                    {cupText.cupTitle} · {cupText.seasonName(cup.season)}
+                  </p>
+                  <p className="text-sm text-white/90">{cup.standing ? cupText.cupOrgCard(cup.standing.position, cup.standing.points) : cupText.cupOrgNone}</p>
+                </div>
+                <span className="shrink-0 text-sm font-bold">{cupText.seeCup} →</span>
+              </Link>
+            )}
 
             <div className="grid gap-6 lg:grid-cols-2">
               <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">

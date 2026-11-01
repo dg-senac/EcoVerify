@@ -403,7 +403,12 @@ export type State = {
   /** Chat moderation: reports and personal blocks (src/lib/chat-moderation.ts). */
   chatReports?: DemoChatReport[];
   chatBlocks?: DemoChatBlock[];
+  /** Points ledger (like points_ledger on the server): seasons and the Schools Cup (src/lib/seasons.ts). */
+  pointsLog?: DemoPointEntry[];
 };
+
+/** `cup` = false for points from organization missions (they don't count in the Schools Cup). */
+export type DemoPointEntry = { userId: string; points: number; at: string; cup: boolean; submissionId?: string | null };
 
 export type DemoDump = {
   id: string;
@@ -1247,6 +1252,7 @@ export function revokeAudit(submissionId: string, code: RejectionCode | null, re
         rejectionCode: code,
       }),
       users: s.users.map((u) => (u.id === sub.userId ? { ...u, totalPoints: Math.max(0, u.totalPoints - points) } : u)),
+      pointsLog: (s.pointsLog ?? []).filter((e) => e.submissionId !== sub.id),
       rewards: s.rewards.filter((r) => r.submissionId !== sub.id || r.status === "paid"),
     };
     const why = (l: Lang) => composeRejectionMessage(code, typed, l).replace(/[.!\s]+$/, "") + ".";
@@ -1291,6 +1297,7 @@ function applyApprovalInner(s: State, submissionId: string, reviewerId: string |
       x.id === sub.id ? { ...x, status: "approved", reviewedBy: reviewerId, reviewedAt, decidedBy: reviewerId ? "human" : "ai", rejectionCode: null } : x,
     ),
     users: s.users.map((u) => (u.id === sub.userId ? { ...u, totalPoints: u.totalPoints + mission.pointsReward } : u)),
+    pointsLog: [...(s.pointsLog ?? []), { userId: sub.userId, points: mission.pointsReward, at: reviewedAt, cup: !mission.organizationId, submissionId: sub.id }],
   };
   // Same rules as the server (src/lib/review.ts): 0-FONE missions create no payment, budgets/caps hold the FONE.
   const paysFone = PAYMENTS_ENABLED && Number(mission.foneReward) > 0;
@@ -2844,6 +2851,7 @@ export async function answerQuiz(day: string, index: number, choice: number): Pr
     ...s,
     quiz: [...(s.quiz ?? []).filter((a) => !(a.userId === user.id && a.day === day)), updated],
     users: finishing ? s.users.map((u) => (u.id === user.id ? { ...u, totalPoints: u.totalPoints + points } : u)) : s.users,
+    pointsLog: finishing && points > 0 ? [...(s.pointsLog ?? []), { userId: user.id, points, at: updated.finishedAt!, cup: true }] : s.pointsLog,
   }));
   return finishing ? { ...result, finished: { correct, points } } : result;
 }
@@ -2948,6 +2956,7 @@ function confirmDumpState(s: State, reportId: string, confirmerId: string | null
     missions: [mission, ...s.missions],
     dumps: (s.dumps ?? []).map((d) => (d.id === reportId ? { ...d, status: "confirmed", needsReview: false, confirmedAt: now(), missionId: mission.id } : d)),
     users: s.users.map((u) => (points.has(u.id) ? { ...u, totalPoints: u.totalPoints + (points.get(u.id) ?? 0) } : u)),
+    pointsLog: [...(s.pointsLog ?? []), ...[...points].map(([userId, value]) => ({ userId, points: value, at: now(), cup: true }))],
   };
   return { ...next, notifications: notify(next, report.userId, (lang) => ({ title: dumpText(lang).notifyConfirmedTitle, message: dumpText(lang).notifyConfirmed })) };
 }
