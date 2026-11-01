@@ -6,6 +6,8 @@ import { db } from "@/db";
 import { missionRequests, missions, organizations, quizAttempts, submissions } from "@/db/schema";
 import { quizDay, quizText } from "@/lib/quiz";
 import { QuizCard, QUIZ_CARD_BUTTON } from "@/components/quiz/quiz-view";
+import { DumpCta, DUMP_CTA_BUTTON } from "@/components/dumps/dump-cta";
+import { dumpText } from "@/lib/dumps";
 import { myOrganizationIds } from "@/lib/saas/orgs";
 import { ORG_TEXT } from "@/lib/saas/org-text";
 import { getCurrentUser } from "@/lib/auth";
@@ -144,6 +146,14 @@ export default async function MissionsPage() {
               {quizText(lang).play}
             </Link>
           ) : null
+        }
+      />
+      <DumpCta
+        lang={lang}
+        action={
+          <Link href="/lixo" className={DUMP_CTA_BUTTON}>
+            {dumpText(lang).cardAction}
+          </Link>
         }
       />
     </div>

@@ -13,6 +13,8 @@ import { EmptyState, PageHeader, btnPrimary } from "../components/ui";
 import { dt } from "../i18n";
 import { quizDay, quizText } from "@/lib/quiz";
 import { QuizCard, QUIZ_CARD_BUTTON } from "@/components/quiz/quiz-view";
+import { DumpCta, DUMP_CTA_BUTTON } from "@/components/dumps/dump-cta";
+import { dumpText } from "@/lib/dumps";
 
 function Grid({ items, myStatus }: { items: (Mission & { distanceKm?: number })[]; myStatus: Map<string, SubmissionStatus> }) {
   const lang = useLang();
@@ -78,6 +80,14 @@ export function MissionsScreen({ user }: { user: User }) {
                 {quizText(lang).play}
               </button>
             ) : null
+          }
+        />
+        <DumpCta
+          lang={lang}
+          action={
+            <button type="button" className={DUMP_CTA_BUTTON} onClick={() => navigate("/lixo")} data-testid="dump-open">
+              {dumpText(lang).cardAction}
+            </button>
           }
         />
       </div>

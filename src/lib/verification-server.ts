@@ -370,7 +370,13 @@ export async function sweepVerifications(options: { force?: boolean; limit?: num
       result.closed++;
     } else result.retried++;
   }
-  return result;
+  // Irregular dumping reports nobody confirmed in time.
+  const { expireDumpReports } = await import("@/lib/dumps-server");
+  const dumpsExpired = await expireDumpReports(now).catch((error) => {
+    console.error("[verify] dump expiry failed:", error);
+    return 0;
+  });
+  return { ...result, dumpsExpired };
 }
 
 /** SQL condition: the proof is still being handled automatically (not for the moderators yet). */

@@ -76,6 +76,28 @@ import { checkinCode, checkinCodeExpiresAt, checkinPhase, checkinQrPayload, chec
 import { formatKg } from "@/lib/impact";
 import { QUIZ_SIZE, checkQuizAnswer, quizDay, quizPoints, type QuizAnswerResponse } from "@/lib/quiz";
 import {
+  CLEANUP_POINTS,
+  DUMP_CONFIRM_DAILY_LIMIT,
+  DUMP_CONFIRM_POINTS,
+  DUMP_CONFIRM_RADIUS_M,
+  DUMP_DAILY_LIMIT,
+  DUMP_DEDUPE_M,
+  DUMP_MAX_ACCURACY_M,
+  DUMP_NEARBY_KM,
+  DUMP_REPORT_POINTS,
+  cleanupMission,
+  distanceMeters as dumpDistance,
+  dumpOutcome,
+  dumpText,
+  isDumpOverdue,
+  type DumpError,
+  type DumpItem,
+  type DumpRejection,
+  type DumpSize,
+  type DumpStatus,
+} from "@/lib/dumps";
+import { placeOf } from "./municipalities";
+import {
   addHours,
   EXTRA_PROOF_HOURS,
   extraProofVerdict,
@@ -345,7 +367,33 @@ export type State = {
   checkins?: DemoCheckin[];
   /** Daily quiz attempts (src/lib/quiz.ts). */
   quiz?: DemoQuizAttempt[];
+  /** Irregular dumping spots and their confirmations (src/lib/dumps.ts). */
+  dumps?: DemoDump[];
+  dumpConfirmations?: DemoDumpConfirmation[];
 };
+
+export type DemoDump = {
+  id: string;
+  userId: string;
+  photoUrl: string;
+  photoHash: string;
+  latitude: number;
+  longitude: number;
+  accuracyM: number | null;
+  city: string | null;
+  stateCode: string | null;
+  size: DumpSize;
+  note: string | null;
+  status: DumpStatus;
+  needsReview: boolean;
+  aiReason: string | null;
+  rejectionCode: DumpRejection | null;
+  missionId: string | null;
+  createdAt: string;
+  confirmedAt: string | null;
+  resolvedAt: string | null;
+};
+export type DemoDumpConfirmation = { id: string; reportId: string; userId: string; photoUrl: string; photoHash: string; latitude: number; longitude: number; createdAt: string };
 
 export type DemoQuizAttempt = { userId: string; day: string; answers: number[]; correct: number; points: number; finishedAt: string | null };
 
@@ -1117,6 +1165,10 @@ function sweepState(s: State): State {
   for (const sub of s.submissions.filter(partnerOverdue)) {
     next = patchSubmission(applyRejection(next, sub.id, null, "partner_missing", ""), sub.id, { verifyBy: null });
   }
+  // Irregular dumping reports nobody confirmed in time (same as expireDumpReports).
+  if ((next.dumps ?? []).some((d) => isDumpOverdue(d))) {
+    next = { ...next, dumps: (next.dumps ?? []).map((d) => (isDumpOverdue(d) ? { ...d, status: "expired", needsReview: false } : d)) };
+  }
   return next;
 }
 
@@ -1189,6 +1241,13 @@ export function revokeAudit(submissionId: string, code: RejectionCode | null, re
 
 /** reviewerId null = automatic verification. */
 function applyApproval(s: State, submissionId: string, reviewerId: string | null): State {
+  const sub = s.submissions.find((x) => x.id === submissionId);
+  const mission = sub && s.missions.find((m) => m.id === sub.missionId);
+  if (!sub || !mission || sub.status !== "pending") return s;
+  return resolveDumpState(applyApprovalInner(s, submissionId, reviewerId), mission.id);
+}
+
+function applyApprovalInner(s: State, submissionId: string, reviewerId: string | null): State {
   const sub = s.submissions.find((x) => x.id === submissionId);
   const mission = sub && s.missions.find((m) => m.id === sub.missionId);
   if (!sub || !mission || sub.status !== "pending") return s;
@@ -1967,6 +2026,11 @@ export function exportMyData(): string | null {
         const offer = (state.offers ?? []).find((o) => o.id === r.offerId);
         return { partner: offer?.partnerName ?? null, benefit: offer?.title ?? null, code: r.code, createdAt: r.createdAt, usedAt: r.usedAt };
       }),
+    dailyQuiz: (state.quiz ?? []).filter((q) => q.userId === user.id).map(({ day, correct, points, finishedAt }) => ({ day, correct, points, finishedAt })),
+    dumpReports: (state.dumps ?? [])
+      .filter((d) => d.userId === user.id)
+      .map(({ id, latitude, longitude, city, size, note, status, createdAt }) => ({ id, latitude, longitude, city, size, note, status, createdAt })),
+    dumpConfirmations: (state.dumpConfirmations ?? []).filter((c) => c.userId === user.id).map(({ reportId, latitude, longitude, createdAt }) => ({ reportId, latitude, longitude, createdAt })),
   };
   return JSON.stringify(payload, null, 2);
 }
@@ -2631,6 +2695,211 @@ export async function answerQuiz(day: string, index: number, choice: number): Pr
     users: finishing ? s.users.map((u) => (u.id === user.id ? { ...u, totalPoints: u.totalPoints + points } : u)) : s.users,
   }));
   return finishing ? { ...result, finished: { correct, points } } : result;
+}
+
+/* ------------------------------------------------------------------ */
+/* Irregular dumping spots (same rules as src/lib/actions/dumps.ts)    */
+/* ------------------------------------------------------------------ */
+
+export type DumpResult = { error?: DumpError; success?: boolean; missionId?: string | null };
+type DumpLocation = { latitude: number; longitude: number; accuracy: number };
+
+function dumpItemOf(s: State, d: DemoDump, viewerId: string, from?: { lat: number; lng: number }): DumpItem {
+  const confirmations = (s.dumpConfirmations ?? []).filter((c) => c.reportId === d.id);
+  return {
+    id: d.id,
+    photoUrl: d.photoUrl,
+    latitude: d.latitude,
+    longitude: d.longitude,
+    size: d.size,
+    status: d.status,
+    needsReview: d.needsReview,
+    createdAt: d.createdAt,
+    city: d.city,
+    note: d.note,
+    rejectionCode: d.rejectionCode,
+    missionId: d.missionId,
+    distanceM: from ? dumpDistance(from.lat, from.lng, d.latitude, d.longitude) : undefined,
+    mine: d.userId === viewerId,
+    confirmedByMe: confirmations.some((c) => c.userId === viewerId),
+    reporterName: userById(d.userId, s)?.name ?? "—",
+    confirmations: confirmations.length,
+    aiReason: d.aiReason,
+  };
+}
+
+export function myDumps(s: State, userId: string): DumpItem[] {
+  return (s.dumps ?? []).filter((d) => d.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((d) => dumpItemOf(s, d, userId));
+}
+
+export function nearbyDumps(s: State, userId: string, lat: number, lng: number): DumpItem[] {
+  return (s.dumps ?? [])
+    .filter((d) => d.status === "open" || d.status === "confirmed")
+    .map((d) => dumpItemOf(s, d, userId, { lat, lng }))
+    .filter((d) => (d.distanceM ?? 0) <= DUMP_NEARBY_KM * 1000)
+    .sort((a, b) => (a.distanceM ?? 0) - (b.distanceM ?? 0))
+    .slice(0, 30);
+}
+
+export function adminDumps(s: State): DumpItem[] {
+  const viewer = s.currentUserId ?? "";
+  return [...(s.dumps ?? [])]
+    .sort((a, b) => Number(b.needsReview) - Number(a.needsReview) || b.createdAt.localeCompare(a.createdAt))
+    .map((d) => dumpItemOf(s, d, viewer));
+}
+
+function photoUsed(s: State, hash: string) {
+  return (
+    (s.dumps ?? []).some((d) => d.photoHash === hash) ||
+    (s.dumpConfirmations ?? []).some((c) => c.photoHash === hash) ||
+    s.submissions.some((x) => x.photoHash === hash || x.photoBeforeHash === hash)
+  );
+}
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Confirmation: cleanup mission at the spot + points to the reporter and the confirmer. */
+function confirmDumpState(s: State, reportId: string, confirmerId: string | null): State {
+  const report = (s.dumps ?? []).find((d) => d.id === reportId);
+  if (!report || !(report.status === "open" || report.status === "pending")) return s;
+  const fields = cleanupMission(report);
+  const mission: Mission = {
+    id: uid(),
+    title: fields.title,
+    titleEn: fields.titleEn,
+    titleEs: fields.titleEs,
+    description: fields.description,
+    descriptionEn: fields.descriptionEn,
+    descriptionEs: fields.descriptionEs,
+    context: fields.context,
+    latitude: report.latitude,
+    longitude: report.longitude,
+    category: "cleanup",
+    pointsReward: CLEANUP_POINTS[report.size],
+    foneReward: "0.00",
+    isActive: true,
+    createdAt: now(),
+    scope: "local",
+    city: report.city,
+    stateCode: report.stateCode,
+    origin: "auto",
+    needsReview: false,
+    proofType: "before_after",
+  };
+  const points = new Map<string, number>([[report.userId, DUMP_REPORT_POINTS]]);
+  if (confirmerId) points.set(confirmerId, (points.get(confirmerId) ?? 0) + DUMP_CONFIRM_POINTS);
+  const next: State = {
+    ...s,
+    missions: [mission, ...s.missions],
+    dumps: (s.dumps ?? []).map((d) => (d.id === reportId ? { ...d, status: "confirmed", needsReview: false, confirmedAt: now(), missionId: mission.id } : d)),
+    users: s.users.map((u) => (points.has(u.id) ? { ...u, totalPoints: u.totalPoints + (points.get(u.id) ?? 0) } : u)),
+  };
+  return { ...next, notifications: notify(next, report.userId, (lang) => ({ title: dumpText(lang).notifyConfirmedTitle, message: dumpText(lang).notifyConfirmed })) };
+}
+
+function resolveDumpState(s: State, missionId: string): State {
+  const report = (s.dumps ?? []).find((d) => d.missionId === missionId && d.status === "confirmed");
+  if (!report) return s;
+  const next: State = {
+    ...s,
+    dumps: (s.dumps ?? []).map((d) => (d.id === report.id ? { ...d, status: "resolved", resolvedAt: now() } : d)),
+    missions: s.missions.map((m) => (m.id === missionId ? { ...m, isActive: false } : m)),
+  };
+  return { ...next, notifications: notify(next, report.userId, (lang) => ({ title: dumpText(lang).notifyResolvedTitle, message: dumpText(lang).notifyResolved })) };
+}
+
+function rejectDumpState(s: State, reportId: string, code: DumpRejection, aiReason: string | null): State {
+  const report = (s.dumps ?? []).find((d) => d.id === reportId);
+  if (!report || !(report.status === "open" || report.status === "pending")) return s;
+  const next: State = { ...s, dumps: (s.dumps ?? []).map((d) => (d.id === reportId ? { ...d, status: "rejected", rejectionCode: code, needsReview: false, aiReason: aiReason ?? d.aiReason } : d)) };
+  return {
+    ...next,
+    notifications: notify(next, report.userId, (lang) => ({ title: dumpText(lang).notifyRejectedTitle, message: dumpText(lang).notifyRejected(dumpText(lang).rejection[code]) })),
+  };
+}
+
+function dumpCitizen(): User | null {
+  const user = me();
+  return user && !user.isBanned && !isStaffExperience(user.role, moderatorsOn()) ? user : null;
+}
+
+export async function reportDump(input: { photoUrl: string; hash: string; sample: SampleKind | null; size: DumpSize; note: string; location: DumpLocation }): Promise<DumpResult> {
+  const user = dumpCitizen();
+  if (!user) return { error: "not_allowed" };
+  const { latitude, longitude, accuracy } = input.location;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return { error: "location_required" };
+  if (accuracy > DUMP_MAX_ACCURACY_M) return { error: "location_inaccurate" };
+  const mine = (state.dumps ?? []).filter((d) => d.userId === user.id && new Date(d.createdAt) >= startOfToday());
+  if (mine.length >= DUMP_DAILY_LIMIT) return { error: "daily_limit" };
+  const near = (state.dumps ?? []).some(
+    (d) => ["pending", "open", "confirmed"].includes(d.status) && dumpDistance(latitude, longitude, d.latitude, d.longitude) <= DUMP_DEDUPE_M,
+  );
+  if (near) return { error: "nearby_open" };
+  if (photoUsed(state, input.hash)) return { error: "duplicate_photo" };
+  const place = await placeOf(latitude, longitude).catch(() => null);
+  // Sample photos get the simulated AI answer; a camera photo is published and the confirmation checks it.
+  const analysis = simulateAnalysis(input.sample, "cleanup", user.language);
+  const outcome = dumpOutcome(analysis);
+  const report: DemoDump = {
+    id: uid(),
+    userId: user.id,
+    photoUrl: input.photoUrl,
+    photoHash: input.hash,
+    latitude,
+    longitude,
+    accuracyM: Math.round(accuracy),
+    city: place?.city ?? null,
+    stateCode: place?.stateCode ?? null,
+    size: input.size,
+    note: input.note.trim().slice(0, 280) || null,
+    status: outcome.status === "review" ? "pending" : "open",
+    needsReview: outcome.status === "review",
+    aiReason: analysis?.explanation ?? null,
+    rejectionCode: null,
+    missionId: null,
+    createdAt: now(),
+    confirmedAt: null,
+    resolvedAt: null,
+  };
+  const ok = commit((s) => {
+    const next = { ...s, dumps: [report, ...(s.dumps ?? [])] };
+    return outcome.status === "rejected" ? rejectDumpState(next, report.id, outcome.code, report.aiReason) : next;
+  });
+  return ok ? { success: true } : { error: "invalid_photo" };
+}
+
+export function confirmDump(input: { reportId: string; photoUrl: string; hash: string; location: DumpLocation }): DumpResult {
+  const user = dumpCitizen();
+  if (!user) return { error: "not_allowed" };
+  const report = (state.dumps ?? []).find((d) => d.id === input.reportId);
+  if (!report || report.status !== "open") return { error: "not_found" };
+  if (report.userId === user.id) return { error: "own_report" };
+  if ((state.dumpConfirmations ?? []).some((c) => c.reportId === report.id && c.userId === user.id)) return { error: "already_confirmed" };
+  const { latitude, longitude, accuracy } = input.location;
+  if (accuracy > DUMP_MAX_ACCURACY_M) return { error: "location_inaccurate" };
+  if (dumpDistance(latitude, longitude, report.latitude, report.longitude) > DUMP_CONFIRM_RADIUS_M) return { error: "too_far" };
+  const today = (state.dumpConfirmations ?? []).filter((c) => c.userId === user.id && new Date(c.createdAt) >= startOfToday());
+  if (today.length >= DUMP_CONFIRM_DAILY_LIMIT) return { error: "daily_limit" };
+  if (photoUsed(state, input.hash)) return { error: "duplicate_photo" };
+  const confirmation: DemoDumpConfirmation = { id: uid(), reportId: report.id, userId: user.id, photoUrl: input.photoUrl, photoHash: input.hash, latitude, longitude, createdAt: now() };
+  commit((s) => confirmDumpState({ ...s, dumpConfirmations: [...(s.dumpConfirmations ?? []), confirmation] }, report.id, user.id));
+  const missionId = (state.dumps ?? []).find((d) => d.id === report.id)?.missionId ?? null;
+  return missionId ? { success: true, missionId } : { error: "not_found" };
+}
+
+export async function adminDumpDecision(reportId: string, decision: "publish" | "confirm" | "reject"): Promise<{ error?: string }> {
+  if (!isAdmin(me())) return { error: "forbidden" };
+  const report = (state.dumps ?? []).find((d) => d.id === reportId);
+  if (!report || !(report.status === "open" || report.status === "pending")) return { error: "not_found" };
+  if (decision === "reject") commit((s) => rejectDumpState(s, reportId, "admin", null));
+  else if (decision === "confirm") commit((s) => confirmDumpState(s, reportId, null));
+  else if (report.status === "pending") commit((s) => ({ ...s, dumps: (s.dumps ?? []).map((d) => (d.id === reportId ? { ...d, status: "open", needsReview: false } : d)) }));
+  else return { error: "not_found" };
+  return {};
 }
 
 // Deadlines that passed while the app was closed.

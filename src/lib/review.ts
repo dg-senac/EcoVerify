@@ -7,6 +7,7 @@ import type { Lang } from "@/lib/i18n";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { holdReasonForNewReward } from "@/lib/payouts";
 import type { HoldReason } from "@/lib/payout-rules";
+import { resolveDumpForMission } from "@/lib/dumps-server";
 
 /**
  * Approving / rejecting a proof. Used by moderators (actions/moderation.ts) and by the automatic
@@ -120,6 +121,8 @@ export async function approveSubmission(submissionId: string, reviewer: Reviewer
       .update(users)
       .set({ totalPoints: sql`${users.totalPoints} + ${mission.pointsReward}` })
       .where(eq(users.id, submission.userId));
+    // Cleanup of a reported irregular dumping spot: the spot is now resolved and the mission closes.
+    await resolveDumpForMission(tx, mission.id);
     // Missions worth 0 FONE (points only) don't create an empty payment; nothing is queued while payments are off.
     let holdReason: HoldReason | null = null;
     const paysFone = PAYMENTS_ENABLED && Number(mission.foneReward) > 0;

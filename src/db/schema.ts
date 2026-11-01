@@ -736,6 +736,8 @@ export const dumpReports = pgTable("dump_reports", {
   size: dumpSizeEnum("size").notNull().default("medium"),
   note: varchar("note", { length: 280 }),
   status: dumpStatusEnum("status").notNull().default("pending"),
+  /** Pending and waiting for an admin (the AI suspected an internet copy or was unsure). */
+  needsReview: boolean("needs_review").notNull().default(false),
   /** Short AI explanation and rejection code (not_dump, screen_photo, unclear_photo, inappropriate, admin). */
   aiReason: text("ai_reason"),
   rejectionCode: varchar("rejection_code", { length: 30 }),

@@ -1,14 +1,15 @@
-import type { ChatMessage, DemoCheckin, DemoInvoice, DemoOffer, DemoPoint, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
+import type { ChatMessage, DemoCheckin, DemoDump, DemoDumpConfirmation, DemoInvoice, DemoOffer, DemoPoint, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { COUNT_ITEM_INFO, countRule, estimatedKg } from "@/lib/proof";
 import { DEFAULT_LANG, type Lang } from "@/lib/i18n";
 import { registerText } from "./seed-text";
+import { CLEANUP_POINTS, cleanupMission } from "@/lib/dumps";
 
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 16;
+export const STATE_VERSION = 17;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -770,6 +771,109 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     userId,
     createdAt: new Date(new Date(schoolDrive.startsAt!).getTime() + (i + 1) * 12 * 60000).toISOString(),
   }));
+  // Irregular dumping spots (src/lib/dumps.ts): one waiting for a confirmation (Maria can confirm it),
+  // one confirmed with its cleanup mission, one the AI sent to the admin and one already cleaned.
+  const dumpPhoto = (caption: Text3) => P("🗑️", "#a8a29e", "#57534e", caption);
+  const dumpBase = { photoHash: "", accuracyM: 9, stateCode: "PE", aiReason: null, rejectionCode: null, missionId: null, confirmedAt: null, resolvedAt: null, needsReview: false } as const;
+  const imbiribeiraNote = L({ pt: "Sacos de lixo e um sofá velho na calçada", en: "Rubbish bags and an old sofa on the pavement", es: "Bolsas de basura y un sofá viejo en la vereda" });
+  const imbiribeiraFields = cleanupMission({ size: "small", city: "Recife", note: imbiribeiraNote });
+  const dumpMission: Mission = {
+    id: "m-dump-imbiribeira",
+    title: imbiribeiraFields.title,
+    titleEn: imbiribeiraFields.titleEn,
+    titleEs: imbiribeiraFields.titleEs,
+    description: imbiribeiraFields.description,
+    descriptionEn: imbiribeiraFields.descriptionEn,
+    descriptionEs: imbiribeiraFields.descriptionEs,
+    context: imbiribeiraFields.context,
+    latitude: -8.1102,
+    longitude: -34.9061,
+    category: "cleanup",
+    pointsReward: CLEANUP_POINTS.small,
+    foneReward: "0.00",
+    isActive: true,
+    createdAt: ago(4 * DAY),
+    scope: "local",
+    city: "Recife",
+    stateCode: "PE",
+    origin: "auto",
+    needsReview: false,
+    proofType: "before_after",
+  };
+  missions.push(dumpMission);
+  const dumps: DemoDump[] = [
+    {
+      ...dumpBase,
+      id: "d-aurora",
+      userId: "u-bot-2",
+      photoUrl: dumpPhoto({ pt: "Entulho na beira do rio", en: "Rubble by the river", es: "Escombros junto al río" }),
+      photoHash: "seed-d-aurora",
+      latitude: -8.0596,
+      longitude: -34.8806,
+      city: "Recife",
+      size: "medium",
+      note: L({ pt: "Entulho e sacos na margem do Capibaribe, perto da ponte", en: "Rubble and bags on the Capibaribe bank, near the bridge", es: "Escombros y bolsas en la orilla del Capibaribe, cerca del puente" }),
+      status: "open",
+      createdAt: ago(2 * DAY),
+    },
+    {
+      ...dumpBase,
+      id: "d-imbiribeira",
+      userId: "u-bot-3",
+      photoUrl: dumpPhoto({ pt: "Sofá velho na calçada", en: "Old sofa on the pavement", es: "Sofá viejo en la vereda" }),
+      photoHash: "seed-d-imbiribeira",
+      latitude: -8.1102,
+      longitude: -34.9061,
+      city: "Recife",
+      size: "small",
+      note: imbiribeiraNote,
+      status: "confirmed",
+      missionId: dumpMission.id,
+      createdAt: ago(5 * DAY),
+      confirmedAt: ago(4 * DAY),
+    },
+    {
+      ...dumpBase,
+      id: "d-review",
+      userId: "u-bot-5",
+      photoUrl: dumpPhoto({ pt: "Lixo no terreno · © banco de imagens", en: "Rubbish in a lot · © stock photo", es: "Basura en un terreno · © banco de imágenes" }),
+      photoHash: "seed-d-review",
+      latitude: -8.0476,
+      longitude: -34.9013,
+      city: "Recife",
+      size: "large",
+      note: null,
+      status: "pending",
+      needsReview: true,
+      aiReason: L({
+        pt: "A foto tem marca d'água de banco de imagens: pode ter sido baixada da internet.",
+        en: "The photo has a stock-image watermark: it may have been downloaded from the internet.",
+        es: "La foto tiene marca de agua de banco de imágenes: puede haber sido descargada de internet.",
+      }),
+      createdAt: ago(1 * DAY),
+    },
+    {
+      ...dumpBase,
+      id: "d-maria-done",
+      userId: DEMO_IDS.citizen,
+      photoUrl: dumpPhoto({ pt: "Sacos de lixo na esquina", en: "Rubbish bags on the corner", es: "Bolsas de basura en la esquina" }),
+      photoHash: "seed-d-maria",
+      latitude: -8.0632,
+      longitude: -34.8712,
+      city: "Recife",
+      size: "small",
+      note: L({ pt: "Esquina da praça, perto da parada de ônibus", en: "Corner of the square, near the bus stop", es: "Esquina de la plaza, cerca de la parada de autobús" }),
+      status: "resolved",
+      createdAt: ago(9 * DAY),
+      confirmedAt: ago(8 * DAY),
+      resolvedAt: ago(6 * DAY),
+    },
+  ];
+  const dumpConfirmations: DemoDumpConfirmation[] = [
+    { id: "dc-imbiribeira", reportId: "d-imbiribeira", userId: "u-bot-1", photoUrl: dumps[1].photoUrl, photoHash: "seed-dc-imbiribeira", latitude: -8.1103, longitude: -34.9059, createdAt: ago(4 * DAY) },
+    { id: "dc-maria", reportId: "d-maria-done", userId: "u-bot-4", photoUrl: dumps[3].photoUrl, photoHash: "seed-dc-maria", latitude: -8.0631, longitude: -34.8713, createdAt: ago(8 * DAY) },
+  ];
+
   const beachPeople: [string, Text3][] = [
     ["u-bot-1", { pt: "Recolhi garrafas e tampinhas perto do Posto 7", en: "Collected bottles and caps near post 7", es: "Recogí botellas y tapitas cerca del puesto 7" }],
     ["u-bot-2", { pt: "Dois sacos de plástico e isopor", en: "Two bags of plastic and styrofoam", es: "Dos bolsas de plástico y poliestireno" }],
@@ -943,6 +1047,8 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     redemptions,
     collectionPoints: [coop],
     checkins,
+    dumps,
+    dumpConfirmations,
   };
 }
 

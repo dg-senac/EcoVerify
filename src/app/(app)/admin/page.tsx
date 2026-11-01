@@ -21,6 +21,9 @@ import { WalletsTab } from "@/components/admin/wallets-tab";
 import { AiTab } from "@/components/admin/ai-tab";
 import { DataTab, RecyclingTab } from "@/components/admin/impact-tabs";
 import { BenefitsTab, type AdminOffer } from "@/components/admin/benefits-tab";
+import { DumpsAdminPanel } from "@/components/dumps/dumps-admin-panel";
+import { adminDumpList } from "@/lib/dumps-server";
+import { adminDumpDecisionAction } from "@/lib/actions/dumps";
 import { localizeOffer } from "@/lib/benefits";
 import { createOfferAction, regenerateOfferTokenAction, toggleOfferAction } from "@/lib/actions/benefits";
 import { createCollectionPointAction, regenerateCollectionPointLinkAction, toggleCollectionPointAction } from "@/lib/actions/points";
@@ -243,6 +246,10 @@ export default async function AdminPage() {
     .from(rewardQueue)
     .where(and(sql`${rewardQueue.createdAt} >= ${monthStart(now).toISOString()}`, isNull(rewardQueue.holdReason)));
   const sponsorList = await sponsorBalances();
+  // Irregular dumping reports (only the AI's "review" cases need the admin).
+  const dumpItems = await adminDumpList(user.id);
+  const dumpsToReview = dumpItems.filter((d) => d.status === "pending" && d.needsReview).length;
+
   // Collection points that weigh deliveries (♻️ tab and the mission form).
   const pointList = await db
     .select({
@@ -553,6 +560,12 @@ export default async function AdminPage() {
                   <RecyclingTab lang={user.language} summary={recyclingSummary(impactRows)} exportBase="/api/admin/export" />
                 </div>
               ),
+            },
+            {
+              key: "dumps",
+              label: dumpsToReview ? `Lixo irregular (${dumpsToReview})` : "Lixo irregular",
+              icon: "🗑️",
+              content: <DumpsAdminPanel lang={user.language} items={dumpItems} onDecision={adminDumpDecisionAction} />,
             },
             {
               key: "data",
