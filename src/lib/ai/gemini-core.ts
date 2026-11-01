@@ -36,6 +36,11 @@ export type MissionForAi = {
   /** Count missions: what to count (Portuguese name, e.g. "Garrafas PET") and how many the person declared. */
   countItem?: string | null;
   declaredCount?: number | null;
+  /**
+   * Extra proof (src/lib/verification.ts): the code the person had to write on a paper. The request
+   * then carries the original photo first and the extra photo second.
+   */
+  challengeCode?: string | null;
 };
 
 const LANGUAGE_NAME: Record<Lang, string> = { pt: "português", en: "inglês", es: "espanhol" };
@@ -67,6 +72,7 @@ const RESPONSE_SCHEMA = {
     },
     same_scene: { type: "boolean", description: "Missões de antes e depois: as duas fotos mostram o mesmo lugar." },
     improvement_visible: { type: "boolean", description: "Missões de antes e depois: a foto DEPOIS mostra a melhora pedida (mais limpo, plantado...)." },
+    code_visible: { type: "boolean", description: "Prova extra: um papel com o código pedido, escrito à mão, aparece na foto." },
     verdict: { type: "string", enum: ["approve", "reject", "review"] },
     reason_code: { type: "string", enum: [...REJECTION_CODES, "none"] },
     confidence: { type: "integer", minimum: 0, maximum: 100, description: "Confiança no veredito, de 0 a 100." },
@@ -95,6 +101,16 @@ const RESPONSE_SCHEMA = {
 } as const;
 
 function proofInstructions(mission: MissionForAi): string[] {
+  if (mission.challengeCode) {
+    return [
+      "PROVA EXTRA. Você recebe DUAS fotos: a primeira é a comprovação original, a segunda é a prova extra.",
+      `- code_visible: na SEGUNDA foto aparece um papel com o código "${mission.challengeCode}" escrito à mão (só esse código vale).`,
+      "- same_scene: a segunda foto mostra o mesmo lugar ou os mesmos itens da primeira (outro ângulo é normal).",
+      "- Avalie os outros campos (foto real, tela, edição, impróprio...) pela SEGUNDA foto.",
+      "- Sem o código ou outro lugar: verdict \"review\". Responda item_count com -1 e improvement_visible com true.",
+      "",
+    ];
+  }
   if (mission.proofType === "count") {
     return [
       "TIPO DE PROVA: CONTAGEM.",

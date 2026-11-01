@@ -334,6 +334,24 @@ export const submissions = pgTable("submissions", {
   aiModel: varchar("ai_model", { length: 80 }),
   aiAnalyzedAt: timestamp("ai_analyzed_at", { withTimezone: true }),
   aiError: text("ai_error"),
+  // ---- Verification window, confidence score, extra proof, audit (src/lib/verification.ts) ----
+  /** GPS accuracy (m) of the reading sent with the proof (null = unknown). */
+  gpsAccuracy: integer("gps_accuracy"),
+  /** Confidence score 0-100 of the last automatic evaluation (factors in ai_checks.trustFactors). */
+  trustScore: integer("trust_score"),
+  /** End of the verification window: after it, the fallback decides (see planVerification). */
+  verifyBy: timestamp("verify_by", { withTimezone: true }),
+  /** Extra proof automatically asked: requested | sent | ok | failed | expired. */
+  extraProofStatus: varchar("extra_proof_status", { length: 12 }),
+  /** Code the person writes by hand on a paper shown in the extra photo. */
+  extraProofCode: varchar("extra_proof_code", { length: 8 }),
+  extraProofDueAt: timestamp("extra_proof_due_at", { withTimezone: true }),
+  extraPhotoUrl: text("extra_photo_url"),
+  extraPhotoHash: varchar("extra_photo_hash", { length: 64 }),
+  /** Sample audit of an automatic approval: pending | ok | revoked. */
+  auditStatus: varchar("audit_status", { length: 10 }),
+  auditedBy: uuid("audited_by").references(() => users.id, { onDelete: "set null" }),
+  auditedAt: timestamp("audited_at", { withTimezone: true }),
   // ---- Appeal of an automatic decision ---------------------------------------
   appealedAt: timestamp("appealed_at", { withTimezone: true }),
   appealMessage: text("appeal_message"),
@@ -344,6 +362,7 @@ export const submissions = pgTable("submissions", {
   index("submissions_user_submitted_idx").on(table.userId, table.submittedAt),
   index("submissions_status_idx").on(table.status),
   index("submissions_mission_idx").on(table.missionId),
+  index("submissions_audit_idx").on(table.auditStatus),
 ]);
 
 /**

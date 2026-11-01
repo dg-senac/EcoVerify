@@ -30,6 +30,7 @@ export const REJECTION_CODES = [
   "internet_copy",
   "count_mismatch",
   "before_after_mismatch",
+  "extra_proof_missing",
 ] as const;
 export type RejectionCode = (typeof REJECTION_CODES)[number];
 
@@ -98,6 +99,11 @@ export const REJECTION_REASONS: Record<RejectionCode, Record<Lang, string>> = {
     en: "The before and after photos do not look like the same place. Take both from the same spot, with the same framing.",
     es: "Las fotos de antes y después no parecen del mismo lugar. Tómalas desde el mismo punto, con el mismo encuadre.",
   },
+  extra_proof_missing: {
+    pt: "A prova extra pedida pela verificação automática não foi enviada no prazo. Você pode enviar uma nova comprovação para esta missão.",
+    en: "The extra proof asked by the automatic verification was not sent in time. You can send a new proof for this mission.",
+    es: "La prueba extra pedida por la verificación automática no se envió a tiempo. Puedes enviar una nueva comprobación para esta misión.",
+  },
   internet_copy: {
     pt: "A foto parece ter sido copiada da internet (marca d'água, banco de imagens ou foto de outro site). Envie uma foto tirada por você no local.",
     en: "The photo looks copied from the internet (watermark, stock photo or a picture from another site). Send a photo you took on site.",
@@ -137,6 +143,8 @@ export type AiAnalysis = {
   sameScene?: boolean | null;
   /** Before/after missions: the "after" photo shows the improvement (cleaner, planted...). */
   improvementVisible?: boolean | null;
+  /** Extra proof: the paper with the handwritten code is visible in the photo. */
+  codeVisible?: boolean | null;
   verdict: AiVerdict;
   reasonCode: RejectionCode | null;
   /** 0-100 */
@@ -147,6 +155,10 @@ export type AiAnalysis = {
 
 /** What is stored in submissions.ai_checks. */
 export type AiChecks = Partial<AiAnalysis> & {
+  /** Confidence score factors of the last evaluation (src/lib/verification.ts). */
+  trustFactors?: { key: string; points: number }[];
+  /** Analysis of the extra photo (with the handwritten code). */
+  extra?: Partial<AiAnalysis>;
   /** Near-duplicate found by the perceptual hash. */
   similarSubmissionId?: string;
   similarDistance?: number;
@@ -323,6 +335,7 @@ export function parseAiAnalysis(raw: unknown): AiAnalysis | null {
     itemCount,
     sameScene: bool("same_scene"),
     improvementVisible: bool("improvement_visible"),
+    codeVisible: bool("code_visible"),
   };
 }
 
