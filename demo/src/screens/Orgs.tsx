@@ -33,6 +33,8 @@ import {
   regenerateOrgInvite,
   reportDemoInvoice,
   toggleOrgMission,
+  checkinDisplay,
+  localizedTitle,
   useLang,
   useStore,
   type Category,
@@ -231,6 +233,7 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
   const missions = useStore((s) => s.missions.filter((m) => org && m.organizationId === org.id));
   const submissions = useStore((s) => s.submissions);
   const invoices = useStore((s) => (s.invoices ?? []).filter((i) => org && i.orgId === org.id));
+  const checkins = useStore((s) => s.checkins ?? []);
 
   if (!org || !role || !stats) return <EmptyState emoji="🏫" text={text.noOrgs} />;
   const manager = canManage(role);
@@ -397,6 +400,7 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
               pixAvailable
               contactUrl={null}
               onOpenReport={(id) => navigate(`/evento/${id}`)}
+              onCheckinCode={checkinDisplay}
               events={missions
                 .filter((m) => isEvent(m))
                 .sort((a, b) => (b.startsAt ?? "").localeCompare(a.startsAt ?? ""))
@@ -406,7 +410,7 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
                   const inv = invoices.find((i) => i.kind === "event" && i.missionId === m.id && i.status === "pending");
                   return {
                     id: m.id,
-                    title: m.title,
+                    title: localizedTitle(m, lang),
                     category: m.category,
                     startsAt: m.startsAt!,
                     endsAt: m.endsAt!,
@@ -415,6 +419,7 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
                     people: new Set(approved.map((x) => x.userId)).size,
                     actions: approved.length,
                     pending: subs.filter((x) => x.status === "pending").length,
+                    checkins: checkins.filter((c) => c.missionId === m.id).length,
                     invoice: inv
                       ? {
                           ...inv,
@@ -567,6 +572,7 @@ function MissionsTab({
   const [error, setError] = useState<string | null>(null);
   const [eventWindow, setEventWindow] = useState<EventWindowValue>({ isEvent: false, startsAt: null, endsAt: null });
   const [formKey, setFormKey] = useState(0);
+  const points = useStore((s) => (s.collectionPoints ?? []).filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name, city: p.city })));
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <form
@@ -617,7 +623,7 @@ function MissionsTab({
             <input type="number" min={5} max={200} value={form.points} onChange={(e) => setForm({ ...form, points: e.target.value })} className={input} name="points" />
           </label>
         </div>
-        <ProofTypeFields key={`${formKey}-${form.category}`} lang={lang} defaultType={defaultProofType(form.category)} />
+        <ProofTypeFields key={`${formKey}-${form.category}`} lang={lang} defaultType={defaultProofType(form.category)} points={points} />
         <EventFields key={formKey} lang={lang} onChange={setEventWindow} />
         <p className="text-xs text-slate-500">{text.pointsOnlyNote}</p>
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -764,6 +770,7 @@ export function EventReportScreen({ user, missionId }: { user: User; missionId: 
   const role = useStore((s) => (org ? orgRole(s, org.id, user.id) : null));
   const submissions = useStore((s) => s.submissions);
   const users = useStore((s) => s.users);
+  const checkins = useStore((s) => (s.checkins ?? []).filter((c) => c.missionId === missionId));
   if (!mission || !org || !isEvent(mission) || !(canManage(role) || user.role === "admin")) return <EmptyState emoji="🎪" text={text.certificateInvalid} />;
   if (!eventUnlocked(orgPlan(org), mission)) {
     return (
@@ -789,8 +796,15 @@ export function EventReportScreen({ user, missionId }: { user: User; missionId: 
           endsAt: mission.endsAt!,
           actions: approved.length,
           recycledKg: approved.reduce((sum, x) => sum + (x.weightKg ?? 0), 0),
-          participants: approved.map((x) => ({ submissionId: x.id, name: users.find((u) => u.id === x.userId)?.name ?? "—", points: mission.pointsReward, at: x.submittedAt })),
+          participants: approved.map((x) => ({
+            submissionId: x.id,
+            name: users.find((u) => u.id === x.userId)?.name ?? "—",
+            points: mission.pointsReward,
+            at: x.submittedAt,
+            checkedIn: checkins.some((c) => c.userId === x.userId),
+          })),
           photos: approved.map((x) => x.photo),
+          checkins: checkins.length,
         }}
         toolbar={
           <>

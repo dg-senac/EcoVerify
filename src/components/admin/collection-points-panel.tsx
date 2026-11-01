@@ -44,7 +44,7 @@ export function CollectionPointsPanel({ lang, points, pointBase, actions }: { la
       if (!result.error) setForm({ name: "", address: "", city: "" });
     });
   return (
-    <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm" data-testid="collection-points">
+    <section className="min-w-0 rounded-2xl border border-black/5 bg-white p-5 shadow-sm" data-testid="collection-points">
       <h2 className="flex items-center gap-2 font-bold text-slate-900">
         <Scale className="h-5 w-5 text-teal-600" /> {T("Pontos de coleta que pesam", "Collection points that weigh", "Puntos de recolección que pesan")}
       </h2>
@@ -90,7 +90,7 @@ function PointRow({ lang, point, pointBase, actions }: { lang: Lang; point: Admi
   const link = `${pointBase}${point.token}`;
   const button = "inline-flex items-center gap-1 rounded-lg px-2 py-1 font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50";
   return (
-    <li className="grid gap-2 py-3" data-testid="admin-point">
+    <li className="grid min-w-0 grid-cols-1 gap-2 py-3" data-testid="admin-point">
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-2xl">⚖️</span>
         <div className="min-w-0 flex-1">

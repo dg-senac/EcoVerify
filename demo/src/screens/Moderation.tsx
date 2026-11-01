@@ -3,7 +3,7 @@ import { Check, MapPin, Shield, X as XIcon, AlertTriangle, Navigation } from "lu
 import { categoryEmoji, t } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { dt, errorText } from "../i18n";
-import { approveSubmission, confirmAudit, localizedTitle, rejectSubmission, revokeAudit, useLang, useStore, type Submission, type User } from "../store";
+import { approveSubmission, confirmAudit, inDemoVerification, localizedTitle, rejectSubmission, revokeAudit, useLang, useStore, type Submission, type User } from "../store";
 import { distanceMeters, formatDistance } from "../media";
 import { Avatar, EmptyState, Modal, PageHeader, btnDanger, btnPrimary, btnSecondary, card, toast } from "../components/ui";
 import { PhotoViewer } from "../components/PhotoViewer";
@@ -42,10 +42,10 @@ export function ModerationScreen({ user }: { user: User }) {
 
   // Appeals first (a person must answer them), then possible internet copies, then oldest first.
   // The moderator is the last resort: proofs waiting for the extra photo are not shown yet.
-  const waitingExtra = submissions.filter((s) => s.status === "pending" && s.extraProofStatus === "requested").length;
+  const waitingExtra = submissions.filter((s) => inDemoVerification(s)).length;
   const audits = submissions.filter((s) => s.status === "approved" && s.auditStatus === "pending");
   const pending = submissions
-    .filter((s) => s.status === "pending" && s.extraProofStatus !== "requested")
+    .filter((s) => s.status === "pending" && !inDemoVerification(s))
     .sort(
       (a, b) =>
         Number(!!b.appealedAt) - Number(!!a.appealedAt) ||
@@ -110,9 +110,9 @@ export function ModerationScreen({ user }: { user: User }) {
           🔎 {waitingExtra}{" "}
           {tx(
             lang,
-            "comprovação(ões) em verificação automática (aguardando prova extra). Só chegam aqui se a dúvida continuar.",
-            "proof(s) under automatic verification (waiting for an extra proof). They only come here if the doubt remains.",
-            "comprobación(es) en verificación automática (esperando prueba extra). Solo llegan aquí si la duda continúa.",
+            "comprovação(ões) em verificação automática (aguardando prova extra ou pesagem no ponto de coleta). Só chegam aqui se a dúvida continuar.",
+            "proof(s) under automatic verification (waiting for an extra proof or the collection point's weighing). They only come here if the doubt remains.",
+            "comprobación(es) en verificación automática (esperando prueba extra o el pesaje en el punto de recolección). Solo llegan aquí si la duda continúa.",
           )}
         </p>
       )}

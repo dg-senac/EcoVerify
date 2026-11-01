@@ -71,6 +71,9 @@ import {
 import { parseWeightKg, type ImpactRow, type Material } from "@/lib/impact";
 import { checkCountInput, countCheck, countRule, estimatedKg, MAX_ITEM_COUNT, proofTypeOf, type CountItem, type ProofType, type WeightSource } from "@/lib/proof";
 import { MAX_AUTO_APPROVE_KG } from "@/lib/impact";
+import { deliveryError, newDeliveryCode, parseDeliveryInput, parseDeliveryQr, PARTNER_CONFIRM_HOURS, pointText, type DeliveryError } from "@/lib/partner";
+import { checkinCode, checkinCodeExpiresAt, checkinPhase, checkinQrPayload, checkinWindow, isValidCheckinCode, parseCheckinQr, type CheckinError } from "@/lib/saas/checkin";
+import { formatKg } from "@/lib/impact";
 import {
   addHours,
   EXTRA_PROOF_HOURS,
@@ -175,7 +178,26 @@ export type Mission = {
   endsAt?: string | null;
   eventPackage?: EventPackage | null;
   eventPaidAt?: string | null;
+  /** "partner" missions: the collection point that weighs the delivery. */
+  collectionPointId?: string | null;
+  /** Events: secret of the rotating check-in code (created when the organizer first shows the QR). */
+  checkinSecret?: string | null;
 };
+
+/** Cooperativa / ecoponto that weighs deliveries through a secret link (src/db/schema.ts collectionPoints). */
+export type DemoPoint = {
+  id: string;
+  name: string;
+  address: string | null;
+  city: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  token: string;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type DemoCheckin = { id: string; missionId: string; userId: string; createdAt: string };
 
 export type MissionRequest = { userId: string; ibge: number; city: string; uf: string; createdAt: string };
 
@@ -232,6 +254,10 @@ export type Submission = {
   auditStatus?: "pending" | "ok" | "revoked" | null;
   auditedBy?: string | null;
   auditedAt?: string | null;
+  /** "partner" missions: code shown at the collection point, then the point's confirmation. */
+  deliveryCode?: string | null;
+  partnerConfirmedAt?: string | null;
+  partnerPointId?: string | null;
 };
 
 export type Reward = {
@@ -313,6 +339,9 @@ export type State = {
   /** Local business benefits (src/lib/benefits.ts) and the codes people redeemed. */
   offers?: DemoOffer[];
   redemptions?: DemoRedemption[];
+  /** Collection points that weigh deliveries and event check-ins (src/lib/partner.ts, src/lib/saas/checkin.ts). */
+  collectionPoints?: DemoPoint[];
+  checkins?: DemoCheckin[];
 };
 
 export type DemoOffer = {
@@ -738,6 +767,7 @@ export function checkProof(input: NewSubmission): Result {
   if (report.length < 50 || report.length > 1000) return { error: "error_report_length" };
   const counted = checkCountInput(mission, input.itemCount);
   if (counted.error) return { error: `error_${counted.error}` };
+  if (proofTypeOf(mission) === "partner" && !(state.collectionPoints ?? []).some((p) => p.id === mission.collectionPointId && p.isActive)) return { error: "error_generic" };
   if (proofTypeOf(mission) === "before_after") {
     if (!input.photoBefore || !input.photoBeforeHash) return { error: "error_photo_before_required" };
     if (input.photoBeforeHash === input.photoHash) return { error: "error_before_after_same_photo" };
@@ -801,7 +831,15 @@ export function submitProof(input: NewSubmission): Result {
     location: { accuracy: input.accuracy, simulated: input.simulatedLocation, anywhere: mission.scope === "anywhere" },
     history: historyFor(state, user.id, ""),
     web: webVerdict(web),
+    partnerConfirmed: false,
+    checkedIn: hasCheckedIn(state, mission, user.id),
   });
+  const isPartner = proofType === "partner";
+  let deliveryCode: string | null = null;
+  if (isPartner) {
+    deliveryCode = newDeliveryCode();
+    while (state.submissions.some((x) => x.deliveryCode === deliveryCode)) deliveryCode = newDeliveryCode();
+  }
   const plan = planVerification({
     mode: DEFAULT_AI_SETTINGS.mode,
     decision,
@@ -811,6 +849,7 @@ export function submitProof(input: NewSubmission): Result {
     extraProofAsked: false,
     windowClosed: true,
     capExceeded: capExceeded(mission, counted.weightKg),
+    awaitingPartner: isPartner,
   });
   const submission: Submission = {
     id: uid(),
@@ -842,7 +881,8 @@ export function submitProof(input: NewSubmission): Result {
     aiSummary: analysis ? analysis.explanation : null,
     aiChecks: analysis ? { ...analysis, ...webChecks, trustFactors: trust.factors } : { trustFactors: trust.factors },
     trustScore: trust.score,
-    verifyBy: plan.action === "review" ? now() : addHours(new Date(), VERIFY_WINDOW_HOURS).toISOString(),
+    verifyBy: plan.action === "review" ? now() : addHours(new Date(), isPartner ? PARTNER_CONFIRM_HOURS : VERIFY_WINDOW_HOURS).toISOString(),
+    deliveryCode,
   };
   const ok = commit((s) => {
     const next: State = { ...s, submissions: [submission, ...s.submissions] };
@@ -882,8 +922,53 @@ function historyFor(s: State, userId: string, exceptId: string): TrustInput["his
   };
 }
 
-function capExceeded(mission: Mission, weightKg: number | null | undefined) {
-  return Number(mission.foneReward) > DEFAULT_AI_SETTINGS.maxAutoApproveFone || Number(weightKg ?? 0) > MAX_AUTO_APPROVE_KG;
+function capExceeded(mission: Mission, weightKg: number | null | undefined, weightSource?: WeightSource | null) {
+  // A scale weight from the collection point is not an estimate: the kg cap does not apply.
+  return Number(mission.foneReward) > DEFAULT_AI_SETTINGS.maxAutoApproveFone || (weightSource !== "partner" && Number(weightKg ?? 0) > MAX_AUTO_APPROVE_KG);
+}
+
+/** Presence confirmed with the organizer's QR (same as checkedInAt in verification-server.ts). */
+function hasCheckedIn(s: State, mission: Mission, userId: string): boolean {
+  return !!mission.startsAt && (s.checkins ?? []).some((c) => c.missionId === mission.id && c.userId === userId);
+}
+
+/** Same as planAfterPartner: the point weighed the delivery, decide with the stored AI result. */
+function planAfterPartner(s: State, submissionId: string): State {
+  const sub = s.submissions.find((x) => x.id === submissionId);
+  const mission = sub && s.missions.find((m) => m.id === sub.missionId);
+  if (!sub || !mission || sub.status !== "pending" || !sub.partnerConfirmedAt) return s;
+  const checks = sub.aiChecks ?? {};
+  const analysis = checks.verdict ? (checks as AiAnalysis) : null;
+  const reasonCode = sub.aiReasonCode ?? null;
+  const trust = trustScore({
+    analysis,
+    proofType: "partner",
+    declaredCount: null,
+    location: { accuracy: sub.accuracy, simulated: sub.simulatedLocation, anywhere: mission.scope === "anywhere" },
+    history: historyFor(s, sub.userId, sub.id),
+    partnerConfirmed: true,
+    checkedIn: hasCheckedIn(s, mission, sub.userId),
+  });
+  const plan = planVerification({
+    mode: DEFAULT_AI_SETTINGS.mode,
+    decision: { action: sub.aiVerdict === "approve" && !reasonCode ? "approve" : "review", verdict: sub.aiVerdict ?? "review", confidence: sub.aiConfidence ?? 0, reasonCode },
+    analyzed: !!analysis,
+    aiExpected: false,
+    score: trust.score,
+    extraProofAsked: !!sub.extraProofStatus,
+    windowClosed: true,
+    capExceeded: capExceeded(mission, sub.weightKg, sub.weightSource),
+    partnerConfirmed: true,
+  });
+  const next = patchSubmission(s, sub.id, { trustScore: trust.score, aiChecks: { ...checks, trustFactors: trust.factors }, verifyBy: plan.action === "review" ? now() : sub.verifyBy });
+  return applyPlan(next, plan, sub.id);
+}
+
+/** Pending proofs the automatic verification is still handling (hidden from moderation), like inAutomaticVerification. */
+export function inDemoVerification(x: Submission, at: Date = new Date()): boolean {
+  if (x.status !== "pending") return false;
+  if (x.extraProofStatus === "requested") return true;
+  return !!x.deliveryCode && !x.partnerConfirmedAt && !x.appealedAt && !!x.verifyBy && new Date(x.verifyBy) > at;
 }
 
 function applyPlan(s: State, plan: VerificationPlan, submissionId: string): State {
@@ -939,6 +1024,7 @@ function finishExtraProof(s: State, submissionId: string, extra: AiAnalysis | nu
     location: { accuracy: sub.accuracy, simulated: sub.simulatedLocation, anywhere: mission.scope === "anywhere" },
     history: historyFor(s, sub.userId, sub.id),
     extraProofOk: verdict === "ok",
+    checkedIn: hasCheckedIn(s, mission, sub.userId),
   });
   let plan: VerificationPlan;
   if (verdict === "failed") {
@@ -1013,17 +1099,24 @@ export function submitExtraProof(input: ExtraProofInput): Result {
 const extraProofOverdue = (x: Submission) =>
   x.status === "pending" && x.extraProofStatus === "requested" && !!x.extraProofDueAt && new Date(x.extraProofDueAt) < new Date();
 
+/** Deliveries the collection point never weighed (same as step 1b of sweepVerifications). */
+const partnerOverdue = (x: Submission) =>
+  x.status === "pending" && !!x.deliveryCode && !x.partnerConfirmedAt && !x.appealedAt && Date.now() - new Date(x.submittedAt).getTime() > PARTNER_CONFIRM_HOURS * 3_600_000;
+
 /** Extra proofs not sent in time are refused (same as sweepVerifications). */
 function sweepState(s: State): State {
   let next = s;
   for (const sub of s.submissions.filter(extraProofOverdue)) {
     next = patchSubmission(applyRejection(next, sub.id, null, "extra_proof_missing", ""), sub.id, { extraProofStatus: "expired", verifyBy: null });
   }
+  for (const sub of s.submissions.filter(partnerOverdue)) {
+    next = patchSubmission(applyRejection(next, sub.id, null, "partner_missing", ""), sub.id, { verifyBy: null });
+  }
   return next;
 }
 
 export function sweepDemoVerifications() {
-  if (state.submissions.some(extraProofOverdue)) commit(sweepState);
+  if (state.submissions.some((x) => extraProofOverdue(x) || partnerOverdue(x))) commit(sweepState);
 }
 
 export function confirmAudit(submissionId: string): Result {
@@ -1283,6 +1376,8 @@ export function createMission(input: NewMission): Result {
   if (!valid) return { error: "invalid_form" };
   const sponsor = input.sponsorId ? (state.sponsors ?? []).find((x) => x.id === input.sponsorId) : null;
   if (input.sponsorId && !sponsor) return { error: "invalid_form" };
+  // Collection point missions happen at an active point, with a mission location.
+  if (input.collectionPointId && (input.scope === "anywhere" || !(state.collectionPoints ?? []).some((p) => p.id === input.collectionPointId && p.isActive))) return { error: "invalid_form" };
   const mission: Mission = {
     ...input,
     sponsorId: sponsor?.id ?? null,
@@ -2068,7 +2163,7 @@ export function createOrgMission(
     scope: "local" | "anywhere";
     startsAt?: string | null;
     endsAt?: string | null;
-    proof?: { proofType: ProofType; countItem: CountItem | null; countTarget: number | null; error?: string };
+    proof?: { proofType: ProofType; countItem: CountItem | null; countTarget: number | null; collectionPointId?: string | null; error?: string };
   },
 ): OrgResult {
   const user = me();
@@ -2085,6 +2180,8 @@ export function createOrgMission(
     window = parsed;
   }
   if (input.proof?.error) return { error: "invalid" };
+  const point = input.proof?.collectionPointId ? (state.collectionPoints ?? []).find((p) => p.id === input.proof!.collectionPointId && p.isActive) : null;
+  if (input.proof?.collectionPointId && !point) return { error: "invalid" };
   const active = state.missions.filter((m) => m.organizationId === orgId && m.isActive && eventPhase(m) !== "closed").length;
   const limit = canActivateMission(org, active);
   if (limit) return { error: limit };
@@ -2098,9 +2195,11 @@ export function createOrgMission(
     countTarget: input.proof?.countTarget ?? null,
     pointsReward: input.points,
     foneReward: "0.00",
-    latitude: -8.0476,
-    longitude: -34.877,
-    scope: "anywhere",
+    // Collection point missions happen at the point.
+    latitude: point?.latitude ?? -8.0476,
+    longitude: point?.longitude ?? -34.877,
+    scope: point ? "local" : "anywhere",
+    collectionPointId: point?.id ?? null,
     city: org.city,
     isActive: true,
     createdAt: now(),
@@ -2350,6 +2449,148 @@ export function regenerateOfferToken(offerId: string): Result {
   if (!isAdmin(me())) return { error: "error_generic" };
   commit((s) => ({ ...s, offers: (s.offers ?? []).map((o) => (o.id === offerId ? { ...o, partnerToken: newPartnerToken() } : o)) }));
   return {};
+}
+
+/* ------------------------------------------------------------------ */
+/* Collection points (#/ponto/<token>) — same as src/lib/actions/points.ts */
+/* ------------------------------------------------------------------ */
+
+function findDelivery(token: string, raw: string) {
+  const point = (state.collectionPoints ?? []).find((p) => p.token === token);
+  if (!point || !point.isActive) return { error: "invalid" as const };
+  const code = parseDeliveryQr(raw);
+  if (!code) return { error: "invalid" as const };
+  const sub =
+    state.submissions.find((x) => x.deliveryCode === code && state.missions.some((m) => m.id === x.missionId && m.collectionPointId === point.id)) ?? null;
+  return { point, code, sub };
+}
+
+export function lookupDelivery(token: string, raw: string, lang: Lang): { error?: DeliveryError; firstName?: string; missionTitle?: string; code?: string } {
+  const found = findDelivery(token, raw);
+  if ("error" in found) return { error: found.error };
+  const error = deliveryError(found.sub);
+  if (error) return { error };
+  const mission = state.missions.find((m) => m.id === found.sub!.missionId);
+  return { firstName: firstName(userById(found.sub!.userId)?.name ?? ""), missionTitle: mission ? localizedTitle(mission, lang) : "", code: found.code };
+}
+
+export function confirmDelivery(token: string, raw: string, material: string, kg: string): { error?: DeliveryError; firstName?: string; kg?: number } {
+  const found = findDelivery(token, raw);
+  if ("error" in found) return { error: found.error };
+  const error = deliveryError(found.sub);
+  if (error) return { error };
+  const parsed = parseDeliveryInput(material, kg);
+  if ("error" in parsed) return { error: parsed.error };
+  const sub = found.sub!;
+  const mission = state.missions.find((m) => m.id === sub.missionId);
+  const owner = userById(sub.userId);
+  const ok = commit((s) => {
+    const next = patchSubmission(s, sub.id, { material: parsed.material, weightKg: parsed.kg, weightSource: "partner", partnerConfirmedAt: now(), partnerPointId: found.point.id });
+    const withNotice: State = {
+      ...next,
+      notifications: notify(next, sub.userId, (l) => ({
+        title: pointText(l).notifTitle,
+        message: pointText(l).notifMessage(found.point.name, formatKg(parsed.kg, l), mission ? localizedTitle(mission, l) : ""),
+      })),
+    };
+    return planAfterPartner(withNotice, sub.id);
+  });
+  if (!ok) return { error: "invalid" };
+  return { firstName: firstName(owner?.name ?? ""), kg: parsed.kg };
+}
+
+export function createCollectionPoint(input: { name: string; address: string; city: string }): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  const name = input.name.trim().slice(0, 80);
+  if (name.length < 3) return { error: "name" };
+  const point: DemoPoint = {
+    id: uid(),
+    name,
+    address: input.address.trim().slice(0, 160) || null,
+    city: input.city.trim().slice(0, 80) || null,
+    // New points sit in central Recife until the mission form sets the exact place.
+    latitude: -8.0578,
+    longitude: -34.8808,
+    token: newPartnerToken(),
+    isActive: true,
+    createdAt: now(),
+  };
+  commit((s) => ({ ...s, collectionPoints: [point, ...(s.collectionPoints ?? [])] }));
+  return {};
+}
+
+export function toggleCollectionPoint(pointId: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  commit((s) => ({ ...s, collectionPoints: (s.collectionPoints ?? []).map((p) => (p.id === pointId ? { ...p, isActive: !p.isActive } : p)) }));
+  return {};
+}
+
+export function regenerateCollectionPointToken(pointId: string): Result {
+  if (!isAdmin(me())) return { error: "error_generic" };
+  commit((s) => ({ ...s, collectionPoints: (s.collectionPoints ?? []).map((p) => (p.id === pointId ? { ...p, token: newPartnerToken() } : p)) }));
+  return {};
+}
+
+/** Numbers of a point: weighed deliveries, kg and deliveries still waiting. */
+export function pointStats(s: State, pointId: string) {
+  const weighed = s.submissions.filter((x) => x.partnerPointId === pointId && x.partnerConfirmedAt);
+  const missionIds = new Set(s.missions.filter((m) => m.collectionPointId === pointId).map((m) => m.id));
+  return {
+    confirmed: weighed.length,
+    totalKg: weighed.reduce((sum, x) => sum + Number(x.weightKg ?? 0), 0),
+    waiting: s.submissions.filter((x) => missionIds.has(x.missionId) && x.status === "pending" && !x.partnerConfirmedAt).length,
+    recent: [...weighed].sort((a, b) => b.partnerConfirmedAt!.localeCompare(a.partnerConfirmedAt!)).slice(0, 10),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Event check-in — same as src/lib/actions/checkin.ts                 */
+/* ------------------------------------------------------------------ */
+
+function randomSecret(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function checkIn(missionId: string, raw: string): Promise<{ error?: CheckinError; checkedInAt?: string }> {
+  const user = me();
+  if (!user) return { error: "not_member" };
+  const parsed = parseCheckinQr(raw);
+  if (!parsed) return { error: "invalid_code" };
+  if (parsed.missionId && parsed.missionId !== missionId) return { error: "wrong_event" };
+  const mission = state.missions.find((m) => m.id === missionId);
+  if (!mission || !mission.isActive || !mission.organizationId) return { error: "wrong_event" };
+  const phase = checkinPhase(mission);
+  if (phase === null) return { error: "wrong_event" };
+  if (phase !== "open") return { error: phase };
+  if (!orgRole(state, mission.organizationId, user.id)) return { error: "not_member" };
+  if (!mission.checkinSecret || !(await isValidCheckinCode(mission.checkinSecret, mission.id, parsed.code))) return { error: "invalid_code" };
+  const existing = (state.checkins ?? []).find((c) => c.missionId === missionId && c.userId === user.id);
+  if (existing) return { checkedInAt: existing.createdAt };
+  const checkin: DemoCheckin = { id: uid(), missionId, userId: user.id, createdAt: now() };
+  commit((s) => ({ ...s, checkins: [...(s.checkins ?? []), checkin] }));
+  return { checkedInAt: checkin.createdAt };
+}
+
+/** The organizer's screen: current code, QR payload and presences. Managers only. */
+export async function checkinDisplay(missionId: string): Promise<{ error?: string; code?: string; payload?: string; expiresAt?: string; present?: number }> {
+  const user = me();
+  const mission = state.missions.find((m) => m.id === missionId);
+  if (!user || !mission?.organizationId) return { error: "not_event" };
+  const role = orgRole(state, mission.organizationId, user.id);
+  if (!(role === "owner" || role === "manager")) return { error: "forbidden" };
+  if (checkinPhase(mission) === null) return { error: "not_event" };
+  let secret = mission.checkinSecret;
+  if (!secret) {
+    secret = randomSecret();
+    const created = secret;
+    commit((s) => ({ ...s, missions: s.missions.map((m) => (m.id === missionId && !m.checkinSecret ? { ...m, checkinSecret: created } : m)) }));
+    secret = state.missions.find((m) => m.id === missionId)?.checkinSecret ?? created;
+  }
+  const at = new Date();
+  const code = await checkinCode(secret, missionId, checkinWindow(at));
+  return { code, payload: checkinQrPayload(missionId, code), expiresAt: checkinCodeExpiresAt(at).toISOString(), present: (state.checkins ?? []).filter((c) => c.missionId === missionId).length };
 }
 
 // Deadlines that passed while the app was closed.

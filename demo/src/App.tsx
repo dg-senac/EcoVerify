@@ -23,6 +23,7 @@ import { SettingsScreen } from "./screens/Settings";
 import { LegalScreen } from "./screens/Legal";
 import { TransparencyScreen } from "./screens/Transparency";
 import { BenefitsScreen, PartnerScreen } from "./screens/Benefits";
+import { PointScreen } from "./screens/Point";
 import { CertificateScreen, EventCertificateScreen, EventReportScreen, OrgListScreen, OrgNewScreen, OrgScreen } from "./screens/Orgs";
 
 import { THEME_COLORS } from "@/lib/theme";
@@ -137,11 +138,15 @@ export function App() {
   }, [lang]);
   // Partner page: public (no login), like /parceiro/<token> on the web.
   const partner = matchRoute("/parceiro/:token", path);
+  // Collection point page: public too, like /ponto/<token>.
+  const point = matchRoute("/ponto/:token", path);
 
   return (
     <>
       {partner ? (
         <PartnerScreen key={partner.token} token={partner.token} />
+      ) : point ? (
+        <PointScreen key={point.token} token={point.token} />
       ) : path === "/termos" || path === "/privacidade" ? (
         <LegalScreen doc={path === "/termos" ? "terms" : "privacy"} />
       ) : path === "/transparencia" ? (
@@ -155,7 +160,7 @@ export function App() {
       )}
       <TourPanel />
       <Toaster />
-      {!partner && <AppSplash lang={lang} onboarding={!OPENED_WITH_TOUR} />}
+      {!partner && !point && <AppSplash lang={lang} onboarding={!OPENED_WITH_TOUR} />}
     </>
   );
 }

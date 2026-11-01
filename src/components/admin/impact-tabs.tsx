@@ -116,7 +116,7 @@ export function RecyclingTab({
   return (
     <div className="grid gap-6" data-testid="recycling-tab">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label={T("Material recolhido", "Material collected", "Material recogido")} value={formatKg(summary.totalKg, lang)} hint={T("declarado e verificado por foto", "declared and checked by photo", "declarado y verificado por foto")} />
+        <Stat label={T("Material recolhido", "Material collected", "Material recogido")} value={formatKg(summary.totalKg, lang)} hint={T("estimado pela contagem ou pesado no ponto", "estimated from the count or weighed at the point", "estimado por el conteo o pesado en el punto")} />
         <Stat label={T("Entregas aprovadas", "Approved deliveries", "Entregas aprobadas")} value={String(summary.deliveries)} />
         <Stat label={T("Pessoas que entregaram", "People who delivered", "Personas que entregaron")} value={String(summary.people)} />
         <Stat
@@ -130,7 +130,7 @@ export function RecyclingTab({
           <div>
             <h2 className="font-bold text-slate-900">🧾 {T("Coletas comprovadas", "Verified collections", "Recolecciones comprobadas")}</h2>
             <p className="mt-1 max-w-xl text-xs text-slate-500">
-              {T("Uma linha por entrega aprovada: data, cidade, ponto, material, kg e código da comprovação. Sem nomes. Serve de relatório para a cooperativa parceira e para a empresa que patrocina a campanha. O peso é uma estimativa (declarado pela pessoa e conferido pela foto), não uma pesagem certificada.", "One row per approved delivery: date, city, point, material, kg and proof code. No names. Works as a report for the partner cooperative and the company sponsoring the campaign. The weight is an estimate (declared by the person and checked by photo), not a certified weighing.", "Una fila por entrega aprobada: fecha, ciudad, punto, material, kg y código del comprobante. Sin nombres. Sirve de informe para la cooperativa aliada y la empresa que patrocina la campaña. El peso es una estimación (declarado por la persona y revisado por foto), no un pesaje certificado.")}
+              {T("Uma linha por entrega aprovada: data, cidade, ponto, material, kg e código da comprovação. Sem nomes. Serve de relatório para a cooperativa parceira e para a empresa que patrocina a campanha. O peso vem da balança do ponto de coleta parceiro ou é estimado pela contagem de itens; não é uma pesagem certificada.", "One row per approved delivery: date, city, point, material, kg and proof code. No names. Works as a report for the partner cooperative and the company sponsoring the campaign. The weight comes from the partner collection point's scale or is estimated from the item count; it is not a certified weighing.", "Una fila por entrega aprobada: fecha, ciudad, punto, material, kg y código del comprobante. Sin nombres. Sirve de informe para la cooperativa aliada y la empresa que patrocina la campaña. El peso viene de la balanza del punto de recolección socio o se estima por el conteo de artículos; no es un pesaje certificado.")}
             </p>
           </div>
           <CsvButton

@@ -1,4 +1,4 @@
-import type { ChatMessage, DemoInvoice, DemoOffer, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
+import type { ChatMessage, DemoCheckin, DemoInvoice, DemoOffer, DemoPoint, DemoRedemption, DemoOrg, DemoOrgMember, Mission, Notification, Reward, State, Submission, User } from "./store";
 import { placeholderPhoto } from "./media";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { COUNT_ITEM_INFO, countRule, estimatedKg } from "@/lib/proof";
@@ -8,7 +8,7 @@ import { registerText } from "./seed-text";
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 15;
+export const STATE_VERSION = 16;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -653,6 +653,123 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     { proofType: "count", countItem: "pet_bottle", countTarget: 15 },
   );
   missions.push(beachCleanup, parkCleanup, schoolDrive);
+
+  /*
+   * Collection point with a scale (src/lib/partner.ts): the cooperative weighs deliveries at
+   * #/ponto/<token>. One delivery is waiting for the counter (Pedro, code K7P-4QX) and one was weighed.
+   */
+  const coop: DemoPoint = {
+    id: "pt-reciclar",
+    name: "Ecoponto Reciclar Juntos",
+    address: "Rua da Aurora, 100 - Boa Vista",
+    city: "Recife",
+    latitude: -8.0578,
+    longitude: -34.8808,
+    token: "reciclarjuntospontorecif",
+    isActive: true,
+    createdAt: ago(30 * DAY),
+  };
+  const coopMission: Mission = {
+    id: "m-coop-entrega",
+    title: "Entregue recicláveis no ecoponto",
+    titleEn: "Drop off recyclables at the drop-off point",
+    titleEs: "Entrega reciclables en el ecopunto",
+    description: "Leve plástico, papel, metal ou vidro limpos ao Ecoponto Reciclar Juntos. A equipe pesa na balança e confirma pelo app.",
+    descriptionEn: "Take clean plastic, paper, metal or glass to the Reciclar Juntos drop-off point. The team weighs it on the scale and confirms in the app.",
+    descriptionEs: "Lleva plástico, papel, metal o vidrio limpios al Ecopunto Reciclar Juntos. El equipo lo pesa en la balanza y confirma en la app.",
+    ...C({ pt: "Tire uma foto do material na entrada do ecoponto e envie. Depois mostre o QR de Meus envios no balcão.", en: "Take a photo of the material at the drop-off entrance and send it. Then show the QR from My submissions at the counter.", es: "Toma una foto del material en la entrada del ecopunto y envíala. Después muestra el QR de Mis envíos en el mostrador." }),
+    ...I({ pt: "Cada quilo pesado no ecoponto vira renda para os catadores e um registro rastreável da coleta.", en: "Every kilo weighed at the drop-off point becomes income for waste pickers and a traceable record of the collection.", es: "Cada kilo pesado en el ecopunto se convierte en ingresos para los recicladores y un registro rastreable de la recolección." }),
+    proofType: "partner",
+    collectionPointId: coop.id,
+    latitude: coop.latitude!,
+    longitude: coop.longitude!,
+    scope: "local",
+    city: "Recife",
+    stateCode: "PE",
+    category: "recycling",
+    pointsReward: 25,
+    foneReward: "5.00",
+    isActive: true,
+    createdAt: ago(10 * DAY),
+  };
+  missions.push(coopMission);
+  const coopAnalysis = (visible: string) => ({
+    whatIsVisible: visible,
+    matchesMission: true,
+    isRealPhoto: true,
+    screenOrPrint: false,
+    aiGeneratedOrEdited: false,
+    inappropriate: false,
+    tooDarkOrBlurry: false,
+    reportConsistent: true,
+    identifiableFaces: false,
+    internetCopy: false,
+    internetSigns: "",
+    itemCount: null,
+    verdict: "approve" as const,
+    confidence: 88,
+    explanation: visible,
+  });
+  submissions.push(
+    sub({
+      id: "s-coop-pedro",
+      userId: "u-bot-3",
+      missionId: coopMission.id,
+      at: coopMission,
+      photo: P("♻️", "#5eead4", "#0f766e", { pt: "Sacolas de recicláveis no ecoponto", en: "Bags of recyclables at the drop-off", es: "Bolsas de reciclables en el ecopunto" }),
+      report: L({ pt: "Levei duas sacolas com garrafas PET e papelão limpos para o ecoponto da Rua da Aurora. Agora falta a pesagem no balcão.", en: "I took two bags of clean PET bottles and cardboard to the drop-off point on Rua da Aurora. Now it only needs the weighing at the counter.", es: "Llevé dos bolsas con botellas PET y cartón limpios al ecopunto de la Rua da Aurora. Ahora falta el pesaje en el mostrador." }),
+      status: "pending",
+      reviewedBy: null,
+      rejectionReason: null,
+      aiStatus: "done",
+      aiModel: "simulated",
+      aiVerdict: "approve",
+      aiConfidence: 88,
+      aiReasonCode: null,
+      aiSummary: L({ pt: "Sacolas com recicláveis na entrada de um ecoponto.", en: "Bags of recyclables at the entrance of a drop-off point.", es: "Bolsas con reciclables en la entrada de un ecopunto." }),
+      aiChecks: { ...coopAnalysis("Sacolas com recicláveis na entrada de um ecoponto."), trustFactors: [{ key: "ai_approve", points: 45 }, { key: "gps_precise", points: 20 }, { key: "partner_waiting", points: 0 }] },
+      trustScore: 65,
+      deliveryCode: "K7P4QX",
+      verifyBy: new Date(Date.now() + 46 * HOUR).toISOString(),
+      submittedAt: ago(2 * HOUR),
+      reviewedAt: null,
+    }),
+    sub({
+      id: "s-coop-ana",
+      userId: "u-bot-2",
+      missionId: coopMission.id,
+      at: coopMission,
+      photo: P("📦", "#99f6e4", "#0d9488", { pt: "Papelão dobrado", en: "Folded cardboard", es: "Cartón doblado" }),
+      report: L({ pt: "Juntei o papelão das caixas da mudança, dobrei tudo e levei ao ecoponto. A equipe pesou na hora.", en: "I gathered the cardboard from the moving boxes, folded it all and took it to the drop-off point. The team weighed it right away.", es: "Junté el cartón de las cajas de la mudanza, lo doblé todo y lo llevé al ecopunto. El equipo lo pesó en el momento." }),
+      status: "approved",
+      reviewedBy: null,
+      rejectionReason: null,
+      decidedBy: "ai",
+      aiStatus: "done",
+      aiModel: "simulated",
+      aiVerdict: "approve",
+      aiConfidence: 90,
+      aiReasonCode: null,
+      aiSummary: L({ pt: "Papelão dobrado em um ecoponto.", en: "Folded cardboard at a drop-off point.", es: "Cartón doblado en un ecopunto." }),
+      aiChecks: { ...coopAnalysis("Papelão dobrado em um ecoponto."), trustFactors: [{ key: "ai_approve", points: 45 }, { key: "gps_precise", points: 20 }, { key: "partner_weighed", points: 30 }] },
+      trustScore: 95,
+      material: "paper",
+      weightKg: 6.4,
+      weightSource: "partner",
+      deliveryCode: "M9R2TW",
+      partnerConfirmedAt: ago(3 * DAY - 40 * 60000),
+      partnerPointId: coop.id,
+      submittedAt: ago(3 * DAY),
+      reviewedAt: ago(3 * DAY - 39 * 60000),
+    }),
+  );
+  // People who already checked in at the school drive happening now (Juliana shows the QR in Events).
+  const checkins: DemoCheckin[] = ["u-bot-2", "u-bot-3"].map((userId, i) => ({
+    id: `ck-feira-${i + 1}`,
+    missionId: schoolDrive.id,
+    userId,
+    createdAt: new Date(new Date(schoolDrive.startsAt!).getTime() + (i + 1) * 12 * 60000).toISOString(),
+  }));
   const beachPeople: [string, Text3][] = [
     ["u-bot-1", { pt: "Recolhi garrafas e tampinhas perto do Posto 7", en: "Collected bottles and caps near post 7", es: "Recogí botellas y tapitas cerca del puesto 7" }],
     ["u-bot-2", { pt: "Dois sacos de plástico e isopor", en: "Two bags of plastic and styrofoam", es: "Dos bolsas de plástico y poliestireno" }],
@@ -824,6 +941,8 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
     moderatorsEnabled: true,
     offers,
     redemptions,
+    collectionPoints: [coop],
+    checkins,
   };
 }
 

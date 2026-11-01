@@ -28,7 +28,7 @@ export function DeliveryBox({
   if (confirmedKg != null) {
     return (
       <p className="mt-2 rounded-lg bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-900" data-testid="delivery-confirmed">
-        ⚖️ {text.confirmedNotice(formatKg(confirmedKg, lang))} <span className="font-normal text-teal-700">({pointName})</span>
+        {text.confirmedNotice(formatKg(confirmedKg, lang))} <span className="font-normal text-teal-700">({pointName})</span>
       </p>
     );
   }

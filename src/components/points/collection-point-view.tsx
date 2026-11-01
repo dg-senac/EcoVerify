@@ -75,7 +75,7 @@ export function CollectionPointView({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-teal-50 to-slate-100 px-4 py-8" data-testid="point-page">
-      <div className="mx-auto grid max-w-md gap-5">
+      <div className="mx-auto grid max-w-md grid-cols-1 gap-5">
         <div className="flex justify-center">
           <LogoHorizontal height={32} />
         </div>
@@ -93,7 +93,7 @@ export function CollectionPointView({
             <p className="mt-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{text.inactive}</p>
           ) : !found ? (
             <form
-              className="mt-5 grid gap-3"
+              className="mt-5 grid grid-cols-1 gap-3"
               onSubmit={(e) => {
                 e.preventDefault();
                 lookup(code);
@@ -110,7 +110,7 @@ export function CollectionPointView({
                   autoCapitalize="characters"
                   autoComplete="off"
                   maxLength={7}
-                  className="rounded-xl border border-slate-200 px-4 py-3 text-center font-mono text-2xl font-bold tracking-[0.2em] text-slate-900 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  className="w-full min-w-0 rounded-xl border border-slate-200 px-4 py-3 text-center font-mono text-2xl font-bold tracking-[0.2em] text-slate-900 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
                   data-testid="point-code"
                 />
               </label>
@@ -124,7 +124,7 @@ export function CollectionPointView({
               </button>
             </form>
           ) : (
-            <div className="mt-5 grid gap-3" data-testid="point-delivery">
+            <div className="mt-5 grid grid-cols-1 gap-3" data-testid="point-delivery">
               <div className="rounded-xl bg-teal-50 px-4 py-3 text-sm text-teal-950">
                 <p>
                   <b>{text.person}:</b> {found.firstName}
@@ -134,7 +134,7 @@ export function CollectionPointView({
                 </p>
                 <p className="font-mono text-xs text-teal-700">{formatDeliveryCode(found.code)}</p>
               </div>
-              <fieldset className="grid gap-1">
+              <fieldset className="grid min-w-0 gap-1">
                 <legend className="mb-1 text-sm font-semibold text-slate-700">{text.material}</legend>
                 <div className="grid grid-cols-2 gap-2">
                   {MATERIALS.map((m) => (
@@ -158,7 +158,7 @@ export function CollectionPointView({
                   onChange={(e) => setKg(e.target.value.replace(/[^\d.,]/g, ""))}
                   inputMode="decimal"
                   placeholder="0,0"
-                  className="rounded-xl border border-slate-200 px-4 py-3 text-center text-2xl font-bold text-slate-900 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  className="w-full min-w-0 rounded-xl border border-slate-200 px-4 py-3 text-center text-2xl font-bold text-slate-900 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
                   data-testid="point-kg"
                 />
               </label>

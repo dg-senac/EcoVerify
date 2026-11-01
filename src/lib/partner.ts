@@ -64,7 +64,7 @@ export type DeliveryError = "invalid" | "not_found" | "already_confirmed" | "exp
 
 /** Checks a delivery before the point confirms it. */
 export function deliveryError(
-  row: { status: string; partnerConfirmedAt: Date | string | null; submittedAt: Date | string } | null,
+  row: { status: string; partnerConfirmedAt?: Date | string | null; submittedAt: Date | string } | null,
   now: Date = new Date(),
 ): DeliveryError | null {
   if (!row) return "not_found";
@@ -130,7 +130,7 @@ export function pointText(lang: Lang) {
         `Lleva el material a ${point}. El equipo lee este QR (o escribe el código), lo pesa y confirma. Recibes los puntos con el peso verificado.`,
       ),
     boxDeadline: T(`A entrega precisa ser conferida em até ${PARTNER_CONFIRM_HOURS} horas.`, `The delivery must be checked within ${PARTNER_CONFIRM_HOURS} hours.`, `La entrega debe verificarse en hasta ${PARTNER_CONFIRM_HOURS} horas.`),
-    confirmedNotice: (kg: string) => T(`✓ Entrega conferida no ponto: ${kg}.`, `✓ Delivery checked at the point: ${kg}.`, `✓ Entrega verificada en el punto: ${kg}.`),
+    confirmedNotice: (kg: string) => T(`⚖️ Entrega conferida no ponto: ${kg}.`, `⚖️ Delivery checked at the point: ${kg}.`, `⚖️ Entrega verificada en el punto: ${kg}.`),
     notifTitle: T("⚖️ Entrega conferida", "⚖️ Delivery checked", "⚖️ Entrega verificada"),
     notifMessage: (point: string, kg: string, mission: string) =>
       T(

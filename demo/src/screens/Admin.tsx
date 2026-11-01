@@ -38,10 +38,15 @@ import {
   userPayout,
   useLang,
   useStore,
+  createCollectionPoint,
+  toggleCollectionPoint,
+  regenerateCollectionPointToken,
+  pointStats,
   type Category,
   type Mission,
   type User,
 } from "../store";
+import { CollectionPointsPanel, type AdminPoint } from "@/components/admin/collection-points-panel";
 import { placeOf } from "../municipalities";
 import { getCurrentPosition } from "../media";
 import { Avatar, Modal, PageHeader, btnPrimary, btnSecondary, card, input, label, toast } from "../components/ui";
@@ -107,12 +112,28 @@ function DemoBenefitsTab() {
 function DemoRecyclingTab() {
   const lang = useLang();
   const all = useStore((s) => impactRows(s));
+  const points = useStore<AdminPoint[]>((s) =>
+    (s.collectionPoints ?? [])
+      .map((p) => {
+        const stats = pointStats(s, p.id);
+        return { id: p.id, name: p.name, address: p.address, city: p.city, token: p.token, isActive: p.isActive, confirmed: stats.confirmed, totalKg: stats.totalKg, waiting: stats.waiting };
+      })
+      .sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.name.localeCompare(b.name)),
+  );
   return (
-    <RecyclingTab
-      lang={lang}
-      summary={recyclingSummary(all)}
-      rows={all}
-    />
+    <div className="grid min-w-0 grid-cols-1 gap-6">
+      <CollectionPointsPanel
+        lang={lang}
+        points={points}
+        pointBase={`${window.location.origin}${window.location.pathname}#/ponto/`}
+        actions={{
+          create: async (input) => createCollectionPoint(input),
+          toggle: async (id) => toggleCollectionPoint(id),
+          regenerate: async (id) => regenerateCollectionPointToken(id),
+        }}
+      />
+      <RecyclingTab lang={lang} summary={recyclingSummary(all)} rows={all} />
+    </div>
   );
 }
 
@@ -333,6 +354,7 @@ function MissionsTab() {
   const missions = useStore((s) => s.missions);
   const requests = useStore((s) => s.missionRequests ?? []);
   const sponsors = useStore((s) => s.sponsors ?? []);
+  const points = useStore((s) => (s.collectionPoints ?? []).filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name, city: p.city })));
   const [open, setOpen] = useState(false);
   const [anywhere, setAnywhere] = useState(false);
   const toReview = missions.filter((m) => m.needsReview && m.isActive);
@@ -372,6 +394,7 @@ function MissionsTab() {
       proofType: proof.proofType,
       countItem: proof.countItem,
       countTarget: proof.countTarget,
+      collectionPointId: proof.collectionPointId,
     });
     if (result.error) return setError(errorText(lang, result.error));
     toast(dt(lang, "mission_created"));
@@ -481,7 +504,7 @@ function MissionsTab() {
                 <input className={input} inputMode="decimal" value={form.longitude} onChange={set("longitude")} required />
               </div>
             </div>
-            <ProofTypeFields lang={lang} defaultType={defaultProofType(form.category)} key={form.category} />
+            <ProofTypeFields lang={lang} defaultType={defaultProofType(form.category)} key={form.category} points={points} />
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={anywhere} onChange={(e) => setAnywhere(e.target.checked)} className="accent-emerald-600" />
               🌎 {dt(lang, "field_anywhere")}

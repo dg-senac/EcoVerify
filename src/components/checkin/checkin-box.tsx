@@ -51,7 +51,7 @@ export function CheckinBox({
       <p className="font-bold">📍 {text.title}</p>
       <p className="mt-1 text-xs leading-relaxed">{phase === "early" ? text.early : text.hint}</p>
       {phase === "open" && (
-        <div className="mt-3 grid gap-2 sm:grid-cols-[auto_1fr_auto] sm:items-start">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[auto_1fr_auto] sm:items-start">
           <QrScanButton label={text.scan} failedText={text.scanFailed} onResult={send} />
           <input
             value={code}
@@ -59,7 +59,7 @@ export function CheckinBox({
             inputMode="numeric"
             placeholder={text.codeLabel}
             aria-label={text.codeLabel}
-            className="rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-center font-mono text-lg font-bold tracking-[0.3em] outline-none focus:border-violet-400"
+            className="w-full min-w-0 rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-center font-mono text-lg font-bold tracking-[0.3em] outline-none focus:border-violet-400"
             data-testid="checkin-code-input"
           />
           <button

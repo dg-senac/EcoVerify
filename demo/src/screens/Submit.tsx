@@ -4,7 +4,9 @@ import { categoryEmoji, inLang, t, tx } from "@/lib/i18n";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { goBack, Link, navigate } from "../router";
 import { dt, errorText } from "../i18n";
-import { checkProof, localizedDescription, localizedTitle, submitProof, useLang, useStore, type NewSubmission } from "../store";
+import { checkIn, checkProof, localizedDescription, localizedTitle, submitProof, useCurrentUser, useLang, useStore, type NewSubmission } from "../store";
+import { checkinPhase } from "@/lib/saas/checkin";
+import { CheckinBox } from "@/components/checkin/checkin-box";
 import { analyzeWithMyKey, byokErrorText, useGeminiKey } from "../byok";
 import { AiUnavailableError } from "@/lib/ai/gemini-core";
 import {
@@ -45,6 +47,8 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [itemCount, setItemCount] = useState("");
   const myKey = useGeminiKey();
+  const me = useCurrentUser();
+  const myCheckin = useStore((s) => (s.checkins ?? []).find((c) => c.missionId === missionId && c.userId === s.currentUserId)?.createdAt ?? null);
 
   if (!mission) return <EmptyState emoji="🔎" text={t(lang, "missions_empty")} />;
   const eventError = eventSubmissionError(mission);
@@ -183,7 +187,11 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
 
     const result = submitProof(proof);
     if (result.error) return setError(errorText(lang, result.error));
-    toast(t(lang, "submission_success"));
+    toast(
+      proofType === "partner"
+        ? tx(lang, "Enviado! Agora mostre o QR de Meus envios no ponto de coleta.", "Sent! Now show the QR in My submissions at the collection point.", "¡Enviado! Ahora muestra el QR de Mis envíos en el punto de recolección.")
+        : t(lang, "submission_success"),
+    );
     navigate("/submissions", { replace: true });
   };
 
@@ -222,6 +230,12 @@ export function SubmitScreen({ missionId }: { missionId: string }) {
           )}
         </div>
       </div>
+
+      {mission.organizationId && me && checkinPhase(mission) && (
+        <div className="mt-4">
+          <CheckinBox lang={lang} phase={checkinPhase(mission)!} checkedInAt={myCheckin} onCheckIn={(raw) => checkIn(mission.id, raw)} />
+        </div>
+      )}
 
       <div className={`${card} mt-4 grid gap-5 p-5 animate-slide-up`}>
         <div className="flex gap-3 rounded-2xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-900" data-testid="proof-type">

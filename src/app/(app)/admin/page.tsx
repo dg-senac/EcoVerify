@@ -543,7 +543,7 @@ export default async function AdminPage() {
               label: "Reciclagem",
               icon: "♻️",
               content: (
-                <div className="grid gap-6">
+                <div className="grid min-w-0 grid-cols-1 gap-6">
                   <CollectionPointsPanel
                     lang={user.language}
                     points={pointList.map((pt) => ({ ...pt, totalKg: Number(pt.totalKg) }))}

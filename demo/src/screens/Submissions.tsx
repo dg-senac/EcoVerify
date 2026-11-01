@@ -15,6 +15,7 @@ import { COUNT_ITEM_INFO, countItemName, isCountItem, weightSourceLabel } from "
 import { pendingStage } from "@/lib/verification";
 import { ExtraProofBox } from "@/components/submissions/extra-proof-box";
 import { ExtraProofUploader } from "../components/ExtraProofUploader";
+import { DeliveryBox } from "@/components/submissions/delivery-box";
 
 export function SubmissionsScreen({ user }: { user: User }) {
   const lang = useLang();
@@ -22,6 +23,7 @@ export function SubmissionsScreen({ user }: { user: User }) {
   const submissions = useStore((s) => s.submissions);
   const missions = useStore((s) => s.missions);
   const rewards = useStore((s) => s.rewards);
+  const points = useStore((s) => s.collectionPoints ?? []);
   const mine = submissions.filter((s) => s.userId === user.id).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
   // A rejected submission can be resent if there's no newer one for the same mission.
   const hasOpen = (missionId: string) => mine.some((s) => s.missionId === missionId && s.status !== "rejected");
@@ -78,7 +80,20 @@ export function SubmissionsScreen({ user }: { user: User }) {
                       )}
                     </p>
                   )}
-                  {sub.status === "pending" && mission && (
+                  {(() => {
+                    const point = sub.deliveryCode && mission ? points.find((p) => p.id === mission.collectionPointId) : null;
+                    return point && (sub.partnerConfirmedAt || sub.status === "pending") ? (
+                      <DeliveryBox
+                        lang={lang}
+                        code={sub.deliveryCode!}
+                        pointName={point.name}
+                        pointAddress={[point.address, point.city].filter(Boolean).join(" · ") || null}
+                        confirmedKg={sub.partnerConfirmedAt ? Number(sub.weightKg ?? 0) : null}
+                        dueAt={sub.verifyBy}
+                      />
+                    ) : null;
+                  })()}
+                  {sub.status === "pending" && mission && !(sub.deliveryCode && !sub.partnerConfirmedAt) && (
                     <ExtraProofBox lang={lang} stage={pendingStage(sub)} code={sub.extraProofCode} dueAt={sub.extraProofDueAt}>
                       <ExtraProofUploader lang={lang} sub={sub} mission={mission} />
                     </ExtraProofBox>
