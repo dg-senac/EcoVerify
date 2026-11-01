@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, ne } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { citizenOnly } from "@/lib/role-guard";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { t } from "@/lib/i18n";
-import { RANKING_LIMIT } from "@/lib/seasons";
+import { RANKING_LIMIT, rankingTab } from "@/lib/seasons";
 import { loadSeasonBoard } from "@/lib/seasons-server";
-import { SeasonBoard, rankingTab } from "@/components/ranking/season-board";
+import { SeasonBoard } from "@/components/ranking/season-board";
 import { Trophy } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
@@ -25,8 +25,8 @@ export default async function RankingPage({ searchParams }: { searchParams: Prom
     db
       .select({ id: users.id, name: users.name, points: users.totalPoints })
       .from(users)
-      // Staff never play: only citizens in good standing.
-      .where(and(eq(users.role, "citizen"), eq(users.isBanned, false), isNull(users.deletedAt), gt(users.totalPoints, 0)))
+      // The admin never plays: citizens and moderators in good standing.
+      .where(and(ne(users.role, "admin"), eq(users.isBanned, false), isNull(users.deletedAt), gt(users.totalPoints, 0)))
       .orderBy(desc(users.totalPoints), users.createdAt)
       .limit(RANKING_LIMIT),
   ]);

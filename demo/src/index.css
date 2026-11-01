@@ -39,6 +39,7 @@
 @source "../../src/components/impact";
 @source "../../src/components/map";
 @source "../../src/components/ranking";
+@source "../../src/components/wallet/declared-wallet.tsx";
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Ubuntu, sans-serif;

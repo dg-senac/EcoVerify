@@ -623,8 +623,8 @@ function ModeratorsSwitch() {
         <span className="font-bold text-slate-900">{tx(lang, "Moderadores podem revisar comprovações", "Moderators can review proofs", "Los moderadores pueden revisar pruebas")}</span>
         <span className="mt-0.5 block text-xs text-slate-500">
           {enabled
-            ? tx(lang, "Ligado: quem tem o papel Moderador revisa comprovações e dá cartão amarelo. Vermelho, suspensão e banimento são só do admin.", "On: people with the Moderator role review proofs and give yellow cards. Red cards, suspensions and bans are admin-only.", "Activado: quien tiene el rol Moderador revisa pruebas y da tarjeta amarilla. Roja, suspensión y bloqueo son solo del admin.")
-            : tx(lang, "Desligado: só administradores veem a Moderação.", "Off: only admins see Moderation.", "Desactivado: solo los administradores ven la Moderación.")}
+            ? tx(lang, "Ligado: quem você torna Moderador (sua equipe) usa o app como cidadão e também revisa comprovações (nunca as próprias) e dá cartão amarelo. Vermelho, suspensão e banimento são só do admin.", "On: people you make Moderator (your team) use the app as citizens and also review proofs (never their own) and give yellow cards. Red cards, suspensions and bans are admin-only.", "Activado: quien conviertes en Moderador (tu equipo) usa la app como ciudadano y además revisa pruebas (nunca las propias) y da tarjeta amarilla. Roja, suspensión y bloqueo son solo del admin.")
+            : tx(lang, "Desligado: só o admin vê a Moderação; moderadores usam o app como cidadãos.", "Off: only the admin sees Moderation; moderators use the app as citizens.", "Desactivado: solo el admin ve la Moderación; los moderadores usan la app como ciudadanos.")}
         </span>
       </span>
     </label>

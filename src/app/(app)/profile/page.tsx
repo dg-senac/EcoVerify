@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { missions, rewardQueue, submissions, userCards } from "@/db/schema";
 import { badgesFor, personalImpact, weeklyStreak } from "@/lib/achievements";
 import { BadgesGrid, ImpactCard, StreakCard } from "@/components/profile/achievements";
-import { isStaffExperience } from "@/lib/nav";
+import { canReview, isStaffExperience } from "@/lib/nav";
 import { moderatorsEnabled } from "@/lib/staff-config";
 import { StaffWork, type StaffWorkStats } from "@/components/profile/staff-work";
 import { getCurrentUser } from "@/lib/auth";
@@ -14,6 +14,7 @@ import { PAYMENTS_ENABLED } from "@/lib/features";
 import { getPayoutSettings } from "@/lib/payouts";
 import { splitOpenRewards } from "@/lib/payout-rules";
 import { WalletPanel } from "@/components/wallet/wallet-panel";
+import { ProfileDeclaredWallet } from "@/components/wallet/profile-declared-wallet";
 import { getFoneConfig } from "@/lib/fone-config";
 import { centsToFone, explorerTxUrl, shortHex, verifiedWallet, walletRequestState } from "@/lib/fone";
 import { logoutAction } from "@/lib/actions/auth";
@@ -29,7 +30,8 @@ export default async function ProfilePage() {
   // Staff get their own profile: review work and permissions instead of points, level and cards.
   const staff = isStaffExperience(user.role, moderatorsEnabled());
   let staffStats: StaffWorkStats | null = null;
-  if (staff) {
+  // Moderators keep the citizen profile and also see their review work and permissions.
+  if (staff || canReview(user.role, moderatorsEnabled())) {
     const [work] = await db
       .select({
         approved: sql<number>`(count(*) filter (where ${submissions.status} = 'approved'))::int`,
@@ -156,6 +158,13 @@ export default async function ProfilePage() {
           </div>
         )}
 
+        {/* Optional wallet address (no payouts yet): add, change or remove. */}
+        {!PAYMENTS_ENABLED && !staff && (
+          <div className="mt-6">
+            <ProfileDeclaredWallet lang={user.language} address={user.declaredWalletAddress} adultDeclared={!!user.adultDeclaredAt} />
+          </div>
+        )}
+
         {/* Wallet and FONE payouts: hidden while payments are off (PAYMENTS_ENABLED). */}
         {PAYMENTS_ENABLED && !staff && (
           <>
@@ -177,6 +186,7 @@ export default async function ProfilePage() {
             treasury={treasury}
             explorerUrl={explorerUrl}
             adultDeclared={!!user.adultDeclaredAt}
+            suggestedAddress={user.declaredWalletAddress}
           />
         </div>
 

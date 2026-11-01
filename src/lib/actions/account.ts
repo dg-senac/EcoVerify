@@ -210,6 +210,7 @@ export async function deleteAccountAction(_prev: ActionState, formData: FormData
         walletChallengeAmount: null,
         walletChallengeCreatedAt: null,
         walletChallengeTx: null,
+        declaredWalletAddress: null,
         adultDeclaredAt: null,
         emailVerifiedAt: null,
         notificationsEnabled: false,

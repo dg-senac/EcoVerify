@@ -5,8 +5,8 @@ import { centsToFone } from "@/lib/fone";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { formatDate, formatFone, levelForPoints } from "@/lib/utils";
 import { dt, errorText } from "../i18n";
-import { appealCard, cardsOf, moderatorsOn, payoutSettingsOf, useLang, useStore, userPayout, type User } from "../store";
-import { isStaffExperience } from "@/lib/nav";
+import { appealCard, cardsOf, moderatorsOn, saveDeclaredWallet, payoutSettingsOf, useLang, useStore, userPayout, type User } from "../store";
+import { canReview, isStaffExperience } from "@/lib/nav";
 import { StaffWork } from "@/components/profile/staff-work";
 import { BadgesGrid, ImpactCard, StreakCard } from "@/components/profile/achievements";
 import { badgesFor, personalImpact, weeklyStreak, type ApprovedAction } from "@/lib/achievements";
@@ -14,6 +14,7 @@ import { CardsPanel } from "@/components/cards/cards-panel";
 import { Avatar, PageHeader, card, toast } from "../components/ui";
 import { roleTone, ProfileSwitcher } from "../components/ProfileSwitcher";
 import { WalletForm } from "./Wallet";
+import { DeclaredWalletCard } from "@/components/wallet/declared-wallet";
 import { ResetDemoButton } from "../components/ResetDemo";
 import { FoneMark } from "@/components/brand/fone";
 
@@ -34,6 +35,8 @@ export function ProfileScreen({ user }: { user: User }) {
   const roleKey = user.role === "admin" ? "demo_role_admin" : user.role === "moderator" ? "demo_role_moderator" : "demo_role_citizen";
   // Staff get their own profile: review work and permissions, no points, level or cards.
   const staff = useStore((s) => isStaffExperience(user.role, moderatorsOn(s)));
+  // Moderators keep the citizen profile and also see their review work and permissions.
+  const reviewer = useStore((s) => canReview(user.role, moderatorsOn(s)));
   // Citizen extras: streak, personal impact and badges (approved actions only).
   const actions = useStore((s): ApprovedAction[] =>
     s.submissions
@@ -88,7 +91,7 @@ export function ProfileScreen({ user }: { user: User }) {
         </div>
       </div>
 
-      {staff && (user.role === "admin" || user.role === "moderator") && (
+      {reviewer && (user.role === "admin" || user.role === "moderator") && (
         <div className={`${card} mt-4 p-5 animate-slide-up`}>
           <StaffWork lang={lang} role={user.role} stats={staffStats} />
         </div>
@@ -142,6 +145,17 @@ export function ProfileScreen({ user }: { user: User }) {
             </div>
           )}
           <p className="px-1 text-[11px] text-slate-400">{tf(lang, "payout_rules_note", { days: settings.holdDays, min: settings.minPayoutFone.toFixed(2) })}</p>
+        </div>
+      )}
+
+      {!PAYMENTS_ENABLED && !staff && (
+        <div className="mt-4 animate-slide-up">
+          <DeclaredWalletCard
+            lang={lang}
+            address={user.declaredWallet ?? null}
+            adultDeclared={!!user.adultDeclaredAt}
+            onSave={async (address, adult) => saveDeclaredWallet(address, adult)}
+          />
         </div>
       )}
 

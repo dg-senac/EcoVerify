@@ -11,6 +11,8 @@ import { ProfileList } from "../components/ProfileSwitcher";
 import { btnPrimary, card, input, label, Modal } from "../components/ui";
 import { TourStartButton } from "../components/Tour";
 import { PoweredByFone } from "@/components/brand/fone";
+import { DeclaredWalletFields } from "@/components/wallet/declared-wallet";
+import { walletOptionalText } from "@/lib/wallet-optional";
 import { LegalDocument, type LegalDoc } from "./Legal";
 
 const LANGS: { id: Lang; flag: string; label: string }[] = [
@@ -89,10 +91,16 @@ export function RegisterScreen() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const result = register(name, email, password, { terms: acceptTerms, age: ageConfirm });
+    const form = new FormData(event.currentTarget as HTMLFormElement);
+    const result = register(name, email, password, { terms: acceptTerms, age: ageConfirm }, {
+      address: String(form.get("walletAddress") ?? ""),
+      adult: form.get("walletAdult") === "on",
+    });
     if (result.error) {
       setError(
-        result.error === "email_exists"
+        result.error === "wallet_invalid_address" || result.error === "wallet_adult_required"
+          ? walletOptionalText(lang).errors[result.error === "wallet_invalid_address" ? "invalid_address" : "adult_required"]
+          : result.error === "email_exists"
           ? t(lang, "register_email_exists")
           : result.error === "password"
             ? t(lang, "register_password_hint")
@@ -127,6 +135,7 @@ export function RegisterScreen() {
           <input id="password" type="password" className={input} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
           <p className="mt-1 text-xs text-slate-400">{t(lang, "register_password_hint")}</p>
         </div>
+        <DeclaredWalletFields lang={lang} />
         <label className="flex items-start gap-2.5 text-sm text-slate-600">
           <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} required className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-600" />
           <span>

@@ -22,6 +22,7 @@ function permissions(lang: Lang, role: "moderator" | "admin"): Permission[] {
   ];
   if (role === "moderator") {
     return [
+      { ok: true, text: T("Participar como cidadão: missões, ranking e chat (nunca revisar as próprias comprovações)", "Take part as a citizen: missions, ranking and chat (never review your own proofs)", "Participar como ciudadano: misiones, ranking y chat (nunca revisar tus propios comprobantes)") },
       ...shared,
       { ok: false, text: T("Cartão vermelho, suspensão e bloqueio: só administradores", "Red cards, suspensions and bans: admins only", "Tarjeta roja, suspensión y bloqueo: solo administradores") },
       { ok: false, text: T("Missões, usuários, benefícios e dados: só administradores", "Missions, users, perks and data: admins only", "Misiones, usuarios, beneficios y datos: solo administradores") },
@@ -31,13 +32,13 @@ function permissions(lang: Lang, role: "moderator" | "admin"): Permission[] {
     ...shared,
     { ok: true, text: T("Cartão vermelho, suspensão, bloqueio e revisão de cartões contestados", "Red cards, suspensions, bans and review of appealed cards", "Tarjeta roja, suspensión, bloqueo y revisión de tarjetas apeladas") },
     { ok: true, text: T("Criar e editar missões, benefícios e parceiros", "Create and edit missions, perks and partners", "Crear y editar misiones, beneficios y socios") },
-    { ok: true, text: T("Usuários e equipe (ligar ou desligar moderadores)", "Users and team (turn moderators on or off)", "Usuarios y equipo (activar o desactivar moderadores)") },
+    { ok: true, text: T("Usuários e equipe (escolher quem da equipe é moderador)", "Users and team (choose who in the team is a moderator)", "Usuarios y equipo (elegir quién del equipo es moderador)") },
     { ok: true, text: T("Reciclagem e dados agregados, sem nomes", "Recycling and aggregated data, with no names", "Reciclaje y datos agregados, sin nombres") },
   ];
 }
 
 /**
- * Profile body for staff (active moderators and admins): their review work and what the role
+ * Review work for staff (admins; moderators see it below their citizen profile) and what the role
  * allows, instead of the citizen's points, level and cards. Shared by the web app and the APK.
  */
 export function StaffWork({ lang, role, stats }: { lang: Lang; role: "moderator" | "admin"; stats: StaffWorkStats }) {
@@ -76,11 +77,17 @@ export function StaffWork({ lang, role, stats }: { lang: Lang; role: "moderator"
         </ul>
       </div>
       <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
-        {T(
-          "Para manter as decisões imparciais, contas da equipe não fazem missões, não enviam comprovações e não entram no ranking.",
-          "To keep decisions impartial, team accounts do not do missions, submit proof or appear in the ranking.",
-          "Para que las decisiones sean imparciales, las cuentas del equipo no hacen misiones, no envían comprobantes ni entran en el ranking.",
-        )}
+        {role === "moderator"
+          ? T(
+              "Para manter as decisões imparciais, suas próprias comprovações são sempre revisadas por outra pessoa da equipe ou pela IA.",
+              "To keep decisions impartial, your own proofs are always reviewed by someone else on the team or by the AI.",
+              "Para que las decisiones sean imparciales, tus propios comprobantes siempre los revisa otra persona del equipo o la IA.",
+            )
+          : T(
+              "Para manter as decisões imparciais, a conta de administração não faz missões, não envia comprovações e não entra no ranking.",
+              "To keep decisions impartial, the admin account does not do missions, submit proof or appear in the ranking.",
+              "Para que las decisiones sean imparciales, la cuenta de administración no hace misiones, no envía comprobantes ni entra en el ranking.",
+            )}
       </p>
     </div>
   );

@@ -245,7 +245,7 @@ export function OrgScreen({ user, slug, tab: rawTab }: { user: User; slug: strin
   const cup = useMemo(() => {
     if (!org || org.type !== "school") return null;
     const season = seasonAt(openedAt);
-    const players = new Set(allUsers.filter((u) => u.role === "citizen" && !u.isBanned && !u.deletedAt).map((u) => u.id));
+    const players = new Set(allUsers.filter((u) => u.role !== "admin" && !u.isBanned && !u.deletedAt).map((u) => u.id));
     const standing = schoolCup({
       schools: (allOrgs ?? []).filter((o) => o.type === "school").map((o) => ({ id: o.id, name: o.name, city: o.city })),
       memberships: (allMembers ?? []).filter((m) => players.has(m.userId)),

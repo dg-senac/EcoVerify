@@ -7,6 +7,8 @@ import { t, type Lang } from "@/lib/i18n";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { GuestLangMenu } from "@/components/auth/guest-lang-menu";
 import { actionErrorMessage } from "@/lib/action-errors";
+import { DeclaredWalletFields } from "@/components/wallet/declared-wallet";
+import { walletOptionalText } from "@/lib/wallet-optional";
 
 function withLinks(text: string, lang: Lang) {
   // "{terms}" / "{privacy}" placeholders become links that open in a new tab (keeps the typed form intact).
@@ -33,7 +35,8 @@ export function RegisterForm({ lang, next }: { lang: Lang; next?: string | null 
   const [state, formAction, pending] = useActionState(registerAction, initialState);
   const [password, setPassword] = useState("");
   const [currentLang, setCurrentLang] = useState<Lang>(lang);
-  const errorMessage = actionErrorMessage(currentLang, state?.error);
+  const walletError = state?.error === "wallet_invalid_address" ? "invalid_address" : state?.error === "wallet_adult_required" ? "adult_required" : null;
+  const errorMessage = walletError ? walletOptionalText(currentLang).errors[walletError] : actionErrorMessage(currentLang, state?.error);
 
   return (
     <div className="rounded-3xl bg-white p-8 shadow-[0_20px_50px_rgba(16,24,40,0.08)] card-surface border border-black/5">
@@ -78,6 +81,8 @@ export function RegisterForm({ lang, next }: { lang: Lang; next?: string | null 
             {t(currentLang, "register_password_hint")}
           </p>
         </div>
+
+        <DeclaredWalletFields lang={currentLang} />
 
         <input type="hidden" name="language" value={currentLang} />
         {next && <input type="hidden" name="next" value={next} />}

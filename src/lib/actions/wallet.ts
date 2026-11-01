@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { notifications, rewardQueue, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import type { ActionState } from "@/lib/actions/auth";
+import { parseDeclaredWallet, type DeclaredWalletError } from "@/lib/wallet-optional";
 import { rateLimit } from "@/lib/rate-limit";
 import { isEmailVerificationRequired } from "@/lib/email";
 import {
@@ -169,4 +170,26 @@ export async function cancelWalletRequestAction(): Promise<ActionState> {
 
 export async function skipWalletAction() {
   redirect("/missions");
+}
+
+/**
+ * Optional wallet address (sign-up or profile): only stored as "declared", never paid by itself.
+ * Works whether payouts are on or off; an empty address removes it.
+ */
+export async function saveDeclaredWalletAction(rawAddress: string, adultTicked: boolean): Promise<{ error?: DeclaredWalletError }> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.role === "admin") return { error: "invalid_address" };
+  if (!rateLimit(`declared-wallet:${user.id}`, 20, 60 * 60 * 1000)) return { error: "invalid_address" };
+  const parsed = parseDeclaredWallet(rawAddress, adultTicked, !!user.adultDeclaredAt);
+  if (parsed.error) return { error: parsed.error };
+  await db
+    .update(users)
+    .set({
+      declaredWalletAddress: parsed.address,
+      ...(parsed.address && !user.adultDeclaredAt ? { adultDeclaredAt: new Date() } : {}),
+    })
+    .where(eq(users.id, user.id));
+  revalidatePath("/profile");
+  return {};
 }

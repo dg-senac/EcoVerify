@@ -1,8 +1,9 @@
 /**
  * Staff settings read from the server environment (no database needed).
  *
- * - MODERATORS_ENABLED: moderation is admin-only by default. "true" lets users with the "moderator"
- *   role review proofs and give yellow cards (never red cards, suspensions, bans or FONE).
+ * - MODERATORS_ENABLED: people the admin made "moderator" (Admin → Users) review proofs and give
+ *   yellow cards (never red cards, suspensions, bans or FONE), on top of using the app as citizens.
+ *   On by default; "false" switches the role off (moderation by the admin only).
  * - ADMIN_EMAILS: the owner accounts (comma separated). An account with one of these e-mails becomes
  *   admin automatically once the e-mail is confirmed, can't be demoted, banned or carded from the
  *   panel and, while the list is set, only these accounts can be admins.
@@ -10,7 +11,7 @@
  *   production unless this is "true" (only for a throwaway demo server).
  */
 export function moderatorsEnabled(): boolean {
-  return flag(process.env.MODERATORS_ENABLED);
+  return !["false", "0", "no", "off"].includes((process.env.MODERATORS_ENABLED || "").trim().toLowerCase());
 }
 
 export function adminEmails(): string[] {

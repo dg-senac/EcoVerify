@@ -117,11 +117,13 @@ function LinkForm({
   adultDeclared,
   hasLegacyAddress,
   onCancel,
+  suggestedAddress,
 }: {
   lang: Lang;
   adultDeclared: boolean;
   hasLegacyAddress: boolean;
   onCancel?: () => void;
+  suggestedAddress?: string | null;
 }) {
   const [state, formAction, pending] = useActionState(linkWalletAction, initialState);
   return (
@@ -139,6 +141,7 @@ function LinkForm({
           type="text"
           name="address"
           required
+          defaultValue={suggestedAddress ?? undefined}
           autoComplete="off"
           spellCheck={false}
           placeholder={t(lang, "wallet_address_placeholder")}
@@ -297,9 +300,11 @@ export type WalletPanelProps = {
   treasury: string | null;
   explorerUrl?: string;
   adultDeclared: boolean;
+  /** Address the person typed at sign-up/profile: pre-fills the ownership check. */
+  suggestedAddress?: string | null;
 };
 
-export function WalletPanel({ lang, verifiedAddress, request, treasury, explorerUrl, adultDeclared }: WalletPanelProps) {
+export function WalletPanel({ lang, verifiedAddress, request, treasury, explorerUrl, adultDeclared, suggestedAddress }: WalletPanelProps) {
   const [changing, setChanging] = useState(false);
 
   return (
@@ -332,6 +337,7 @@ export function WalletPanel({ lang, verifiedAddress, request, treasury, explorer
             adultDeclared={adultDeclared}
             hasLegacyAddress={!verifiedAddress && request.hasLegacyAddress}
             onCancel={verifiedAddress ? () => setChanging(false) : undefined}
+            suggestedAddress={verifiedAddress ? null : suggestedAddress}
           />
         </>
       )}

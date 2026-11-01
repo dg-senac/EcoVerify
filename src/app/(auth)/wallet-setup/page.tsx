@@ -32,6 +32,7 @@ export default async function WalletSetupPage() {
           treasury={treasury}
           explorerUrl={explorerUrl}
           adultDeclared={!!user.adultDeclaredAt}
+          suggestedAddress={user.declaredWalletAddress}
         />
       </div>
 

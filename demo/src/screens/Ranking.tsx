@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { Trophy } from "lucide-react";
 import { t } from "@/lib/i18n";
-import { previousSeason, schoolCup, seasonAt, seasonRanking } from "@/lib/seasons";
-import { SeasonBoard, rankingTab } from "@/components/ranking/season-board";
+import { previousSeason, rankingTab, schoolCup, seasonAt, seasonRanking } from "@/lib/seasons";
+import { SeasonBoard } from "@/components/ranking/season-board";
 import { useLang, useStore, type User } from "../store";
 import { PageHeader } from "../components/ui";
 import { navigate } from "../router";
@@ -20,7 +20,7 @@ export function RankingScreen({ user, tab }: { user: User; tab?: string | null }
   const board = useMemo(() => {
     const season = seasonAt(now);
     const previous = previousSeason(season);
-    const players = users.filter((u) => u.role === "citizen" && !u.isBanned && !u.deletedAt);
+    const players = users.filter((u) => u.role !== "admin" && !u.isBanned && !u.deletedAt);
     const playerIds = new Set(players.map((u) => u.id));
     const schools = orgs.filter((o) => o.type === "school").map((o) => ({ id: o.id, name: o.name, city: o.city }));
     const memberships = members.filter((m) => playerIds.has(m.userId)).map((m) => ({ orgId: m.orgId, userId: m.userId, joinedAt: m.joinedAt }));

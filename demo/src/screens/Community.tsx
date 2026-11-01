@@ -36,7 +36,7 @@ export function CommunityScreen({ user }: { user: User }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [chat.length]);
 
-  if (user.role !== "citizen") return <EmptyState emoji="💬" text={dt(lang, "community_citizens_only")} />;
+  if (user.role === "admin") return <EmptyState emoji="💬" text={dt(lang, "community_citizens_only")} />;
 
   const nameOf = (id: string) => users.find((u) => u.id === id)?.name ?? "—";
   const replyMessage = replyTo ? chat.find((m) => m.id === replyTo) : null;

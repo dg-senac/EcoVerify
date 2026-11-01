@@ -27,10 +27,11 @@ montada, relato inventado, localização falsa, ofensa na comunidade e outra ten
 | Dar vermelho, cancelar cartão, responder contestação, encerrar suspensão | — | ✅ |
 | Banir/desbanir, pagar FONE | — | ✅ |
 
-**Moderação começa só com administradores.** A variável `MODERATORS_ENABLED=true` libera o papel "Moderador".
-Sem ela, quem tem esse papel não vê o menu Moderação, as ações de moderação recusam o pedido e os alertas de
-"possível foto da internet" vão só para os admins. Na demo, a mesma chave é a opção **"Moderadores podem revisar
-comprovações"** em Admin → Usuários (começa ligada para dar para testar o Carlos).
+**Moderadores são escolhidos pelo admin** em Admin → Usuários (a equipe dele). Quem é moderador continua usando o
+app como cidadão (missões, ranking, chat) e também vê a Moderação, mas nunca revisa as próprias comprovações.
+`MODERATORS_ENABLED=false` desliga o papel: quem o tem não vê a Moderação, as ações de moderação recusam o pedido e
+os alertas de "possível foto da internet" vão só para os admins. Na demo, a mesma chave é a opção **"Moderadores
+podem revisar comprovações"** em Admin → Usuários (começa ligada).
 
 ## Onde cada coisa aparece
 

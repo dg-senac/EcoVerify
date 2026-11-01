@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ref } from "@/db/sql-ref";
 import { redirect } from "next/navigation";
 import { citizenOnly } from "@/lib/role-guard";
 import { desc, eq, sql } from "drizzle-orm";
@@ -27,7 +28,7 @@ export default async function BenefitsPage() {
     db
       .select({
         offer: partnerOffers,
-        redeemedCount: sql<number>`(select count(*)::int from ${offerRedemptions} r where r.offer_id = ${partnerOffers.id})`,
+        redeemedCount: sql<number>`(select count(*)::int from ${offerRedemptions} r where r.offer_id = ${ref(partnerOffers.id)})`,
       })
       .from(partnerOffers)
       .where(eq(partnerOffers.isActive, true)),

@@ -16,7 +16,7 @@ Como o EcoVerify protege a administração quando entrar em produção (com banc
 | Variável | Efeito |
 | --- | --- |
 | `ADMIN_EMAILS` | E-mail(s) do dono, separados por vírgula. A conta vira admin ao confirmar o e-mail (ou no login seguinte). Não pode ser rebaixada, banida nem receber cartão pelo painel. **Enquanto a variável existir, só esses e-mails podem ser admin**: a opção "Administrador" fica "(reservado)" para os outros. |
-| `MODERATORS_ENABLED` | Desligado por padrão: a Moderação é só do admin. Ligado: moderadores revisam e dão cartão amarelo. |
+| `MODERATORS_ENABLED` | Ligado por padrão: quem o admin torna Moderador (Admin → Usuários) usa o app como cidadão e também revisa e dá cartão amarelo (nunca nas próprias comprovações). `false` desliga o papel: a Moderação fica só com o admin. |
 | `ALLOW_SEED_ACCOUNTS` | Desligado por padrão: as contas do seed (`@ecoverify.dev`, senha pública) **não entram em produção**, nem com sessão antiga, e não aparecem na tela de login. Só ligue num servidor de demonstração descartável. |
 
 Outras proteções automáticas:

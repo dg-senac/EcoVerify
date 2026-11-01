@@ -80,8 +80,8 @@ export function UsersTab({
       <h3 className="mb-1 font-bold text-slate-900">Usuários da plataforma</h3>
       <p className="mb-3 text-xs text-slate-500" data-testid="moderators-mode">
         {moderatorsEnabled
-          ? "Moderadores ativos: revisam comprovações e dão cartão amarelo. Vermelho, suspensão, banimento e FONE são só do admin."
-          : "Moderação só para administradores. Quem tem o papel \"Moderador\" não vê a Moderação (para liberar, defina MODERATORS_ENABLED=true no servidor)."}
+          ? "Moderador é alguém da sua equipe que você escolhe aqui. Ele usa o app como qualquer cidadão (missões, ranking, chat) e também revisa comprovações e dá cartão amarelo, nunca as próprias. Vermelho, suspensão, banimento e FONE são só do admin."
+          : "Moderação só com o admin: o papel \"Moderador\" está desligado no servidor (MODERATORS_ENABLED=false). Quem tem esse papel usa o app como cidadão."}
       </p>
       <div className="space-y-2">
         {users.map((user) => (

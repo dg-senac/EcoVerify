@@ -35,3 +35,14 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
 export function resetRateLimit(key: string) {
   buckets.delete(key);
 }
+
+/**
+ * Gives back the most recent hit of a key. Used after a successful login so the per-IP limit only
+ * counts failed attempts: a whole classroom on the same school Wi-Fi can sign in at once.
+ */
+export function forgiveLastHit(key: string) {
+  const hits = buckets.get(key);
+  if (!hits?.length) return;
+  hits.pop();
+  if (!hits.length) buckets.delete(key);
+}

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { parseDeclaredWallet } from "@/lib/wallet-optional";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -8,7 +9,7 @@ import { users } from "@/db/schema";
 import { isUniqueViolation, safeNextPath } from "@/lib/utils";
 import { headers } from "next/headers";
 import { createSession, destroySession, hashPassword, verifyPassword } from "@/lib/auth";
-import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
+import { forgiveLastHit, rateLimit, resetRateLimit } from "@/lib/rate-limit";
 import { isSeedEmail, seedAccountsAllowed } from "@/lib/staff-config";
 import { promoteOwnerIfNeeded } from "@/lib/admin-bootstrap";
 import { sendVerificationEmail } from "@/lib/account-email";
@@ -41,7 +42,8 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   // Brute-force protection: per e-mail and per IP.
   const ip = await clientIp();
   const emailKey = `login:email:${email}`;
-  if (!rateLimit(emailKey, 8, FIFTEEN_MINUTES) || !rateLimit(`login:ip:${ip}`, 30, FIFTEEN_MINUTES)) {
+  const ipKey = `login:ip:${ip}`;
+  if (!rateLimit(emailKey, 8, FIFTEEN_MINUTES) || !rateLimit(ipKey, 30, FIFTEEN_MINUTES)) {
     return { error: "too_many_attempts" };
   }
 
@@ -60,6 +62,8 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     return { error: "invalid" };
   }
   resetRateLimit(emailKey);
+  // Only failed attempts count per IP (many people share one IP on school or mobile networks).
+  forgiveLastHit(ipKey);
 
   if (user.isBanned || isSuspended(user.suspendedUntil)) {
     // No session: a short-lived token only lets the person read the reason and appeal.
@@ -88,9 +92,13 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
   if (formData.get("ageConfirm") !== "on") return { error: "age_required" };
   const rawLanguage = formData.get("language");
   const language = isLang(rawLanguage) ? rawLanguage : DEFAULT_LANG;
+  // Optional FONE wallet (18+ only); it can also be added later in the profile.
+  const wallet = parseDeclaredWallet(formData.get("walletAddress"), formData.get("walletAdult") === "on");
+  if (wallet.error) return { error: `wallet_${wallet.error}` };
 
-  // Limits mass account creation (multiple accounts = multiple rewards).
-  if (!rateLimit(`register:ip:${await clientIp()}`, 5, 60 * 60 * 1000)) {
+  // Limits mass account creation (multiple accounts = multiple rewards). High enough for a whole
+  // class signing up together on the same school Wi-Fi (one shared IP).
+  if (!rateLimit(`register:ip:${await clientIp()}`, 40, 60 * 60 * 1000)) {
     return { error: "too_many_attempts" };
   }
 
@@ -104,7 +112,16 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
   try {
     [user] = await db
       .insert(users)
-      .values({ name, email, passwordHash, language, termsAcceptedAt: new Date(), termsVersion: TERMS_VERSION })
+      .values({
+        name,
+        email,
+        passwordHash,
+        language,
+        termsAcceptedAt: new Date(),
+        termsVersion: TERMS_VERSION,
+        declaredWalletAddress: wallet.address,
+        adultDeclaredAt: wallet.address ? new Date() : null,
+      })
       .returning();
   } catch (error) {
     if (isUniqueViolation(error)) return { error: "email_exists" };
