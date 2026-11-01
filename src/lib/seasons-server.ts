@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gte, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { missions, organizationMembers, organizations, pointsLedger, submissions, users } from "@/db/schema";
 import {
@@ -52,11 +52,11 @@ export async function loadSeasonBoard(viewerId: string, now = new Date()): Promi
   const previous = previousSeason(season);
   const [entries, people, schools, memberships] = await Promise.all([
     loadEntries(previous.start, season.end),
-    // Only citizens in good standing appear (staff never play).
+    // Citizens and moderators in good standing appear (the admin never plays).
     db
       .select({ id: users.id, name: users.name })
       .from(users)
-      .where(and(eq(users.role, "citizen"), eq(users.isBanned, false), isNull(users.deletedAt))),
+      .where(and(ne(users.role, "admin"), eq(users.isBanned, false), isNull(users.deletedAt))),
     db
       .select({ id: organizations.id, name: organizations.name, city: organizations.city })
       .from(organizations)

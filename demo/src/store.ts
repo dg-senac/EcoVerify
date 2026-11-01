@@ -36,6 +36,7 @@ import {
   type CardType,
 } from "@/lib/cards";
 import { canReview, isStaffExperience } from "@/lib/nav";
+import { parseDeclaredWallet, type DeclaredWalletError } from "@/lib/wallet-optional";
 import { formatDate } from "@/lib/utils";
 import {
   CHAT_REPORT_DETAIL_MAX,
@@ -142,6 +143,8 @@ export type User = {
   pendingWallet: { address: string; amount: string; createdAt: string } | null;
   /** Self-declared 18+ (required to receive FONE). */
   adultDeclaredAt: string | null;
+  /** Optional wallet typed at sign-up/profile (not verified), like users.declared_wallet_address. */
+  declaredWallet?: string | null;
   isBanned: boolean;
   banReason: string | null;
   /** Like users.banned_at / ban_appeal_message / ban_appealed_at (one appeal per block). */
@@ -714,9 +717,12 @@ export function register(
   email: string,
   password: string,
   consent: { terms: boolean; age: boolean } = { terms: false, age: false },
+  wallet: { address: string; adult: boolean } = { address: "", adult: false },
 ): Result {
   if (!consent.terms) return { error: "terms_required" };
   if (!consent.age) return { error: "age_required" };
+  const declared = parseDeclaredWallet(wallet.address, wallet.adult);
+  if (declared.error) return { error: `wallet_${declared.error}` };
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
   if (cleanName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return { error: "invalid" };
@@ -731,7 +737,8 @@ export function register(
     totalPoints: 0,
     walletAddress: null,
     pendingWallet: null,
-    adultDeclaredAt: null,
+    adultDeclaredAt: declared.address ? now() : null,
+    declaredWallet: declared.address,
     isBanned: false,
     banReason: null,
     createdAt: now(),
@@ -752,6 +759,21 @@ export function register(
 /* ------------------------------------------------------------------ */
 /* Wallet & settings                                                   */
 /* ------------------------------------------------------------------ */
+
+/** Optional wallet address (sign-up or profile), same rules as saveDeclaredWalletAction. */
+export function saveDeclaredWallet(address: string, adult: boolean): { error?: DeclaredWalletError } {
+  const user = me();
+  if (!user || user.role === "admin") return { error: "invalid_address" };
+  const parsed = parseDeclaredWallet(address, adult, !!user.adultDeclaredAt);
+  if (parsed.error) return { error: parsed.error };
+  commit((s) => ({
+    ...s,
+    users: s.users.map((u) =>
+      u.id === user.id ? { ...u, declaredWallet: parsed.address, adultDeclaredAt: parsed.address ? (u.adultDeclaredAt ?? now()) : u.adultDeclaredAt } : u,
+    ),
+  }));
+  return {};
+}
 
 /* Same rules as src/lib/actions/wallet.ts; the admin confirmation is simulated by a button. */
 
@@ -1969,12 +1991,12 @@ export function markAllNotificationsRead() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Community chat (citizens only, like the real app)                   */
+/* Community chat (citizens and moderators, like the real app)        */
 /* ------------------------------------------------------------------ */
 
 export function sendChatMessage(text: string, replyToId: string | null): Result {
   const user = me();
-  if (!user || user.role !== "citizen" || user.isBanned) return { error: "error_generic" };
+  if (!user || user.role === "admin" || user.isBanned) return { error: "error_generic" };
   if (isChatMuted(user.chatMutedUntil)) return { error: "muted" };
   const message = text.trim();
   if (!message) return { error: "chat_error_empty" };
@@ -2013,7 +2035,7 @@ export function deleteChatMessage(id: string) {
 /** Report with a reason; 3 people (2 for sexual content / violence) hide the message at once. */
 export function reportChatMessage(messageId: string, reason: string, detail: string): Result {
   const user = me();
-  if (!user || user.role !== "citizen") return { error: "error_generic" };
+  if (!user || user.role === "admin") return { error: "error_generic" };
   if (!isChatReportReason(reason) || detail.length > CHAT_REPORT_DETAIL_MAX) return { error: "error_generic" };
   const message = state.chat.find((m) => m.id === messageId);
   if (!message || message.userId === user.id) return { error: "error_generic" };
@@ -2145,7 +2167,7 @@ export function exportMyData(): string | null {
         notificationsEnabled: user.notificationsEnabled,
       },
       adultDeclaredAt: user.adultDeclaredAt,
-      wallet: { verifiedAddress: user.walletAddress, pending: user.pendingWallet },
+      wallet: { declaredAddress: user.declaredWallet ?? null, verifiedAddress: user.walletAddress, pending: user.pendingWallet },
       terms: { acceptedAt: user.termsAcceptedAt ?? null, version: TERMS_VERSION },
       createdAt: user.createdAt,
     },
@@ -2225,6 +2247,7 @@ export function deleteMyAccount(confirmed: boolean): Result {
               email: `deleted-${u.id}@deleted.invalid`,
               walletAddress: null,
               pendingWallet: null,
+              declaredWallet: null,
               adultDeclaredAt: null,
               totalPoints: 0,
               isBanned: true,

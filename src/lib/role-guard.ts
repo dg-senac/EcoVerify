@@ -4,8 +4,8 @@ import { moderatorsEnabled } from "@/lib/staff-config";
 import { homeFor, isStaffExperience, type Role } from "@/lib/nav";
 
 /**
- * Citizen screens (missions, proofs, ranking, community, perks, organizations) are not part of the
- * staff app: active moderators and admins are sent to their own home (Moderation / Admin).
+ * Citizen screens (missions, proofs, ranking, community, perks, organizations) are for citizens and
+ * moderators (who also get Moderation). The admin is sent to the admin panel.
  */
 export function citizenOnly(role: Role): void {
   const enabled = moderatorsEnabled();

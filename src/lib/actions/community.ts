@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isParticipant } from "@/lib/nav";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { eq, and, sql } from "drizzle-orm";
@@ -28,7 +29,7 @@ const COMMUNITY_NOTIFICATION_TITLE = "Nova mensagem na comunidade";
 export async function sendMessageAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "citizen") return { error: "not_citizen" };
+  if (!isParticipant(user.role)) return { error: "not_citizen" };
   if (isChatMuted(user.chatMutedUntil)) return { error: "muted" };
 
   if (!rateLimit(`chat:${user.id}`, 20, 60 * 1000)) {
@@ -97,13 +98,13 @@ export async function sendMessageAction(_prev: ActionState, formData: FormData):
   // Others only see the image after the AI checks it (an inappropriate one is hidden + staff alert).
   if (checkImage && created && mediaUrl) after(() => checkChatImage(created.id, mediaUrl));
 
-  // Notify other citizens with a single query (previously one INSERT per user per message).
+  // Notify other participants (citizens and moderators) with a single query (previously one INSERT per user per message).
   // Users that already have an unread community notification don't get another one.
   await db.execute(sql`
     insert into ${notifications} (user_id, type, title, message)
     select u.id, 'system', ${COMMUNITY_NOTIFICATION_TITLE}, 'Há novas mensagens no chat da comunidade.'
     from ${users} u
-    where u.role = 'citizen'
+    where u.role <> 'admin'
       and u.is_banned = false
       and u.notifications_enabled = true
       and u.id <> ${user.id}
@@ -121,7 +122,7 @@ export async function sendMessageAction(_prev: ActionState, formData: FormData):
 export async function editMessageAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "citizen") return { error: "not_citizen" };
+  if (!isParticipant(user.role)) return { error: "not_citizen" };
 
   const messageId = String(formData.get("messageId") ?? "");
   const newMessage = String(formData.get("message") ?? "").trim();
@@ -170,7 +171,7 @@ export async function editMessageAction(_prev: ActionState, formData: FormData):
 export async function deleteMessageAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "citizen") return { error: "not_citizen" };
+  if (!isParticipant(user.role)) return { error: "not_citizen" };
 
   const messageId = String(formData.get("messageId") ?? "");
   const deleteForEveryone = formData.get("deleteForEveryone") === "true";
@@ -220,7 +221,7 @@ export async function deleteMessageAction(_prev: ActionState, formData: FormData
 export async function toggleFavoriteAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "citizen") return { error: "not_citizen" };
+  if (!isParticipant(user.role)) return { error: "not_citizen" };
 
   const messageId = String(formData.get("messageId") ?? "");
 
@@ -261,7 +262,7 @@ export async function toggleFavoriteAction(_prev: ActionState, formData: FormDat
 export async function reportMessageAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "citizen") return { error: "not_citizen" };
+  if (!isParticipant(user.role)) return { error: "not_citizen" };
 
   const messageId = String(formData.get("messageId") ?? "");
   const reasonCode = String(formData.get("reasonCode") ?? "");
@@ -303,7 +304,7 @@ export async function reportMessageAction(_prev: ActionState, formData: FormData
 export async function blockChatUserAction(blockedId: string): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "citizen") return { error: "not_citizen" };
+  if (!isParticipant(user.role)) return { error: "not_citizen" };
   if (!UUID_PATTERN.test(blockedId) || blockedId === user.id) return { error: "invalid" };
   const [target] = await db.select({ id: users.id }).from(users).where(eq(users.id, blockedId)).limit(1);
   if (!target) return { error: "not_found" };

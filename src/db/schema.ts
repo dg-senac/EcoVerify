@@ -79,6 +79,11 @@ export const users = pgTable("users", {
   walletChallengeCreatedAt: timestamp("wallet_challenge_created_at", { withTimezone: true }),
   /** Transaction hash reported by the user (optional, speeds up the review). */
   walletChallengeTx: text("wallet_challenge_tx"),
+  /**
+   * Optional wallet address typed by the person at sign-up or in the profile. Not verified and never
+   * paid by itself: it only pre-fills the ownership check (walletAddress above) when payouts start.
+   */
+  declaredWalletAddress: text("declared_wallet_address"),
   /** Self-declared 18+ (required to link a wallet and receive FONE). */
   adultDeclaredAt: timestamp("adult_declared_at", { withTimezone: true }),
   isBanned: boolean("is_banned").notNull().default(false),

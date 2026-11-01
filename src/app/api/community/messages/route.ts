@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isParticipant } from "@/lib/nav";
 import { getCurrentUser } from "@/lib/auth";
 import { fetchCommunityMessages } from "@/lib/community";
 
@@ -11,7 +12,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     // Same rule as the community page: the chat is for citizens.
-    if (user.role !== "citizen") {
+    if (!isParticipant(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

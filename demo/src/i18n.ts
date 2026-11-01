@@ -340,9 +340,9 @@ const demoDict = {
   // Community
   community_subtitle: { pt: "Converse com outros guardiões do planeta", en: "Chat with other planet guardians", es: "Conversa con otros guardianes del planeta" },
   community_citizens_only: {
-    pt: "O chat da comunidade é exclusivo para cidadãos. Troque para o perfil Cidadão para participar.",
-    en: "The community chat is for citizens only. Switch to the Citizen profile to join in.",
-    es: "El chat de la comunidad es solo para ciudadanos. Cambia al perfil Ciudadano para participar.",
+    pt: "O chat da comunidade é para quem participa das missões. A conta de administração não entra no chat.",
+    en: "The community chat is for people who take part in missions. The admin account doesn't join the chat.",
+    es: "El chat de la comunidad es para quienes participan en las misiones. La cuenta de administración no entra al chat.",
   },
   message_deleted: { pt: "Mensagem apagada", en: "Message deleted", es: "Mensaje eliminado" },
   // Register

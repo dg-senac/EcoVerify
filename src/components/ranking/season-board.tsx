@@ -4,14 +4,8 @@ import { useState, type ReactNode } from "react";
 import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import { initials, levelForPoints } from "@/lib/utils";
-import { CUP_MIN_ACTIVE, daysLeft, seasonById, seasonProgress, seasonText, type CupStanding, type Ranked } from "@/lib/seasons";
+import { CUP_MIN_ACTIVE, daysLeft, seasonById, seasonProgress, seasonText, type CupStanding, type Ranked, RANKING_TABS, type RankingTab } from "@/lib/seasons";
 
-export const RANKING_TABS = ["season", "all", "schools"] as const;
-export type RankingTab = (typeof RANKING_TABS)[number];
-
-export function rankingTab(value: string | null | undefined): RankingTab {
-  return RANKING_TABS.find((tab) => tab === value) ?? "season";
-}
 
 export type BoardPerson = { id: string; name: string };
 export type AllTimeRow = { id: string; name: string; points: number };

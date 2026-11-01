@@ -1,4 +1,5 @@
 import "server-only";
+import { ref } from "@/db/sql-ref";
 import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { missions, organizationMembers, organizations, pointsLedger, submissions, users } from "@/db/schema";
@@ -97,10 +98,10 @@ export async function orgEvents(orgId: string) {
       eventPackage: missions.eventPackage,
       eventPaidAt: missions.eventPaidAt,
       isActive: missions.isActive,
-      people: sql<number>`(select count(distinct s.user_id)::int from submissions s where s.mission_id = ${missions.id} and s.status = 'approved')`,
-      actions: sql<number>`(select count(*)::int from submissions s where s.mission_id = ${missions.id} and s.status = 'approved')`,
-      pending: sql<number>`(select count(*)::int from submissions s where s.mission_id = ${missions.id} and s.status = 'pending')`,
-      checkins: sql<number>`(select count(*)::int from event_checkins c where c.mission_id = ${missions.id})`,
+      people: sql<number>`(select count(distinct s.user_id)::int from submissions s where s.mission_id = ${ref(missions.id)} and s.status = 'approved')`,
+      actions: sql<number>`(select count(*)::int from submissions s where s.mission_id = ${ref(missions.id)} and s.status = 'approved')`,
+      pending: sql<number>`(select count(*)::int from submissions s where s.mission_id = ${ref(missions.id)} and s.status = 'pending')`,
+      checkins: sql<number>`(select count(*)::int from event_checkins c where c.mission_id = ${ref(missions.id)})`,
     })
     .from(missions)
     .where(and(eq(missions.organizationId, orgId), isNotNull(missions.startsAt)))

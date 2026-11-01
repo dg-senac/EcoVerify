@@ -376,3 +376,14 @@ const es: SeasonText = {
 export function seasonText(lang: Lang): SeasonText {
   return lang === "en" ? en : lang === "es" ? es : pt;
 }
+
+/**
+ * Ranking screen tabs (?tab= on the web, #/ranking/<tab> in the APK). Lives here, not in the client
+ * component, because the server page parses the tab before rendering.
+ */
+export const RANKING_TABS = ["season", "all", "schools"] as const;
+export type RankingTab = (typeof RANKING_TABS)[number];
+
+export function rankingTab(value: string | null | undefined): RankingTab {
+  return RANKING_TABS.find((tab) => tab === value) ?? "season";
+}

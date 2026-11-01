@@ -30,6 +30,10 @@ Perfis: **cidadão**, **moderador** e **admin**. Idiomas: 🇧🇷 PT · 🇺�
 | Arquivos | Supabase Storage (produção) ou disco local (desenvolvimento) |
 | Android | Capacitor 8: WebView apontando para o app web **ou** demo offline embutida (`demo/`) |
 
+## Colocar no ar com Supabase (login real)
+
+Passo a passo em [`docs/SUPABASE.md`](docs/SUPABASE.md): rode os arquivos de [`supabase/`](supabase) no SQL Editor (tabelas, segurança, fotos, missões e admin), publique o app na Vercel e aponte o APK para ele com `CAPACITOR_SERVER_URL`. Cada pessoa entra com o próprio e-mail e senha, a carteira Fone é opcional (no cadastro ou depois, no Perfil) e o admin escolhe os moderadores em Admin → Usuários.
+
 ## Rodando localmente
 
 Pré‑requisitos: **Node.js 20.9+** e um **PostgreSQL** (local ou Supabase).
@@ -72,7 +76,7 @@ Veja [`.env.example`](.env.example). As principais:
 - `CAPACITOR_SERVER_URL`: URL HTTPS do app web, usada no build Android. **Opcional**: sem ela, o APK é gerado com a demo offline.
 - `PIX_KEY` + `PIX_RECEIVER_NAME` + `PIX_RECEIVER_CITY` (opcionais): chave Pix que recebe os planos das organizações. `SALES_WHATSAPP` (ou, sem ele, `SALES_EMAIL`) vira o link "Fale com a gente" da aba Plano. Veja [`docs/SAAS.md`](docs/SAAS.md).
 - `ADMIN_EMAILS`: e-mail(s) do dono. A conta com esse e-mail vira admin quando o e-mail é confirmado (ou com `npm run admin:promote -- email`), não pode ser rebaixada, banida nem receber cartão pelo painel e, enquanto a variável existir, só esses e-mails podem ser admin. **Nunca coloque senhas em variáveis.** Veja [`docs/SEGURANCA_ADMIN.md`](docs/SEGURANCA_ADMIN.md).
-- `MODERATORS_ENABLED` (padrão desligado): libera o papel Moderador. `ALLOW_SEED_ACCOUNTS` (padrão desligado): as contas de exemplo do seed nunca entram em produção sem ela.
+- `MODERATORS_ENABLED` (padrão ligado): o papel Moderador, dado pelo admin em Admin → Usuários, usa o app como cidadão e também modera; `false` desliga. `ALLOW_SEED_ACCOUNTS` (padrão desligado): as contas de exemplo do seed nunca entram em produção sem ela.
 - `GOOGLE_VISION_API_KEY` + `VISION_MONTHLY_LIMIT` (opcionais): busca reversa automática de fotos da internet. Veja [`docs/VERIFICACAO_IA.md`](docs/VERIFICACAO_IA.md).
 - `DEMO_SITE_URL` (opcional, só no build da demo): domínio público da demo, usado na prévia de link (WhatsApp, redes). Na Vercel, o domínio de produção é detectado sozinho.
 
@@ -171,7 +175,7 @@ Detalhes, limites do plano gratuito e como trocar de provedor: [`docs/VERIFICACA
 ## Cartões e moderação
 
 - Tentativa de fraude pode receber **cartão amarelo** (dado por uma pessoa, nunca pela IA, sempre com explicação). **3 amarelos válidos = 14 dias de suspensão** (FONE pendente congelado); amarelo vale 6 meses; **vermelho** bloqueia e só o admin dá. Todo cartão pode ser contestado.
-- **Moderação só para admin por padrão.** `MODERATORS_ENABLED=true` libera o papel Moderador (revisar comprovações e dar amarelo).
+- **Moderadores escolhidos pelo admin.** Em Admin → Usuários, o admin dá o papel Moderador a quem é da equipe: a pessoa continua usando o app como cidadã e ganha a Moderação (revisar comprovações, nunca as próprias, e dar amarelo). `MODERATORS_ENABLED=false` desliga o papel.
 - Admin → Usuários tem a **Ficha** de cada pessoa e o painel de contestações. Regras completas: [`docs/CARTOES.md`](docs/CARTOES.md).
 - **Chat moderado**: denúncia com motivo (3 denúncias ocultam na hora), IA nas imagens, bloqueio pessoal, silenciar (admin), sem telefone/e-mail/links e áudio/vídeo só 18+. Regras: [`docs/MODERACAO_CHAT.md`](docs/MODERACAO_CHAT.md).
 - **Calculadora de impacto**: CO₂e evitado pela reciclagem verificada (perfil, admin + CSV, organização e relatório de mutirão), sempre com selo "estimativa" e "Como calculamos". Fatores da EPA (WARM v16) e, para óleo, da RED II; água fica de fora por falta de fonte primária. Metodologia: [`docs/IMPACTO.md`](docs/IMPACTO.md).

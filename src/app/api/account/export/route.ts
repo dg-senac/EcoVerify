@@ -207,6 +207,7 @@ export async function GET() {
       },
       adultDeclaredAt: user.adultDeclaredAt,
       wallet: {
+        declaredAddress: user.declaredWalletAddress,
         verifiedAddress: user.walletVerifiedAt ? user.walletAddress : null,
         verifiedAt: user.walletVerifiedAt,
         verificationTx: user.walletVerificationTx,

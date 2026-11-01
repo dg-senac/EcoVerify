@@ -1,4 +1,5 @@
 import { PAYMENTS_ENABLED } from "@/lib/features";
+import { ref } from "@/db/sql-ref";
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
@@ -259,9 +260,9 @@ export default async function AdminPage() {
       city: collectionPoints.city,
       token: collectionPoints.token,
       isActive: collectionPoints.isActive,
-      confirmed: sql<number>`(select count(*)::int from submissions s where s.partner_point_id = ${collectionPoints.id} and s.partner_confirmed_at is not null)`,
-      totalKg: sql<number>`(select coalesce(sum(s.weight_kg), 0)::float from submissions s where s.partner_point_id = ${collectionPoints.id} and s.partner_confirmed_at is not null)`,
-      waiting: sql<number>`(select count(*)::int from submissions s join missions m on m.id = s.mission_id where m.collection_point_id = ${collectionPoints.id} and s.status = 'pending' and s.partner_confirmed_at is null)`,
+      confirmed: sql<number>`(select count(*)::int from submissions s where s.partner_point_id = ${ref(collectionPoints.id)} and s.partner_confirmed_at is not null)`,
+      totalKg: sql<number>`(select coalesce(sum(s.weight_kg), 0)::float from submissions s where s.partner_point_id = ${ref(collectionPoints.id)} and s.partner_confirmed_at is not null)`,
+      waiting: sql<number>`(select count(*)::int from submissions s join missions m on m.id = s.mission_id where m.collection_point_id = ${ref(collectionPoints.id)} and s.status = 'pending' and s.partner_confirmed_at is null)`,
     })
     .from(collectionPoints)
     .orderBy(desc(collectionPoints.isActive), asc(collectionPoints.name));
@@ -403,9 +404,9 @@ export default async function AdminPage() {
   const offerRows = await db
     .select({
       offer: partnerOffers,
-      generated: sql<number>`(select count(*)::int from ${offerRedemptions} r where r.offer_id = ${partnerOffers.id})`,
-      used: sql<number>`(select count(r.used_at)::int from ${offerRedemptions} r where r.offer_id = ${partnerOffers.id})`,
-      used30: sql<number>`(select count(*)::int from ${offerRedemptions} r where r.offer_id = ${partnerOffers.id} and r.used_at > now() - interval '30 days')`,
+      generated: sql<number>`(select count(*)::int from ${offerRedemptions} r where r.offer_id = ${ref(partnerOffers.id)})`,
+      used: sql<number>`(select count(r.used_at)::int from ${offerRedemptions} r where r.offer_id = ${ref(partnerOffers.id)})`,
+      used30: sql<number>`(select count(*)::int from ${offerRedemptions} r where r.offer_id = ${ref(partnerOffers.id)} and r.used_at > now() - interval '30 days')`,
     })
     .from(partnerOffers)
     .orderBy(desc(partnerOffers.isActive), desc(partnerOffers.createdAt));

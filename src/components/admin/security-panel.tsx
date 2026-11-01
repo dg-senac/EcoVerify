@@ -41,7 +41,7 @@ export function SecurityPanel({ security, moderatorsEnabled }: { security: Admin
         },
     {
       ok: true,
-      text: moderatorsEnabled ? "Moderadores liberados (MODERATORS_ENABLED): revisam e dão cartão amarelo." : "Moderação só com administradores.",
+      text: moderatorsEnabled ? "Moderadores (escolhidos por você em Usuários): usam o app como cidadãos, revisam e dão cartão amarelo." : "Moderação só com o admin (MODERATORS_ENABLED=false).",
     },
   ].filter((item): item is Item => !!item);
   const allOk = items.every((item) => item.ok);

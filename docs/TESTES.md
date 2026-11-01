@@ -125,7 +125,7 @@ Precisa de internet e de uma chave grátis do [Google AI Studio](https://aistudi
 - [ ] Se o Carlos enviar uma comprovação, ele vê o aviso de que **não pode moderar a própria**.
 - [ ] **Cartão amarelo na rejeição:** ao rejeitar por um motivo de fraude (foto da internet, de tela, repetida, localização falsa…), aparece a caixa **"Dar cartão amarelo"**. Ela não aparece para motivos de erro honesto (foto escura, fora do local por engano). Marcar e confirmar → a Maria recebe "🟨 Cartão amarelo" com a explicação escrita pelo Carlos.
 
-> **Moderação só para admin:** no app real a Moderação começa **só com administradores** (`MODERATORS_ENABLED` desligado). Na demo ela começa liberada para você testar o Carlos; a Ana pode desligar em **Admin → Usuários** (ver 3.5).
+> **Moderadores:** o admin escolhe quem é moderador em **Admin → Usuários** (a equipe dele). O moderador usa o app como qualquer cidadão (missões, ranking, chat) e também tem a tela **Moderação**, mas nunca revisa as próprias comprovações. Na demo, a Ana pode desligar o papel em **Admin → Usuários** (ver 3.5); no app real, a chave é `MODERATORS_ENABLED=false`.
 
 ### 3.5 Ana: administração
 

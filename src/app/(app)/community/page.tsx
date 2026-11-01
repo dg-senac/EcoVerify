@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
+import { isParticipant } from "@/lib/nav";
 import { redirect } from "next/navigation";
 import { homeFor } from "@/lib/nav";
 import { moderatorsEnabled } from "@/lib/staff-config";
@@ -9,7 +10,7 @@ import { CommunityChatRealtime } from "@/components/community/community-chat-rea
 export default async function CommunityPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "citizen") redirect(homeFor(user.role, moderatorsEnabled()));
+  if (!isParticipant(user.role)) redirect(homeFor(user.role, moderatorsEnabled()));
 
   const feed = await fetchCommunityMessages(user.id);
 
