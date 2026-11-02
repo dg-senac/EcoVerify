@@ -34,6 +34,7 @@ No Supabase: **SQL Editor → New query**, cole o arquivo inteiro e clique em **
 | `04_missoes_iniciais.sql` | Missões prontas do Recife e de "qualquer lugar" | Opcional |
 | `05_admin.sql` | Transforma a **sua** conta em admin | Depois do passo 5 |
 | `06_comunidade_por_organizacao.sql` | Atualização: cada organização ganha o próprio chat da Comunidade | Só se você já rodou o 01 antes dessa versão (rode **antes** do merge) |
+| `07_missoes_qualquer_lugar.sql` | 8 missões para fazer em qualquer cidade e país (só pontos) | Opcional, recomendado (pode repetir) |
 
 Cada arquivo termina com uma consulta de conferência (você vê o resultado embaixo do editor).
 

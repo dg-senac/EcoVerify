@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { t, type Lang } from "@/lib/i18n";
+import { RegionInvite, regionInviteServerSnapshot, regionInviteSnapshot, rememberRegionInvite } from "@/components/missions/region-invite";
 import {
   DEFAULT_REGION_RADIUS_KM,
-  nearestMunicipality,
+  municipalityForGps,
   REGION_RADIUS_OPTIONS_KM,
   regionFromMunicipality,
+  regionLabel,
   searchMunicipalities,
+  worldRegion,
   type Municipality,
   type Region,
   type RegionRadius,
@@ -17,6 +20,7 @@ import { loadMunicipalities } from "../municipalities";
 import { btnPrimary, btnSecondary, card, input } from "./ui";
 
 const RECIFE = 2611606;
+const noSubscribe = () => () => {};
 
 /** Same behaviour as src/components/missions/region-bar.tsx, without a server. */
 export function RegionBar({ lang, region }: { lang: Lang; region: Region | null }) {
@@ -27,6 +31,13 @@ export function RegionBar({ lang, region }: { lang: Lang; region: Region | null 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const radius: RegionRadius = region?.radiusKm ?? DEFAULT_REGION_RADIUS_KM;
+  const inviteAsked = useSyncExternalStore(noSubscribe, regionInviteSnapshot, regionInviteServerSnapshot);
+  const [inviteClosed, setInviteClosed] = useState(false);
+  const showInvite = !region && !inviteAsked && !inviteClosed;
+  const closeInvite = () => {
+    rememberRegionInvite();
+    setInviteClosed(true);
+  };
 
   useEffect(() => {
     const q = query.trim();
@@ -56,9 +67,14 @@ export function RegionBar({ lang, region }: { lang: Lang; region: Region | null 
     setBusy(true);
     try {
       const pos = await getCurrentPosition();
-      const m = nearestMunicipality(await loadMunicipalities(), pos.latitude, pos.longitude);
-      if (!m) setError(t(lang, "region_error_outside"));
-      else choose(m, "gps", { lat: pos.latitude, lng: pos.longitude });
+      const m = municipalityForGps(await loadMunicipalities(), pos.latitude, pos.longitude);
+      if (m) choose(m, "gps", { lat: pos.latitude, lng: pos.longitude });
+      else {
+        // Outside Brazil: the area around the reading (the real app also names it from OpenStreetMap).
+        setRegion(worldRegion(pos.latitude, pos.longitude, radius, null, lang));
+        setPicking(false);
+        setSearching(false);
+      }
     } catch {
       setError(t(lang, "region_error_location"));
     } finally {
@@ -87,6 +103,7 @@ export function RegionBar({ lang, region }: { lang: Lang; region: Region | null 
       </div>
       {searching && (
         <div>
+          <p className="mb-2 text-xs text-slate-500">{t(lang, "region_search_hint")}</p>
           <input
             type="search"
             autoFocus
@@ -128,6 +145,20 @@ export function RegionBar({ lang, region }: { lang: Lang; region: Region | null 
         <h2 className="font-bold text-slate-900">📍 {t(lang, "region_prompt_title")}</h2>
         <p className="mt-1 text-sm text-slate-600">{t(lang, "region_prompt_text")}</p>
         {picker}
+        {showInvite && (
+          <RegionInvite
+            lang={lang}
+            onLocate={() => {
+              closeInvite();
+              void locate();
+            }}
+            onPickCity={() => {
+              closeInvite();
+              setSearching(true);
+            }}
+            onLater={closeInvite}
+          />
+        )}
       </section>
     );
   }
@@ -137,7 +168,7 @@ export function RegionBar({ lang, region }: { lang: Lang; region: Region | null 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-bold text-slate-900">
-            📍 {t(lang, "region_near_you")} · <span data-testid="region-city">{region.city}, {region.uf}</span>
+            📍 {t(lang, "region_near_you")} · <span data-testid="region-city">{regionLabel(region, lang)}</span>
           </p>
           <p className="text-xs text-slate-400">{t(lang, region.source === "gps" ? "region_by_gps" : "region_by_choice")}</p>
         </div>

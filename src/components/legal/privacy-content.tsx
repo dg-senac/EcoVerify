@@ -85,7 +85,7 @@ function PrivacyPt({ info }: { info: LegalInfo }) {
             "Outros usuários veem seu nome, pontos e nível no ranking. Suas mensagens no chat da Comunidade são vistas pelos membros da organização onde você escreveu.",
             "Moderadores e administradores veem as comprovações (foto, relato e localização) para analisá-las, e administradores veem a carteira para fazer os pagamentos.",
             "Operadores que nos ajudam a funcionar, sob contrato: hospedagem do app, banco de dados e armazenamento de arquivos (por exemplo, Vercel e Supabase), envio de e-mails (por exemplo, Resend) e verificação automática das fotos (Google Gemini e, quando ligado, Google Cloud Vision; ver seção 2). Alguns desses serviços ficam fora do Brasil; nesses casos, a transferência segue as garantias da LGPD (art. 33).",
-            "Para abastecer regiões sem missões, o servidor consulta o OpenStreetMap (mapa aberto e colaborativo) em busca de praias, parques e pontos de coleta perto do centro da cidade. Nessa consulta vai só a posição do centro do município, nunca a sua posição nem dados da sua conta.",
+            "Para abastecer regiões sem missões e, fora do Brasil, dar nome à sua região, o servidor consulta o OpenStreetMap (mapa aberto e colaborativo) em busca de praias, parques e pontos de coleta por perto. Nessa consulta vai só a posição da região escolhida: no Brasil, o centro do município; em outros países, um ponto arredondado (~1 km) da região. Nunca vão dados da sua conta.",
             "Autoridades, quando a lei ou uma ordem judicial exigir.",
           ]}
         />

@@ -2,8 +2,8 @@ import "server-only";
 import { and, eq, isNotNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { missions, regionSeeds } from "@/db/schema";
-import { distanceKm, type Region } from "@/lib/region";
-import { placeOf } from "@/lib/municipalities";
+import { distanceKm, isWorldRegion, UNKNOWN_COUNTRY, type Region } from "@/lib/region";
+import { municipalityByIbge, placeOf } from "@/lib/municipalities";
 import { OSM_TEMPLATES, type OsmKind } from "@/lib/regional/templates";
 
 /**
@@ -11,7 +11,8 @@ import { OSM_TEMPLATES, type OsmKind } from "@/lib/regional/templates";
  * recycling and cooking-oil collection points near the user. Generated missions pay points only
  * until an admin reviews them (needsReview).
  *
- * Runs on the server, at most once per municipality every 30 days (1 day after a failure).
+ * Runs on the server, at most once per municipality every 30 days (1 day after a failure). Outside
+ * Brazil the "municipality" is the region's grid cell (negative code, see worldCellCode).
  * OSM data © OpenStreetMap contributors (ODbL): the app shows the attribution on these missions.
  */
 
@@ -127,11 +128,15 @@ export async function seedRegionFromOsm(region: Region): Promise<number> {
   }
 
   try {
-    const elements = await fetchOsmPlaces(region.lat, region.lng);
+    // Brazil: the municipality centre (never the person's position). Elsewhere there is no municipality
+    // list, so the search uses the region's rounded point (~1 km).
+    const municipality = isWorldRegion(region) ? null : municipalityByIbge(region.ibge);
+    const center = municipality ? { lat: municipality[3], lng: municipality[4] } : { lat: region.lat, lng: region.lng };
+    const elements = await fetchOsmPlaces(center.lat, center.lng);
     const existing = await db
       .select({ category: missions.category, latitude: missions.latitude, longitude: missions.longitude })
       .from(missions)
-      .where(and(isNotNull(missions.latitude), sql`abs(${missions.latitude} - ${region.lat}) < 0.5`, sql`abs(${missions.longitude} - ${region.lng}) < 0.5`));
+      .where(and(isNotNull(missions.latitude), sql`abs(${missions.latitude} - ${center.lat}) < 0.5`, sql`abs(${missions.longitude} - ${center.lng}) < 0.5`));
 
     const candidates = elements
       .map((element) => {
@@ -140,7 +145,7 @@ export async function seedRegionFromOsm(region: Region): Promise<number> {
         const lat = element.lat ?? element.center?.lat;
         const lng = element.lon ?? element.center?.lon;
         if (!kind || typeof lat !== "number" || typeof lng !== "number") return null;
-        return { element, tags, kind, lat, lng, distance: distanceKm(region.lat, region.lng, lat, lng) };
+        return { element, tags, kind, lat, lng, distance: distanceKm(center.lat, center.lng, lat, lng) };
       })
       .filter((c): c is NonNullable<typeof c> => c !== null)
       .sort((a, b) => a.distance - b.distance);
@@ -165,7 +170,10 @@ export async function seedRegionFromOsm(region: Region): Promise<number> {
       const rawName = (c.tags.name ?? "").trim().slice(0, 80);
       const street = (c.tags["addr:street"] ?? "").trim().slice(0, 60);
       const name = (lang: "pt" | "en" | "es") => rawName || (street ? `${template.fallbackName[lang]} (${street})` : template.fallbackName[lang]);
-      const place = placeOf(c.lat, c.lng);
+      // Outside Brazil there is no IBGE municipality: the mission takes the name and code of the region.
+      const place = isWorldRegion(region)
+        ? { city: region.city, stateCode: region.uf === UNKNOWN_COUNTRY ? null : region.uf, ibgeCode: region.ibge }
+        : placeOf(c.lat, c.lng);
       const rows = await db
         .insert(missions)
         .values({

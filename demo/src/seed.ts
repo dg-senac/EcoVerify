@@ -6,11 +6,12 @@ import { DEFAULT_LANG, type Lang } from "@/lib/i18n";
 import { registerText } from "./seed-text";
 import { CLEANUP_POINTS, cleanupMission } from "@/lib/dumps";
 import { previousSeason, seasonAt } from "@/lib/seasons";
+import { ANYWHERE_MISSIONS } from "@/lib/anywhere-missions";
 
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 21;
+export const STATE_VERSION = 22;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -272,6 +273,27 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
       isActive: true,
       createdAt: ago(2 * DAY),
     },
+    // Same list as the real app (supabase/07_missoes_qualquer_lugar.sql): points only, any country.
+    ...ANYWHERE_MISSIONS.map(
+      (m, index): Mission => ({
+        id: `m-any-${m.key}`,
+        scope: "anywhere",
+        ...T(m.title),
+        ...D(m.description),
+        ...C(m.context),
+        ...I(m.impact),
+        proofType: m.proofType,
+        countItem: m.countItem ?? null,
+        countTarget: m.countTarget ?? null,
+        latitude: -8.0476,
+        longitude: -34.877,
+        category: m.category,
+        pointsReward: m.points,
+        foneReward: "0.00",
+        isActive: true,
+        createdAt: ago((1 + index * 0.1) * DAY),
+      }),
+    ),
   ];
 
   const sub = (s: Omit<Submission, "photoHash" | "accuracy" | "simulatedLocation" | "latitude" | "longitude"> & { at: Mission }): Submission => {

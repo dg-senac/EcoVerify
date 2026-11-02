@@ -13,11 +13,14 @@ import { rateLimit } from "@/lib/rate-limit";
 import {
   DEFAULT_REGION_RADIUS_KM,
   isRegionRadius,
-  nearestMunicipality,
+  isValidCoord,
+  municipalityForGps,
   regionFromMunicipality,
   searchMunicipalities,
+  worldRegion,
   type RegionRadius,
 } from "@/lib/region";
+import { lookupPlaceName } from "@/lib/regional/place-name";
 import { MUNICIPALITIES, municipalityByIbge, placeOf } from "@/lib/municipalities";
 import { clearRegionCookie, getRegion, writeRegion } from "@/lib/regional/cookie";
 
@@ -39,15 +42,29 @@ async function currentRadius(): Promise<RegionRadius> {
   return (await getRegion())?.radiusKm ?? DEFAULT_REGION_RADIUS_KM;
 }
 
-/** GPS reading → closest municipality. The coordinates are rounded (~1 km) and only kept in a cookie. */
+/**
+ * GPS reading → closest Brazilian municipality, or (anywhere else in the world) the area around the
+ * reading, named from OpenStreetMap. The coordinates are rounded (~1 km) and only kept in a cookie.
+ */
 export async function setRegionFromLocationAction(latitude: number, longitude: number): Promise<RegionActionState> {
-  await requireUser();
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return { error: "invalid" };
-  const municipality = nearestMunicipality(MUNICIPALITIES, latitude, longitude);
-  if (!municipality) return { error: "outside" };
-  await writeRegion(regionFromMunicipality(municipality, await currentRadius(), "gps", { lat: latitude, lng: longitude }));
+  const user = await requireUser();
+  latitude = Number(latitude);
+  longitude = Number(longitude);
+  if (!isValidCoord(latitude, longitude)) return { error: "invalid" };
+  const radius = await currentRadius();
+  const municipality = municipalityForGps(MUNICIPALITIES, latitude, longitude);
+  if (municipality) {
+    await writeRegion(regionFromMunicipality(municipality, radius, "gps", { lat: latitude, lng: longitude }));
+    revalidatePath("/missions");
+    return { success: true, city: municipality[1] };
+  }
+  if (!rateLimit(`region-world:${user.id}`, 20, 3_600_000)) return { error: "limit" };
+  const lat = Math.round(latitude * 100) / 100;
+  const lng = Math.round(longitude * 100) / 100;
+  const region = worldRegion(lat, lng, radius, await lookupPlaceName(lat, lng, user.language), user.language);
+  await writeRegion(region);
   revalidatePath("/missions");
-  return { success: true, city: municipality[1] };
+  return { success: true, city: region.city };
 }
 
 export async function setRegionFromCityAction(ibge: number): Promise<RegionActionState> {

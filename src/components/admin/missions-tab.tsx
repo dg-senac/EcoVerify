@@ -11,7 +11,7 @@ type MissionItem = ReviewMission & {
   scope: "local" | "anywhere";
 };
 
-export type CityDemand = { ibgeCode: number; city: string; stateCode: string; requests: number; missions: number };
+export type CityDemand = { ibgeCode: number; city: string; stateCode: string; label: string; requests: number; missions: number };
 export type SeedLog = { ibgeCode: number; city: string | null; status: string; missionsCreated: number; error: string | null; attemptedAt: string };
 
 export function MissionsTab({
@@ -61,7 +61,7 @@ export function MissionsTab({
               {demand.map((row) => (
                 <tr key={row.ibgeCode} className="border-t border-black/5">
                   <td className="py-1.5 font-medium text-slate-700">
-                    {row.city}, {row.stateCode}
+                    {row.label}
                   </td>
                   <td className="py-1.5 text-right font-bold text-slate-900">{row.requests}</td>
                   <td className={`py-1.5 text-right ${row.missions === 0 ? "font-bold text-red-600" : "text-slate-600"}`}>{row.missions}</td>
