@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Ban, Flag, MessageSquare, Reply, Send, Trash2, X } from "lucide-react";
-import { t } from "@/lib/i18n";
+import { t, tf } from "@/lib/i18n";
 import { chatModText, isChatMuted, type ChatSendIssue } from "@/lib/chat-moderation";
 import { formatDate } from "@/lib/utils";
 import { BlockedList } from "@/components/community/blocked-list";
 import { ReportReasonDialog } from "@/components/community/report-reason-dialog";
 import { dt, errorText } from "../i18n";
-import { blockChatUser, deleteChatMessage, reportChatMessage, sendChatMessage, unblockChatUser, useLang, useStore, type User } from "../store";
+import { blockChatUser, deleteChatMessage, myOrgs, reportChatMessage, sendChatMessage, unblockChatUser, useLang, useStore, type User } from "../store";
+import { Link } from "../router";
 import { Avatar, EmptyState, PageHeader, card, toast } from "../components/ui";
 
 function timeLabel(iso: string, lang: string) {
@@ -16,8 +17,20 @@ function timeLabel(iso: string, lang: string) {
   return new Intl.DateTimeFormat(locale, sameDay ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
+/**
+ * Community = the chat of an organization (each one has its own, only for its members), like the
+ * real app. People in no organization are invited to join or create one.
+ */
 export function CommunityScreen({ user }: { user: User }) {
   const lang = useLang();
+  const orgs = useStore((s) => s.orgs);
+  const orgMembers = useStore((s) => s.orgMembers);
+  const communities = useMemo(
+    () => myOrgs({ orgs, orgMembers } as Parameters<typeof myOrgs>[0], user.id).map((x) => x.org).sort((a, b) => a.name.localeCompare(b.name)),
+    [orgs, orgMembers, user.id],
+  );
+  const [picked, setPicked] = useState<string | null>(null);
+  const current = communities.find((o) => o.id === picked) ?? communities[0] ?? null;
   const allChat = useStore((s) => s.chat);
   const users = useStore((s) => s.users);
   const blocks = useStore((s) => s.chatBlocks);
@@ -27,7 +40,7 @@ export function CommunityScreen({ user }: { user: User }) {
   const mod = chatModText(lang);
   const blockedIds = new Set((blocks ?? []).filter((b) => b.blockerId === user.id).map((b) => b.blockedId));
   // Same as the server: hidden messages only reach their author; blocked people disappear.
-  const chat = allChat.filter((m) => !blockedIds.has(m.userId) && (!m.hiddenAt || m.userId === user.id));
+  const chat = allChat.filter((m) => !!current && m.orgId === current.id && !blockedIds.has(m.userId) && (!m.hiddenAt || m.userId === user.id));
   const mutedUntil = users.find((u) => u.id === user.id)?.chatMutedUntil ?? null;
   const muted = isChatMuted(mutedUntil);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -37,13 +50,28 @@ export function CommunityScreen({ user }: { user: User }) {
   }, [chat.length]);
 
   if (user.role === "admin") return <EmptyState emoji="💬" text={dt(lang, "community_citizens_only")} />;
+  if (!current) {
+    return (
+      <div className="flex flex-col">
+        <PageHeader title={t(lang, "nav_community")} icon={MessageSquare} />
+        <div className={`${card} flex flex-col items-center gap-3 px-6 py-12 text-center animate-fade-in`} data-testid="community-no-org">
+          <span className="text-5xl">💬</span>
+          <h2 className="text-lg font-bold text-slate-900">{t(lang, "community_no_org_title")}</h2>
+          <p className="max-w-md text-sm text-slate-500">{t(lang, "community_no_org_text")}</p>
+          <Link to="/org" className="mt-2 inline-flex rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md">
+            {t(lang, "community_no_org_cta")}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const nameOf = (id: string) => users.find((u) => u.id === id)?.name ?? "—";
   const replyMessage = replyTo ? chat.find((m) => m.id === replyTo) : null;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const result = sendChatMessage(text, replyTo);
+    const result = sendChatMessage(text, replyTo, current.id);
     if (result.error) return toast(result.error in mod.errors ? mod.errors[result.error as ChatSendIssue] : errorText(lang, result.error), "error");
     setText("");
     setReplyTo(null);
@@ -51,7 +79,30 @@ export function CommunityScreen({ user }: { user: User }) {
 
   return (
     <div className="flex flex-col">
-      <PageHeader title={t(lang, "nav_community")} subtitle={dt(lang, "community_subtitle")} icon={MessageSquare} />
+      <PageHeader title={t(lang, "nav_community")} subtitle={tf(lang, "community_subtitle", { org: current.name })} icon={MessageSquare} />
+      {communities.length > 1 && (
+        <nav aria-label={t(lang, "community_pick")} className="-mt-3 mb-4 flex gap-2 overflow-x-auto pb-1" data-testid="community-switch">
+          {communities.map((org) => {
+            const active = org.id === current.id;
+            return (
+              <button
+                key={org.id}
+                type="button"
+                aria-current={active ? "page" : undefined}
+                onClick={() => {
+                  setPicked(org.id);
+                  setReplyTo(null);
+                }}
+                className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                  active ? "bg-emerald-600 text-white shadow-sm" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {org.name}
+              </button>
+            );
+          })}
+        </nav>
+      )}
       <div className={`${card} flex min-h-[50vh] flex-col`}>
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
           {chat.length === 0 && <p className="py-10 text-center text-sm text-slate-400">{t(lang, "chat_empty")}</p>}

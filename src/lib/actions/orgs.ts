@@ -84,7 +84,8 @@ export async function createOrganizationAction(_prev: OrgActionState, formData: 
         await tx.insert(organizationMembers).values({ organizationId: created.id, userId: user.id, role: "owner" });
         return created;
       });
-      revalidatePath("/org");
+      // The app layout shows the Community tab only for organization members.
+      revalidatePath("/", "layout");
       redirect(`/org/${org.slug}?welcome=1`);
     } catch (error) {
       if (isUniqueViolation(error)) continue;
@@ -107,6 +108,7 @@ export async function joinOrganizationAction(_prev: OrgActionState, formData: Fo
     await db.insert(organizationMembers).values({ organizationId: org.id, userId: user.id, role: "member" }).onConflictDoNothing();
   }
   revalidateOrg(org.slug);
+  revalidatePath("/", "layout"); // Community tab
   redirect(`/org/${org.slug}`);
 }
 
@@ -116,8 +118,7 @@ export async function leaveOrganizationAction(orgId: string): Promise<OrgActionS
   if (!role) return { error: "not_found" };
   if (role === "owner") return { error: "owner_cannot_leave" };
   await db.delete(organizationMembers).where(and(eq(organizationMembers.organizationId, orgId), eq(organizationMembers.userId, user.id)));
-  revalidatePath("/org");
-  revalidatePath("/missions");
+  revalidatePath("/", "layout"); // missions, organizations and the Community tab
   redirect("/org");
 }
 

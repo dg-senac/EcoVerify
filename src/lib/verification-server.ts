@@ -82,7 +82,7 @@ const EXTRA_TEXT = {
   message: (lang: Lang, mission: string, code: string) =>
     tx(
       lang,
-      `Para concluir a verificação de "${mission}", escreva o código ${code} num papel e tire uma foto dele junto do local ou dos itens. Envie em "Minhas Submissões" em até ${EXTRA_PROOF_HOURS} horas.`,
+      `Para concluir a verificação de "${mission}", escreva o código ${code} num papel e tire uma foto dele junto do local ou dos itens. Envie em "Meus envios" em até ${EXTRA_PROOF_HOURS} horas.`,
       `To finish checking "${mission}", write the code ${code} on a piece of paper and take a photo of it next to the place or the items. Send it in "My Submissions" within ${EXTRA_PROOF_HOURS} hours.`,
       `Para terminar la verificación de "${mission}", escribe el código ${code} en un papel y toma una foto junto al lugar o los artículos. Envíala en "Mis Envíos" en hasta ${EXTRA_PROOF_HOURS} horas.`,
     ),

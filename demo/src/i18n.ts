@@ -228,7 +228,7 @@ const demoDict = {
   },
   notif_ai_rejected_title: { pt: "Comprovação rejeitada pela verificação automática", en: "Proof rejected by the automatic verification", es: "Comprobante rechazado por la verificación automática" },
   notif_ai_rejected_msg: {
-    pt: "Sua comprovação para \"{mission}\" foi rejeitada. Motivo: {reason} Se achar que houve engano, abra \"Minhas Submissões\" e toque em \"Contestar\" para um moderador revisar.",
+    pt: "Sua comprovação para \"{mission}\" foi rejeitada. Motivo: {reason} Se achar que houve engano, abra \"Meus envios\" e toque em \"Contestar\" para um moderador revisar.",
     en: "Your proof for \"{mission}\" was rejected. Reason: {reason} If you think this is a mistake, open \"My Submissions\" and tap \"Appeal\" so a moderator reviews it.",
     es: "Tu comprobante para \"{mission}\" fue rechazado. Motivo: {reason} Si crees que es un error, abre \"Mis Envíos\" y toca \"Apelar\" para que un moderador lo revise.",
   },
@@ -338,7 +338,6 @@ const demoDict = {
   no_rewards: { pt: "Nenhuma recompensa ainda.", en: "No rewards yet.", es: "Aún no hay recompensas." },
   you: { pt: "você", en: "you", es: "tú" },
   // Community
-  community_subtitle: { pt: "Converse com outros guardiões do planeta", en: "Chat with other planet guardians", es: "Conversa con otros guardianes del planeta" },
   community_citizens_only: {
     pt: "O chat da comunidade é para quem participa das missões. A conta de administração não entra no chat.",
     en: "The community chat is for people who take part in missions. The admin account doesn't join the chat.",

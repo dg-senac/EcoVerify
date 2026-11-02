@@ -340,6 +340,8 @@ export type Notification = {
 export type ChatMessage = {
   id: string;
   userId: string;
+  /** Organization whose community chat this is (each organization has its own, like the real app). */
+  orgId?: string;
   message: string;
   replyToId: string | null;
   deleted: boolean;
@@ -1105,7 +1107,7 @@ function applyPlan(s: State, plan: VerificationPlan, submissionId: string): Stat
           title: tx(l, "📸 Falta uma prova extra", "📸 One extra proof needed", "📸 Falta una prueba extra"),
           message: tx(
             l,
-            `Para concluir a verificação de "${localizedTitle(mission, l)}", escreva o código ${code} num papel e tire uma foto dele junto do local ou dos itens. Envie em "Minhas Submissões" em até ${EXTRA_PROOF_HOURS} horas.`,
+            `Para concluir a verificação de "${localizedTitle(mission, l)}", escreva o código ${code} num papel e tire uma foto dele junto do local ou dos itens. Envie em "Meus envios" em até ${EXTRA_PROOF_HOURS} horas.`,
             `To finish checking "${localizedTitle(mission, l)}", write the code ${code} on a piece of paper and take a photo of it next to the place or the items. Send it in "My Submissions" within ${EXTRA_PROOF_HOURS} hours.`,
             `Para terminar la verificación de "${localizedTitle(mission, l)}", escribe el código ${code} en un papel y toma una foto junto al lugar o los artículos. Envíala en "Mis Envíos" en hasta ${EXTRA_PROOF_HOURS} horas.`,
           ),
@@ -1994,9 +1996,12 @@ export function markAllNotificationsRead() {
 /* Community chat (citizens and moderators, like the real app)        */
 /* ------------------------------------------------------------------ */
 
-export function sendChatMessage(text: string, replyToId: string | null): Result {
+export function sendChatMessage(text: string, replyToId: string | null, orgId: string): Result {
   const user = me();
   if (!user || user.role === "admin" || user.isBanned) return { error: "error_generic" };
+  // Only members write in an organization's community.
+  const isMember = (userId: string) => (state.orgMembers ?? []).some((m) => m.orgId === orgId && m.userId === userId);
+  if (!isMember(user.id)) return { error: "error_generic" };
   if (isChatMuted(user.chatMutedUntil)) return { error: "muted" };
   const message = text.trim();
   if (!message) return { error: "chat_error_empty" };
@@ -2004,14 +2009,15 @@ export function sendChatMessage(text: string, replyToId: string | null): Result 
   // Same safety rules as the server: no phone numbers, e-mails or links in the public chat.
   const issue = chatTextIssue(message);
   if (issue) return { error: issue };
-  const entry: ChatMessage = { id: uid(), userId: user.id, message, replyToId, deleted: false, createdAt: now() };
+  const quoted = replyToId ? state.chat.find((m) => m.id === replyToId && m.orgId === orgId) : null;
+  const entry: ChatMessage = { id: uid(), userId: user.id, orgId, message, replyToId: quoted ? quoted.id : null, deleted: false, createdAt: now() };
   const ok = commit((s) => ({ ...s, chat: [...s.chat, entry] }));
   if (!ok) return { error: "storage" };
 
   // A fictional member sometimes answers, so the community feels alive in the demo.
   if (Math.random() < 0.7) {
     const blocked = new Set((state.chatBlocks ?? []).filter((b) => b.blockerId === user.id).map((b) => b.blockedId));
-    const bots = state.users.filter((u) => u.isBot && !u.isBanned && u.role === "citizen" && !blocked.has(u.id));
+    const bots = state.users.filter((u) => u.isBot && !u.isBanned && u.role === "citizen" && !blocked.has(u.id) && isMember(u.id));
     const bot = bots[Math.floor(Math.random() * bots.length)];
     const replies = botReplies[user.language];
     if (bot) {
@@ -2019,7 +2025,7 @@ export function sendChatMessage(text: string, replyToId: string | null): Result 
         // Skip if the demo was reset (or the message deleted) in the meantime.
         if (!state.chat.some((m) => m.id === entry.id && !m.deleted)) return;
         const reply = replies[Math.floor(Math.random() * replies.length)];
-        commit((s) => ({ ...s, chat: [...s.chat, { id: uid(), userId: bot.id, message: reply, replyToId: entry.id, deleted: false, createdAt: now() }] }));
+        commit((s) => ({ ...s, chat: [...s.chat, { id: uid(), userId: bot.id, orgId, message: reply, replyToId: entry.id, deleted: false, createdAt: now() }] }));
       }, 1500 + Math.random() * 2000);
     }
   }

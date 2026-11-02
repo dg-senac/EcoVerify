@@ -43,7 +43,7 @@ const dict = {
     es: "Tus acciones sostenibles, reconocidas y recompensadas.",
   },
   nav_missions: { pt: "Missões", en: "Missions", es: "Misiones" },
-  nav_submissions: { pt: "Minhas Submissões", en: "My Submissions", es: "Mis Envíos" },
+  nav_submissions: { pt: "Meus envios", en: "My Submissions", es: "Mis Envíos" },
   nav_ranking: { pt: "Ranking", en: "Ranking", es: "Clasificación" },
   nav_community: { pt: "Comunidade", en: "Community", es: "Comunidad" },
   nav_moderation: { pt: "Moderação", en: "Moderation", es: "Moderación" },
@@ -241,7 +241,7 @@ const dict = {
     es: "Usar mi ubicación actual",
   },
   submission_success: { pt: "Comprovação enviada!", en: "Proof submitted!", es: "¡Comprobante enviado!" },
-  my_submissions_title: { pt: "Minhas Submissões", en: "My Submissions", es: "Mis Envíos" },
+  my_submissions_title: { pt: "Meus envios", en: "My Submissions", es: "Mis Envíos" },
   submissions_empty: {
     pt: "Você ainda não enviou nenhuma comprovação.",
     en: "You haven't submitted any proof yet.",
@@ -279,7 +279,7 @@ const dict = {
   approve: { pt: "Aprovar", en: "Approve", es: "Aprobar" },
   reject: { pt: "Rejeitar", en: "Reject", es: "Rechazar" },
   own_submission_warning: {
-    pt: "Você não pode moderar sua própria submissão.",
+    pt: "Você não pode moderar seu próprio envio.",
     en: "You cannot moderate your own submission.",
     es: "No puedes moderar tu propio envío.",
   },
@@ -1176,10 +1176,22 @@ const dict = {
     es: "✓ Preferencias guardadas",
   },
   community_subtitle: {
-    pt: "Converse com outros guardiões do planeta",
-    en: "Chat with other guardians of the planet",
-    es: "Conversa con otros guardianes del planeta",
+    pt: "Converse com os membros de {org}",
+    en: "Chat with the members of {org}",
+    es: "Conversa con los miembros de {org}",
   },
+  community_pick: { pt: "Suas comunidades", en: "Your communities", es: "Tus comunidades" },
+  community_no_org_title: {
+    pt: "A Comunidade é o chat da sua organização",
+    en: "The Community is your organization's chat",
+    es: "La Comunidad es el chat de tu organización",
+  },
+  community_no_org_text: {
+    pt: "Entre em uma organização (escola, empresa, ONG...) com o código de convite ou crie a sua para conversar com os membros.",
+    en: "Join an organization (school, company, NGO...) with its invite code or create your own to chat with its members.",
+    es: "Únete a una organización (escuela, empresa, ONG...) con su código de invitación o crea la tuya para conversar con sus miembros.",
+  },
+  community_no_org_cta: { pt: "Entrar ou criar organização", en: "Join or create an organization", es: "Unirse o crear organización" },
   you_suffix: {
     pt: "(você)",
     en: "(you)",

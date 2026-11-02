@@ -65,8 +65,17 @@ export function homeFor(role: Role, _moderatorsEnabled?: boolean): string {
   return role === "admin" ? "/admin" : "/missions";
 }
 
-export function navItemsFor(role: Role, moderatorsEnabled: boolean): NavItem[] {
-  return NAV_ITEMS.filter((item) => item.roles.includes(role) && (item.href !== "/moderation" || canReview(role, moderatorsEnabled)));
+/**
+ * The Community is the chat of an organization: the tab only shows for people in at least one
+ * organization (hasCommunity), the others find the way in from Organizations.
+ */
+export function navItemsFor(role: Role, moderatorsEnabled: boolean, hasCommunity = true): NavItem[] {
+  return NAV_ITEMS.filter(
+    (item) =>
+      item.roles.includes(role) &&
+      (item.href !== "/moderation" || canReview(role, moderatorsEnabled)) &&
+      (item.href !== "/community" || hasCommunity),
+  );
 }
 
 /** Splits the role's items into the phone bottom bar (up to 4) and the "More" drawer. */

@@ -14,6 +14,7 @@ const initialState: ActionState = {};
 
 export function CommunityChat({
   lang,
+  organizationId,
   messages,
   currentUserId,
   currentUserName,
@@ -24,6 +25,8 @@ export function CommunityChat({
   onChanged,
 }: {
   lang: Lang;
+  /** The organization whose community chat this is (each organization has its own). */
+  organizationId: string;
   messages: Array<{
     id: string;
     message: string | null;
@@ -66,6 +69,14 @@ export function CommunityChat({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Show the new message right after sending (instead of waiting for the next refresh).
+  const lastState = useRef(state);
+  useEffect(() => {
+    if (state === lastState.current) return;
+    lastState.current = state;
+    if (!state.error) onChanged();
+  }, [state, onChanged]);
 
   const handleMediaUploaded = (url: string, type: "image" | "audio" | "video" | "gif") => {
     setMediaUrl(url);
@@ -266,6 +277,7 @@ export function CommunityChat({
           action={formAction}
           className="border-t border-slate-100 p-4"
         >
+          <input type="hidden" name="organizationId" value={organizationId} />
           {replyTo && (
             <div className="mb-2 p-2 bg-slate-50 rounded-lg flex items-center justify-between">
               <div className="text-xs">
@@ -360,7 +372,7 @@ export function CommunityChat({
               {t(lang, "error_too_many_attempts")}
             </p>
           )}
-          {state.error === "invalid" && (
+          {(state.error === "invalid" || state.error === "not_member") && (
             <p className="mt-2 text-xs font-medium text-red-500">
               {t(lang, "error_generic")}
             </p>

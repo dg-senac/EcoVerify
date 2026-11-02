@@ -9,4 +9,10 @@ Rode no **Supabase → SQL Editor**, um por vez, nesta ordem. O passo a passo co
 4. `04_missoes_iniciais.sql`: missões prontas (opcional, pode repetir).
 5. `05_admin.sql`: sua conta vira admin (depois de criar a conta no app com o e-mail do `ADMIN_EMAILS`).
 
+## Atualizações (para quem já rodou 01–05)
+
+- `06_comunidade_por_organizacao.sql`: cada organização ganha o próprio chat da Comunidade. Rode **antes** de
+  colocar no ar a versão que traz essa mudança (pode repetir). Em projeto novo não precisa: o `01_schema.sql` já
+  inclui a coluna.
+
 Moderadores não precisam de SQL: o admin escolhe em **Admin → Usuários**.

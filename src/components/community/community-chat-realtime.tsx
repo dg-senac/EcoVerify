@@ -18,9 +18,10 @@ export function CommunityChatRealtime({ lang, initial, currentUserId, currentUse
   const [favoriteIds, setFavoriteIds] = useState(() => new Set(initial.favoriteIds));
   const { shouldRefresh } = useRealtimeMessages(5000); // refresh every 5 seconds
 
+  const organizationId = initial.organizationId;
   const fetchMessages = useCallback(async () => {
     try {
-      const response = await fetch("/api/community/messages");
+      const response = await fetch(`/api/community/messages?org=${encodeURIComponent(organizationId)}`, { cache: "no-store" });
       if (response.ok) {
         const data = (await response.json()) as CommunityFeed;
         setFeed(data);
@@ -29,9 +30,11 @@ export function CommunityChatRealtime({ lang, initial, currentUserId, currentUse
     } catch (error) {
       console.error("Error fetching messages:", error);
     }
-  }, []);
+  }, [organizationId]);
 
   useEffect(() => {
+    // The server already rendered the latest messages: only poll from the first tick on.
+    if (shouldRefresh === 0) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchMessages();
   }, [shouldRefresh, fetchMessages]);
@@ -39,6 +42,7 @@ export function CommunityChatRealtime({ lang, initial, currentUserId, currentUse
   return (
     <CommunityChat
       lang={lang}
+      organizationId={organizationId}
       messages={feed.messages}
       currentUserId={currentUserId}
       currentUserName={currentUserName}

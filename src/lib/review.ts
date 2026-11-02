@@ -39,7 +39,7 @@ const AI_TEXT: Record<
     rejectedByTeamTitle: "Comprovação rejeitada",
     rejectedByTeam: (m, r) => `Sua comprovação para "${m}" foi rejeitada. Motivo: ${r}. Você pode enviar uma nova comprovação para esta missão.`,
     rejected: (m, r) =>
-      `Sua comprovação para "${m}" foi rejeitada. Motivo: ${r} Se achar que houve engano, abra "Minhas Submissões" e toque em "Contestar" para um moderador revisar. Você também pode enviar uma nova comprovação.`,
+      `Sua comprovação para "${m}" foi rejeitada. Motivo: ${r} Se achar que houve engano, abra "Meus envios" e toque em "Contestar" para um moderador revisar. Você também pode enviar uma nova comprovação.`,
   },
   en: {
     approvedTitle: "Proof approved! 🎉",

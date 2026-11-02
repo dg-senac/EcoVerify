@@ -74,7 +74,7 @@ function PrivacyPt({ info }: { info: LegalInfo }) {
             "Na fase de testes usamos o plano gratuito do Gemini. Nesse plano o Google pode usar o conteúdo enviado para melhorar seus produtos e ele pode ser lido por revisores humanos. Por isso pedimos que o relato não traga dados pessoais e que você evite fotografar rostos de outras pessoas.",
             <>Quando a <b>busca reversa de imagens</b> estiver ligada, a mesma cópia reduzida e sem metadados (só a imagem, sem relato e sem dados da conta) é enviada ao <b>Google Cloud Vision</b> (Google LLC, EUA, serviço pago, que não usa o conteúdo para treinar modelos) para procurar a foto na internet. Se ela for encontrada, os links vão para a equipe, que confere antes de decidir: isso nunca rejeita a foto sozinho nem gera cartão.</>,
             "Casos claros podem ser aprovados ou rejeitados automaticamente (decisão automatizada). Toda rejeição informa o motivo, missões de valor mais alto sempre passam por uma pessoa e, se o serviço estiver indisponível, a comprovação vai para a moderação.",
-            <><b>Revisão (LGPD, art. 20):</b> você pode contestar qualquer rejeição automática em Minhas Submissões, e uma pessoa da moderação analisa de novo. Você também pode pedir informações sobre os critérios usados.</>,
+            <><b>Revisão (LGPD, art. 20):</b> você pode contestar qualquer rejeição automática em Meus envios, e uma pessoa da moderação analisa de novo. Você também pode pedir informações sobre os critérios usados.</>,
           ]}
         />
       </LegalSection>
@@ -82,7 +82,7 @@ function PrivacyPt({ info }: { info: LegalInfo }) {
       <LegalSection n={3} title="Quem vê seus dados">
         <LegalList
           items={[
-            "Outros usuários veem seu nome, pontos e nível no ranking, e suas mensagens no chat.",
+            "Outros usuários veem seu nome, pontos e nível no ranking. Suas mensagens no chat da Comunidade são vistas pelos membros da organização onde você escreveu.",
             "Moderadores e administradores veem as comprovações (foto, relato e localização) para analisá-las, e administradores veem a carteira para fazer os pagamentos.",
             "Operadores que nos ajudam a funcionar, sob contrato: hospedagem do app, banco de dados e armazenamento de arquivos (por exemplo, Vercel e Supabase), envio de e-mails (por exemplo, Resend) e verificação automática das fotos (Google Gemini e, quando ligado, Google Cloud Vision; ver seção 2). Alguns desses serviços ficam fora do Brasil; nesses casos, a transferência segue as garantias da LGPD (art. 33).",
             "Para abastecer regiões sem missões, o servidor consulta o OpenStreetMap (mapa aberto e colaborativo) em busca de praias, parques e pontos de coleta perto do centro da cidade. Nessa consulta vai só a posição do centro do município, nunca a sua posição nem dados da sua conta.",
@@ -129,7 +129,7 @@ function PrivacyPt({ info }: { info: LegalInfo }) {
             <><b>Acesso e portabilidade:</b> baixe seus dados em Configurações → Privacidade e dados.</>,
             <><b>Correção:</b> altere nome e preferências no app ou fale conosco.</>,
             <><b>Eliminação:</b> exclua sua conta em Configurações → Privacidade e dados.</>,
-            <><b>Revisão de decisões automatizadas:</b> conteste em Minhas Submissões (ver seção 2).</>,
+            <><b>Revisão de decisões automatizadas:</b> conteste em Meus envios (ver seção 2).</>,
             "Informação sobre compartilhamento e oposição a tratamentos baseados em legítimo interesse: fale conosco.",
             "Você também pode reclamar à Autoridade Nacional de Proteção de Dados (ANPD).",
           ]}

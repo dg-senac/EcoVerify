@@ -10,7 +10,7 @@ import { previousSeason, seasonAt } from "@/lib/seasons";
 /** Initial data of the offline demo. Missions match scripts/seed.ts (Recife). */
 
 /** Bump when the stored shape changes: old demo data is replaced by a fresh seed. */
-export const STATE_VERSION = 20;
+export const STATE_VERSION = 21;
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -474,15 +474,20 @@ export function createSeed(lang: Lang = DEFAULT_LANG): State {
   ];
 
   const chat: ChatMessage[] = [
-    { id: "c1", userId: "u-bot-1", message: L({ pt: "Bom dia, pessoal! 🌞 Alguém vai no mutirão da Jaqueira no sábado?", en: "Morning, everyone! 🌞 Is anyone going to the Jaqueira clean-up on Saturday?", es: "¡Buen día a todos! 🌞 ¿Alguien va a la jornada de la Jaqueira el sábado?" }), replyToId: null, deleted: false, createdAt: ago(2 * DAY) },
-    { id: "c2", userId: "u-bot-2", message: L({ pt: "Eu vou! Levo luvas extras pra quem precisar 🧤", en: "I'm going! I'll bring extra gloves for anyone who needs them 🧤", es: "¡Yo voy! Llevo guantes extra para quien necesite 🧤" }), replyToId: "c1", deleted: false, createdAt: ago(2 * DAY - 20 * 60 * 1000) },
-    { id: "c3", userId: "u-bot-3", message: L({ pt: "Dica: no Marco Zero o ponto de coleta fica do lado do centro de artesanato ♻️", en: "Tip: at Marco Zero the collection point is next to the craft centre ♻️", es: "Dato: en el Marco Zero el punto de recolección está al lado del centro de artesanía ♻️" }), replyToId: null, deleted: false, createdAt: ago(1 * DAY) },
-    { id: "c4", userId: "u-bot-4", message: L({ pt: "Valeu, Pedro! Entreguei meus recicláveis lá ontem.", en: "Thanks, Pedro! I dropped off my recyclables there yesterday.", es: "¡Gracias, Pedro! Entregué mis reciclables ahí ayer." }), replyToId: "c3", deleted: false, createdAt: ago(1 * DAY - 60 * 60 * 1000) },
-    { id: "c5", userId: "u-bot-5", message: L({ pt: "Primeira missão aprovada! Bora subir no ranking 💪🌱", en: "First mission approved! Let's climb the ranking 💪🌱", es: "¡Primera misión aprobada! A subir en el ranking 💪🌱" }), replyToId: null, deleted: false, createdAt: ago(6 * 60 * 60 * 1000) },
+    { id: "c1", orgId: "org-praia", userId: "u-bot-1", message: L({ pt: "Bom dia, pessoal! 🌞 Alguém vai no mutirão da Jaqueira no sábado?", en: "Morning, everyone! 🌞 Is anyone going to the Jaqueira clean-up on Saturday?", es: "¡Buen día a todos! 🌞 ¿Alguien va a la jornada de la Jaqueira el sábado?" }), replyToId: null, deleted: false, createdAt: ago(2 * DAY) },
+    { id: "c2", orgId: "org-praia", userId: "u-bot-2", message: L({ pt: "Eu vou! Levo luvas extras pra quem precisar 🧤", en: "I'm going! I'll bring extra gloves for anyone who needs them 🧤", es: "¡Yo voy! Llevo guantes extra para quien necesite 🧤" }), replyToId: "c1", deleted: false, createdAt: ago(2 * DAY - 20 * 60 * 1000) },
+    { id: "c3", orgId: "org-praia", userId: "u-bot-3", message: L({ pt: "Dica: no Marco Zero o ponto de coleta fica do lado do centro de artesanato ♻️", en: "Tip: at Marco Zero the collection point is next to the craft centre ♻️", es: "Dato: en el Marco Zero el punto de recolección está al lado del centro de artesanía ♻️" }), replyToId: null, deleted: false, createdAt: ago(1 * DAY) },
+    { id: "c4", orgId: "org-praia", userId: "u-bot-4", message: L({ pt: "Valeu, Pedro! Entreguei meus recicláveis lá ontem.", en: "Thanks, Pedro! I dropped off my recyclables there yesterday.", es: "¡Gracias, Pedro! Entregué mis reciclables ahí ayer." }), replyToId: "c3", deleted: false, createdAt: ago(1 * DAY - 60 * 60 * 1000) },
+    { id: "c5", orgId: "org-praia", userId: "u-bot-5", message: L({ pt: "Primeira missão aprovada! Bora subir no ranking 💪🌱", en: "First mission approved! Let's climb the ranking 💪🌱", es: "¡Primera misión aprobada! A subir en el ranking 💪🌱" }), replyToId: null, deleted: false, createdAt: ago(6 * 60 * 60 * 1000) },
 
     // Chat moderation examples (Moderation → Chat reports): one already hidden by 3 reports, one with 1 report.
-    { id: "c6", userId: "u-bot-5", message: L({ pt: "Mutirão é coisa de otário, ninguém liga pra isso 🙄", en: "Clean-ups are for suckers, nobody cares about this 🙄", es: "Las jornadas son de tontos, a nadie le importa esto 🙄" }), replyToId: null, deleted: false, createdAt: ago(5 * 60 * 60 * 1000), hiddenAt: ago(4 * 60 * 60 * 1000), hiddenReason: "reports" },
-    { id: "c7", userId: "u-bot-4", message: L({ pt: "Alguém quer comprar rifa? Me chamem no privado!", en: "Anyone want to buy a raffle ticket? DM me!", es: "¿Alguien quiere comprar una rifa? ¡Escríbanme en privado!" }), replyToId: null, deleted: false, createdAt: ago(3 * 60 * 60 * 1000) },
+    { id: "c6", orgId: "org-praia", userId: "u-bot-5", message: L({ pt: "Mutirão é coisa de otário, ninguém liga pra isso 🙄", en: "Clean-ups are for suckers, nobody cares about this 🙄", es: "Las jornadas son de tontos, a nadie le importa esto 🙄" }), replyToId: null, deleted: false, createdAt: ago(5 * 60 * 60 * 1000), hiddenAt: ago(4 * 60 * 60 * 1000), hiddenReason: "reports" },
+    { id: "c7", orgId: "org-praia", userId: "u-bot-4", message: L({ pt: "Alguém quer comprar rifa? Me chamem no privado!", en: "Anyone want to buy a raffle ticket? DM me!", es: "¿Alguien quiere comprar una rifa? ¡Escríbanme en privado!" }), replyToId: null, deleted: false, createdAt: ago(3 * 60 * 60 * 1000) },
+
+    // The school's own community (Juliana, Maria and classmates): each organization has its own chat.
+    { id: "c8", orgId: "org-escola", userId: DEMO_IDS.teacher, message: L({ pt: "Turma, a gincana de reciclagem começa segunda! Tragam as garrafas PET limpas 🧴", en: "Class, the recycling challenge starts on Monday! Bring your PET bottles clean 🧴", es: "¡Clase, la gincana de reciclaje empieza el lunes! Traigan las botellas PET limpias 🧴" }), replyToId: null, deleted: false, createdAt: ago(1 * DAY - 2 * 60 * 60 * 1000) },
+    { id: "c9", orgId: "org-escola", userId: "u-bot-2", message: L({ pt: "Já separei umas 20 aqui em casa 💪", en: "I've already set aside about 20 at home 💪", es: "Ya separé unas 20 en casa 💪" }), replyToId: "c8", deleted: false, createdAt: ago(1 * DAY - 3 * 60 * 60 * 1000) },
+    { id: "c10", orgId: "org-escola", userId: "u-bot-3", message: L({ pt: "Professora, vale tampinha também?", en: "Teacher, do bottle caps count too?", es: "Profesora, ¿las tapitas también valen?" }), replyToId: null, deleted: false, createdAt: ago(20 * 60 * 60 * 1000) },
   ];
 
   const chatReports: DemoChatReport[] = [

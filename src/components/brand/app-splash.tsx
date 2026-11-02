@@ -22,7 +22,9 @@ export const SPLASH_GRADIENT = "linear-gradient(135deg, #2cc35f 0%, #278c98 50%,
 /** Inline <head> script for server-rendered pages: hides the splash before paint when already seen. */
 export const SPLASH_HEAD_SCRIPT = `try{if(sessionStorage.getItem("${SPLASH_SEEN_KEY}")==="1")document.documentElement.classList.add("ev-splash-seen")}catch(e){}`;
 
-const INTRO_MS = 2500;
+// Long enough to read the name, the slogan and "Powered by Fone" (the slogan only finishes appearing
+// after ~1.3 s), still skippable with a tap.
+const INTRO_MS = 4000;
 const EXIT_MS = 420;
 
 type Start = { seen: boolean; onboarded: boolean };
