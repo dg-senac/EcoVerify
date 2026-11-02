@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Sprout } from "lucide-react";
-import { t, tf } from "@/lib/i18n";
+import { t, tf, type Lang } from "@/lib/i18n";
 import { PAYMENTS_ENABLED } from "@/lib/features";
-import { groupMissionsByRegion, MIN_LOCAL_MISSIONS } from "@/lib/region";
+import { groupMissionsByRegion, MIN_LOCAL_MISSIONS, regionLabel, splitWithoutRegion } from "@/lib/region";
 import { myOrgs, quizAttemptOf, requestMissionsHere, seedExampleMissions, useLang, useStore, type Mission, type User, type SubmissionStatus } from "../store";
 import { ORG_TEXT } from "@/lib/saas/org-text";
 import { eventPhase } from "@/lib/saas/events";
@@ -135,7 +135,11 @@ export function MissionsScreen({ user }: { user: User }) {
       <>
         {header}
         <RegionBar lang={lang} region={null} />
-        {active.length === 0 ? <EmptyState emoji="🌱" text={t(lang, "missions_empty")} /> : <Grid items={active} myStatus={myStatus} />}
+        {active.length === 0 ? (
+          <EmptyState emoji="🌱" text={t(lang, "missions_empty")} />
+        ) : (
+          <WithoutRegion lang={lang} items={active} myStatus={myStatus} />
+        )}
       </>
     );
   }
@@ -155,7 +159,7 @@ export function MissionsScreen({ user }: { user: User }) {
       )}
       {cityRequests.length > 0 && (
         <span className="text-xs text-slate-500" data-testid="want-more-count">
-          {tf(lang, "region_want_more_count", { n: cityRequests.length, city: region.city })}
+          {tf(lang, "region_want_more_count", { n: cityRequests.length, city: regionLabel(region, lang) })}
         </span>
       )}
     </div>
@@ -181,7 +185,7 @@ export function MissionsScreen({ user }: { user: User }) {
         {grouped.nearby.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center" data-testid="region-empty">
             <p className="font-bold text-slate-800">{t(lang, "region_empty_title")}</p>
-            <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">{tf(lang, "region_empty_text", { city: region.city })}</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">{tf(lang, "region_empty_text", { city: regionLabel(region, lang) })}</p>
             <div className="mt-4">{wantMore}</div>
           </div>
         ) : (
@@ -206,6 +210,42 @@ export function MissionsScreen({ user }: { user: User }) {
         <p className="mt-8 text-center text-xs text-slate-400" data-testid="region-elsewhere">
           {tf(lang, "region_elsewhere", { n: grouped.elsewhere })}
         </p>
+      )}
+    </>
+  );
+}
+
+/** No region yet: what works anywhere first, other cities' missions apart (same as the web app). */
+function WithoutRegion({ lang, items, myStatus }: { lang: Lang; items: Mission[]; myStatus: Map<string, SubmissionStatus> }) {
+  const { anywhere, local, cities } = splitWithoutRegion(
+    items.map((m) => ({ ...m, scope: m.scope ?? ("local" as const) })),
+    lang,
+  );
+  return (
+    <>
+      {anywhere.length > 0 && (
+        <section className="mt-6" data-testid="section-anywhere">
+          <h2 className="text-lg font-bold text-slate-900">
+            🌎 {t(lang, "region_section_anywhere")} <span className="text-sm font-semibold text-slate-400">({anywhere.length})</span>
+          </h2>
+          <p className="mb-3 text-sm text-slate-500">{t(lang, "region_anywhere_hint")}</p>
+          <Grid items={anywhere} myStatus={myStatus} />
+        </section>
+      )}
+      {local.length > 0 && (
+        <details className="group mt-8 rounded-2xl border border-black/5 bg-white p-4 shadow-sm" data-testid="section-other-cities">
+          <summary className="cursor-pointer list-none">
+            <span className="text-base font-bold text-slate-900">
+              📍 {t(lang, "region_other_cities")} <span className="text-sm font-semibold text-slate-400">({local.length})</span>
+            </span>
+            <span className="float-right text-slate-400 transition group-open:rotate-180" aria-hidden>
+              ▾
+            </span>
+            {cities.length > 0 && <span className="mt-0.5 block text-sm text-slate-500">{cities.join(" · ")}</span>}
+          </summary>
+          <p className="mb-3 mt-3 text-sm text-slate-500">{t(lang, "region_other_cities_hint")}</p>
+          <Grid items={local} myStatus={myStatus} />
+        </details>
       )}
     </>
   );

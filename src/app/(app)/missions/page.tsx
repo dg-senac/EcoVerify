@@ -19,7 +19,7 @@ import { MissionCard, type MissionCardData } from "@/components/missions/mission
 import { RegionBar } from "@/components/missions/region-bar";
 import { WantMoreButton } from "@/components/missions/want-more-button";
 import { Sprout } from "@/components/ui/icons";
-import { groupMissionsByRegion, MIN_LOCAL_MISSIONS } from "@/lib/region";
+import { groupMissionsByRegion, MIN_LOCAL_MISSIONS, regionLabel, splitWithoutRegion } from "@/lib/region";
 import { getRegion } from "@/lib/regional/cookie";
 import { sponsorBalances } from "@/lib/payouts";
 import { centsToFone } from "@/lib/fone";
@@ -191,8 +191,9 @@ export default async function MissionsPage() {
     </>
   );
 
-  // ---- No region chosen: the full list, as before ---------------------------
+  // ---- No region chosen: what works anywhere first; other cities' missions apart -------------
   if (!region) {
+    const { anywhere, local, cities } = splitWithoutRegion(activeMissions, lang);
     return (
       <div>
         {header}
@@ -203,9 +204,32 @@ export default async function MissionsPage() {
             <p className="mt-3 text-sm font-medium">{t(lang, "missions_empty")}</p>
           </div>
         ) : (
-          <div className="mt-2">
-            <Grid lang={lang} sponsorLeft={sponsorLeft} items={activeMissions} />
-          </div>
+          <>
+            {anywhere.length > 0 && (
+              <section className="mt-6" data-testid="section-anywhere">
+                <h2 className="text-lg font-bold text-slate-900">
+                  🌎 {t(lang, "region_section_anywhere")} <span className="text-sm font-semibold text-slate-400">({anywhere.length})</span>
+                </h2>
+                <p className="text-sm text-slate-500">{t(lang, "region_anywhere_hint")}</p>
+                <Grid lang={lang} sponsorLeft={sponsorLeft} items={anywhere} />
+              </section>
+            )}
+            {local.length > 0 && (
+              <details className="group mt-8 rounded-2xl border border-black/5 bg-white p-4 shadow-sm" data-testid="section-other-cities">
+                <summary className="cursor-pointer list-none">
+                  <span className="text-base font-bold text-slate-900">
+                    📍 {t(lang, "region_other_cities")} <span className="text-sm font-semibold text-slate-400">({local.length})</span>
+                  </span>
+                  <span className="float-right text-slate-400 transition group-open:rotate-180" aria-hidden>
+                    ▾
+                  </span>
+                  {cities.length > 0 && <span className="mt-0.5 block text-sm text-slate-500">{cities.join(" · ")}</span>}
+                </summary>
+                <p className="mt-3 text-sm text-slate-500">{t(lang, "region_other_cities_hint")}</p>
+                <Grid lang={lang} sponsorLeft={sponsorLeft} items={local} />
+              </details>
+            )}
+          </>
         )}
       </div>
     );
@@ -241,7 +265,7 @@ export default async function MissionsPage() {
       </Link>
       {requestCount > 0 && (
         <span className="text-xs text-slate-500" data-testid="want-more-count">
-          {tf(lang, "region_want_more_count", { n: requestCount, city: region.city })}
+          {tf(lang, "region_want_more_count", { n: requestCount, city: regionLabel(region, lang) })}
         </span>
       )}
     </div>
@@ -265,7 +289,7 @@ export default async function MissionsPage() {
           <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center" data-testid="region-empty">
             <Sprout className="mx-auto h-12 w-12 text-slate-300" />
             <p className="mt-2 font-bold text-slate-800">{t(lang, "region_empty_title")}</p>
-            <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">{tf(lang, "region_empty_text", { city: region.city })}</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">{tf(lang, "region_empty_text", { city: regionLabel(region, lang) })}</p>
             <div className="mt-4 flex justify-center">{wantMore}</div>
           </div>
         ) : (

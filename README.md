@@ -184,8 +184,9 @@ Detalhes, limites do plano gratuito e como trocar de provedor: [`docs/VERIFICACA
 
 ## Missões por região
 
-- A tela de missões pergunta **onde você está**: pelo GPS (só para descobrir a cidade, com coordenadas arredondadas guardadas num cookie do aparelho) ou digitando a cidade. Mostra **"Perto de você"** (raio de 10, 30 ou 100 km, mais perto primeiro), **"Em qualquer lugar"** (missões feitas de casa, sem conferir distância) e quantas missões existem em outras regiões.
-- O nome da cidade vem de uma **lista offline dos 5.570 municípios** (`src/data/municipios-br.json`, IBGE), sem mandar a posição para serviços externos.
+- Na primeira vez, a tela de missões abre um convite **"Ver missões perto de você?"** (usar localização, escolher cidade ou agora não). A região vem do GPS (coordenadas arredondadas guardadas num cookie do aparelho) ou da cidade digitada. Mostra **"Perto de você"** (raio de 10, 30 ou 100 km, mais perto primeiro), **"Em qualquer lugar"** (missões feitas de casa, sem conferir distância) e quantas missões existem em outras regiões. Sem região escolhida, as missões de outras cidades ficam separadas, num bloco recolhido.
+- **No Brasil**, o nome da cidade vem de uma **lista offline dos 5.570 municípios** (`src/data/municipios-br.json`, IBGE). **Em qualquer outro país**, o GPS também funciona: a região é a área em volta da pessoa, com o nome da cidade e do país buscado no OpenStreetMap (só um ponto arredondado a ~1 km é enviado).
+- **Missões em qualquer lugar**: 10 missões (2 do `04` + 8 do `07_missoes_qualquer_lugar.sql`, lista em `src/lib/anywhere-missions.ts`) para quem está longe de missões locais, todas comprovadas por foto e valendo só pontos.
 - **Cidade sem missões**: o servidor busca praias, parques e pontos de coleta no **OpenStreetMap** e cria missões que dão **só pontos até um admin revisar** (Admin → Missões → Para revisar: aprovar com FONE, manter só pontos ou desativar). As pessoas também podem apertar **"Quero mais missões aqui"** (o admin vê a lista de cidades) e **sugerir uma ação**, que a moderação transforma em missão.
 - Missões podem ter um **apoio local** (nome no cartão) ou um **patrocinador com orçamento de FONE** próprio (ver [Carteira e pagamentos FONE](#carteira-e-pagamentos-fone)).
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { t, type Lang } from "@/lib/i18n";
-import { REGION_RADIUS_OPTIONS_KM, type Region } from "@/lib/region";
+import { REGION_RADIUS_OPTIONS_KM, regionLabel, type Region } from "@/lib/region";
+import { RegionInvite, regionInviteSnapshot, regionInviteServerSnapshot, rememberRegionInvite } from "@/components/missions/region-invite";
 import {
   clearRegionAction,
   searchCitiesAction,
@@ -13,11 +14,21 @@ import {
 
 type City = { ibge: number; name: string; uf: string };
 
+const noSubscribe = () => () => {};
+
 /**
- * Region picker for the mission list: GPS (rounded, device-only) or a city typed by the user.
+ * Region picker for the mission list: GPS (rounded, device-only, any country) or a Brazilian city
+ * typed by the user. Without a region, the first visit also opens a one-time invite.
  */
 export function RegionBar({ lang, region }: { lang: Lang; region: Region | null }) {
   const [picking, setPicking] = useState(!region);
+  const inviteAsked = useSyncExternalStore(noSubscribe, regionInviteSnapshot, regionInviteServerSnapshot);
+  const [inviteClosed, setInviteClosed] = useState(false);
+  const showInvite = !region && !inviteAsked && !inviteClosed;
+  const closeInvite = () => {
+    rememberRegionInvite();
+    setInviteClosed(true);
+  };
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<City[] | null>(null);
@@ -47,7 +58,7 @@ export function RegionBar({ lang, region }: { lang: Lang; region: Region | null 
         startTransition(async () => {
           const result = await setRegionFromLocationAction(pos.coords.latitude, pos.coords.longitude);
           setLocating(false);
-          if (result.error) setError(t(lang, result.error === "outside" ? "region_error_outside" : "region_error_location"));
+          if (result.error) setError(t(lang, "region_error_location"));
           else {
             setPicking(false);
             setSearching(false);
@@ -97,6 +108,7 @@ export function RegionBar({ lang, region }: { lang: Lang; region: Region | null 
       </div>
       {searching && (
         <div>
+          <p className="mb-2 text-xs text-slate-500">{t(lang, "region_search_hint")}</p>
           <input
             type="search"
             autoFocus
@@ -143,6 +155,20 @@ export function RegionBar({ lang, region }: { lang: Lang; region: Region | null 
         <h2 className="font-bold text-slate-900">📍 {t(lang, "region_prompt_title")}</h2>
         <p className="mt-1 text-sm text-slate-600">{t(lang, "region_prompt_text")}</p>
         {picker}
+        {showInvite && (
+          <RegionInvite
+            lang={lang}
+            onLocate={() => {
+              closeInvite();
+              locate();
+            }}
+            onPickCity={() => {
+              closeInvite();
+              setSearching(true);
+            }}
+            onLater={closeInvite}
+          />
+        )}
       </section>
     );
   }
@@ -152,7 +178,7 @@ export function RegionBar({ lang, region }: { lang: Lang; region: Region | null 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-bold text-slate-900">
-            📍 {t(lang, "region_near_you")} · <span data-testid="region-city">{region.city}, {region.uf}</span>
+            📍 {t(lang, "region_near_you")} · <span data-testid="region-city">{regionLabel(region, lang)}</span>
           </p>
           <p className="text-xs text-slate-400">{t(lang, region.source === "gps" ? "region_by_gps" : "region_by_choice")}</p>
         </div>

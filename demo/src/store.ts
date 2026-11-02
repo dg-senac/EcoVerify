@@ -50,7 +50,7 @@ import {
   type ChatReportItem,
   type ChatReportReason,
 } from "@/lib/chat-moderation";
-import type { Region, RegionRadius } from "@/lib/region";
+import { UNKNOWN_COUNTRY, type Region, type RegionRadius } from "@/lib/region";
 import { OSM_TEMPLATES, type OsmKind } from "@/lib/regional/templates";
 import {
   decideHold,
@@ -1583,7 +1583,7 @@ export function seedExampleMissions(region: Region): number {
       createdAt: now(),
       scope: "local",
       city: region.city,
-      stateCode: region.uf,
+      stateCode: region.uf === UNKNOWN_COUNTRY ? null : region.uf,
       origin: "auto",
       needsReview: true,
     };

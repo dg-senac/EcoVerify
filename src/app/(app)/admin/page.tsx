@@ -10,6 +10,7 @@ import { confirmInvoiceAction, grantPlanAction } from "@/lib/actions/billing";
 import { PLANS } from "@/lib/plans";
 import { orgPlan } from "@/lib/saas/org-rules";
 import { municipalityByIbge } from "@/lib/municipalities";
+import { regionLabel } from "@/lib/region";
 import { formatDate } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth";
 import { adminEmails, isOwnerEmail, isSeedEmail, moderatorsEnabled, seedAccountsAllowed } from "@/lib/staff-config";
@@ -88,15 +89,17 @@ export default async function AdminPage() {
     db.select().from(regionSeeds).orderBy(desc(regionSeeds.attemptedAt)).limit(20),
   ]);
   const missionsToReview = allMissions.filter((m) => m.needsReview && m.isActive).length;
+  // Outside Brazil the code is a grid cell and stateCode holds the country: regionLabel names both.
   const cityDemand = demandRows.map((row) => ({
     ...row,
+    label: regionLabel({ ibge: row.ibgeCode, city: row.city, uf: row.stateCode }, "pt"),
     missions: allMissions.filter((m) => m.isActive && m.ibgeCode === row.ibgeCode).length,
   }));
   const seedLog = seedRows.map((row) => {
-    const municipality = municipalityByIbge(row.ibgeCode);
+    const municipality = row.ibgeCode > 0 ? municipalityByIbge(row.ibgeCode) : null;
     return {
       ibgeCode: row.ibgeCode,
-      city: municipality ? `${municipality[1]}, ${municipality[2]}` : null,
+      city: municipality ? `${municipality[1]}, ${municipality[2]}` : row.city ? regionLabel({ ibge: row.ibgeCode, city: row.city, uf: row.stateCode }, "pt") : null,
       status: row.status,
       missionsCreated: row.missionsCreated,
       error: row.error,

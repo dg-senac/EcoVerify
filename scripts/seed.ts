@@ -191,6 +191,37 @@ async function main() {
     console.log(`✓ missão criada: ${mission.title}`);
   }
 
+  // Missions anyone can do wherever they are (same list as supabase/07_missoes_qualquer_lugar.sql).
+  const { ANYWHERE_MISSIONS } = await import("../src/lib/anywhere-missions");
+  for (const m of ANYWHERE_MISSIONS) {
+    const [existing] = await db.select({ id: missions.id }).from(missions).where(eq(missions.title, m.title.pt)).limit(1);
+    if (existing) continue;
+    await db.insert(missions).values({
+      title: m.title.pt,
+      titleEn: m.title.en,
+      titleEs: m.title.es,
+      description: m.description.pt,
+      descriptionEn: m.description.en,
+      descriptionEs: m.description.es,
+      context: m.context.pt,
+      contextEn: m.context.en,
+      contextEs: m.context.es,
+      impact: m.impact.pt,
+      impactEn: m.impact.en,
+      impactEs: m.impact.es,
+      aiChecklist: m.aiChecklist,
+      scope: "anywhere",
+      category: m.category,
+      proofType: m.proofType,
+      countItem: m.countItem ?? null,
+      countTarget: m.countTarget ?? null,
+      pointsReward: m.points,
+      foneReward: "0.00",
+      createdBy: adminId,
+    });
+    console.log(`✓ missão criada: ${m.title.pt}`);
+  }
+
   // Example sponsor paying the FONE of the "óleo" mission from its own budget (see Admin → Missões → Patrocinadores).
   const [anySponsor] = await db.select({ id: sponsors.id }).from(sponsors).limit(1);
   if (!anySponsor) {

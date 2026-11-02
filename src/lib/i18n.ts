@@ -964,10 +964,23 @@ const dict = {
     en: "Could not get your location. Allow access or pick a city.",
     es: "No se pudo obtener tu ubicación. Permite el acceso o elige la ciudad.",
   },
-  region_error_outside: {
-    pt: "Por enquanto o EcoVerify só tem regiões no Brasil. Escolha uma cidade.",
-    en: "For now EcoVerify only has regions in Brazil. Pick a city.",
-    es: "Por ahora EcoVerify solo tiene regiones en Brasil. Elige una ciudad.",
+  region_search_hint: {
+    pt: "A busca por nome tem as cidades do Brasil. Em outros países, use sua localização.",
+    en: "Search by name covers cities in Brazil. In other countries, use your location.",
+    es: "La búsqueda por nombre incluye las ciudades de Brasil. En otros países, usa tu ubicación.",
+  },
+  region_invite_title: { pt: "Ver missões perto de você?", en: "See missions near you?", es: "¿Ver misiones cerca de ti?" },
+  region_invite_text: {
+    pt: "O EcoVerify mostra primeiro o que dá para fazer na sua região, em qualquer país. Sua localização fica arredondada (~1 km), só neste aparelho, e não é salva na sua conta.",
+    en: "EcoVerify shows first what you can do in your area, in any country. Your location is rounded (~1 km), kept on this device only and never saved to your account.",
+    es: "EcoVerify muestra primero lo que puedes hacer en tu zona, en cualquier país. Tu ubicación se redondea (~1 km), queda solo en este dispositivo y no se guarda en tu cuenta.",
+  },
+  region_invite_later: { pt: "Agora não", en: "Not now", es: "Ahora no" },
+  region_other_cities: { pt: "Missões locais em outras cidades", en: "Local missions in other cities", es: "Misiones locales en otras ciudades" },
+  region_other_cities_hint: {
+    pt: "Escolha sua região acima para ver primeiro as missões perto de você.",
+    en: "Choose your area above to see the missions near you first.",
+    es: "Elige tu zona arriba para ver primero las misiones cerca de ti.",
   },
   region_section_nearby: { pt: "Perto de você", en: "Near you", es: "Cerca de ti" },
   region_section_anywhere: { pt: "Em qualquer lugar", en: "Anywhere", es: "En cualquier lugar" },

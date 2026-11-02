@@ -5,6 +5,7 @@ import { PAYMENTS_ENABLED } from "@/lib/features";
 import { formatDate, formatFone } from "@/lib/utils";
 import type { Role } from "@/lib/nav";
 import { dt, errorText, type DemoKey } from "../i18n";
+import { regionLabel } from "@/lib/region";
 import {
   confirmDemoInvoice,
   grantDemoPlan,
@@ -373,8 +374,8 @@ function MissionsTab() {
   const [anywhere, setAnywhere] = useState(false);
   const toReview = missions.filter((m) => m.needsReview && m.isActive);
   const demand = Object.values(
-    requests.reduce<Record<number, { city: string; uf: string; n: number }>>((acc, r) => {
-      acc[r.ibge] = { city: r.city, uf: r.uf, n: (acc[r.ibge]?.n ?? 0) + 1 };
+    requests.reduce<Record<number, { ibge: number; city: string; uf: string; n: number }>>((acc, r) => {
+      acc[r.ibge] = { ibge: r.ibge, city: r.city, uf: r.uf, n: (acc[r.ibge]?.n ?? 0) + 1 };
       return acc;
     }, {}),
   ).sort((a, b) => b.n - a.n);
@@ -448,8 +449,8 @@ function MissionsTab() {
           <h3 className="mb-2 font-bold text-slate-900">🙋 {dt(lang, "city_demand")}</h3>
           <ul className="text-sm">
             {demand.map((d) => (
-              <li key={`${d.city}-${d.uf}`} className="flex justify-between border-t border-black/5 py-1.5">
-                <span>{d.city}, {d.uf}</span>
+              <li key={d.ibge} className="flex justify-between border-t border-black/5 py-1.5">
+                <span>{regionLabel(d, lang)}</span>
                 <b>{d.n}</b>
               </li>
             ))}

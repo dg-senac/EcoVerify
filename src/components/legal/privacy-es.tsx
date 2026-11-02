@@ -73,7 +73,7 @@ export function PrivacyEs({ info }: { info: LegalInfo }) {
             "Los demás usuarios ven tu nombre, puntos y nivel en el ranking, y tus mensajes en el chat.",
             "Los moderadores y administradores ven las pruebas (foto, relato y ubicación) para analizarlas, y los administradores ven la billetera para hacer los pagos.",
             "Encargados que nos ayudan a funcionar, bajo contrato: alojamiento de la aplicación, base de datos y almacenamiento de archivos (por ejemplo, Vercel y Supabase), envío de correos (por ejemplo, Resend) y verificación automática de las fotos (Google Gemini y, cuando está activado, Google Cloud Vision; ver punto 2). Algunos de estos servicios están fuera de Brasil; en esos casos, la transferencia sigue las garantías de la LGPD (art. 33).",
-            "Para abastecer regiones sin misiones, el servidor consulta OpenStreetMap (mapa abierto y colaborativo) en busca de playas, parques y puntos de recolección cerca del centro de la ciudad. En esa consulta va solo la posición del centro del municipio, nunca tu posición ni datos de tu cuenta.",
+            "Para abastecer regiones sin misiones y, fuera de Brasil, dar nombre a tu zona, el servidor consulta OpenStreetMap (mapa abierto y colaborativo) en busca de playas, parques y puntos de recolección cercanos. En esa consulta va solo la posición de la región elegida: en Brasil, el centro del municipio; en otros países, un punto redondeado (~1 km) de la región. Nunca van datos de tu cuenta.",
             "Autoridades, cuando la ley o una orden judicial lo exijan.",
           ]}
         />
