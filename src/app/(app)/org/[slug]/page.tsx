@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { citizenOnly } from "@/lib/role-guard";
 import { and, asc, desc, eq, inArray, isNotNull, isNull, not, or, sql } from "drizzle-orm";
 import { inAutomaticVerification } from "@/lib/verification-server";
-import { Award, ExternalLink, FileBarChart, Users } from "lucide-react";
+import { Award, ExternalLink, FileBarChart, MessageSquare, Users } from "lucide-react";
 import { db } from "@/db";
 import { collectionPoints, invoices, missions, submissions, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
@@ -59,7 +59,8 @@ export default async function OrganizationPage({
   const tab: Tab = visibleTabs.find((t) => t === query.tab) ?? "overview";
   const accent = org.brandColor && hasFeature(plan, "branding") ? org.brandColor : null;
 
-  const [impact, ranking, activeCount, eventAllowance, orgMissions, orgPoints] = await Promise.all([
+  // Independent reads run in parallel (each one is a round trip to the database).
+  const [impact, ranking, activeCount, eventAllowance, orgMissions, orgPoints, cup, [{ pendingCount }], mine, eventCertRows, base] = await Promise.all([
     orgImpact(org.id),
     orgRanking(org.id, 200),
     activeMissionCount(org.id),
@@ -70,31 +71,30 @@ export default async function OrganizationPage({
       .select({ id: collectionPoints.id, name: collectionPoints.name, city: collectionPoints.city })
       .from(collectionPoints)
       .where(and(eq(collectionPoints.isActive, true), or(isNull(collectionPoints.organizationId), eq(collectionPoints.organizationId, org.id)))),
-  ]);
-  // Schools Cup (docs/COPA.md): this school's position in the current season.
-  const cup = org.type === "school" && tab === "overview" ? await schoolCupStanding(org.id) : null;
-  const cupText = seasonText(lang);
-  const [{ pendingCount }] = await db
-    .select({ pendingCount: sql<number>`count(*)::int` })
-    .from(submissions)
-    .innerJoin(missions, eq(missions.id, submissions.missionId))
-    .where(and(eq(missions.organizationId, org.id), eq(submissions.status, "pending"), not(inAutomaticVerification())));
-  const mine = await db
-    .select({ missionId: submissions.missionId })
-    .from(submissions)
-    .where(and(eq(submissions.userId, user.id), inArray(submissions.status, ["pending", "approved"])));
-  const done = new Set(mine.map((m) => m.missionId));
-  // My approved participations in events whose report/certificates are unlocked.
-  const myEventCerts = (
-    await db
+    // Schools Cup (docs/COPA.md): this school's position in the current season.
+    org.type === "school" && tab === "overview" ? schoolCupStanding(org.id) : Promise.resolve(null),
+    db
+      .select({ pendingCount: sql<number>`count(*)::int` })
+      .from(submissions)
+      .innerJoin(missions, eq(missions.id, submissions.missionId))
+      .where(and(eq(missions.organizationId, org.id), eq(submissions.status, "pending"), not(inAutomaticVerification()))),
+    db
+      .select({ missionId: submissions.missionId })
+      .from(submissions)
+      .where(and(eq(submissions.userId, user.id), inArray(submissions.status, ["pending", "approved"]))),
+    // My approved participations in events whose report/certificates are unlocked.
+    db
       .select({ submissionId: submissions.id, title: missions.title, startsAt: missions.startsAt, endsAt: missions.endsAt, eventPaidAt: missions.eventPaidAt })
       .from(submissions)
       .innerJoin(missions, eq(missions.id, submissions.missionId))
       .where(and(eq(submissions.userId, user.id), eq(submissions.status, "approved"), eq(missions.organizationId, org.id), isNotNull(missions.startsAt)))
-      .orderBy(desc(missions.startsAt))
-  ).filter((row) => eventUnlocked(plan, row));
+      .orderBy(desc(missions.startsAt)),
+    publicBaseUrl(),
+  ]);
+  const cupText = seasonText(lang);
+  const done = new Set(mine.map((m) => m.missionId));
+  const myEventCerts = eventCertRows.filter((row) => eventUnlocked(plan, row));
 
-  const base = await publicBaseUrl();
   const inviteUrl = `${base}/org/entrar/${org.inviteCode}`;
   const tabLabel = (t: Tab) => text.tabs[t];
 
@@ -124,9 +124,18 @@ export default async function OrganizationPage({
             · {text.roles[role]}
           </p>
         </div>
-        <Link href={`/o/${org.slug}`} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
-          <ExternalLink className="h-4 w-4" /> {text.publicPage}
-        </Link>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <Link
+            href={`/community?org=${encodeURIComponent(org.slug)}`}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+            data-testid="org-community-link"
+          >
+            <MessageSquare className="h-4 w-4" /> {t(lang, "nav_community")}
+          </Link>
+          <Link href={`/o/${org.slug}`} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
+            <ExternalLink className="h-4 w-4" /> {text.publicPage}
+          </Link>
+        </div>
       </div>
 
       {query.welcome === "1" && manager && (

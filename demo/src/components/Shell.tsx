@@ -29,7 +29,9 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const pendingReview = useStore((s) => s.submissions.filter((x) => x.status === "pending" && x.userId !== user.id).length);
 
   const moderatorsEnabled = useStore((s) => moderatorsOn(s));
-  const items = navItemsFor(user.role, moderatorsEnabled);
+  // The Community is the chat of an organization: the tab only shows for members of one.
+  const hasCommunity = useStore((s) => (s.orgMembers ?? []).some((m) => m.userId === user.id));
+  const items = navItemsFor(user.role, moderatorsEnabled, hasCommunity);
   const { primary: primaryMobile, more: moreMobile } = mobileNav(items);
   const isActive = (href: string) => path === href || path.startsWith(href + "/");
 

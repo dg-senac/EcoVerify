@@ -33,6 +33,7 @@ No Supabase: **SQL Editor → New query**, cole o arquivo inteiro e clique em **
 | `03_storage.sql` | Cria o bucket **privado** `uploads` para as fotos | Uma vez |
 | `04_missoes_iniciais.sql` | Missões prontas do Recife e de "qualquer lugar" | Opcional |
 | `05_admin.sql` | Transforma a **sua** conta em admin | Depois do passo 5 |
+| `06_comunidade_por_organizacao.sql` | Atualização: cada organização ganha o próprio chat da Comunidade | Só se você já rodou o 01 antes dessa versão (rode **antes** do merge) |
 
 Cada arquivo termina com uma consulta de conferência (você vê o resultado embaixo do editor).
 
@@ -82,6 +83,12 @@ a partir do mesmo repositório (assim a demonstração continua no ar):
 | `MODERATORS_ENABLED` | Deixe vazio (moderadores ligados). `false` desliga o papel | — |
 
 5. **Deploy**. Abra o endereço: deve aparecer a tela de login.
+
+> **Velocidade: servidor perto do banco.** O `vercel.json` manda as funções rodarem em `pdx1` (Portland, EUA),
+> a mesma região do banco `us-west-2` (Oregon). Cada página faz várias consultas: com servidor e banco longe um do
+> outro, cada consulta atravessa os EUA e o app fica lento. Se o seu Supabase estiver em outra região, troque o
+> `regions` do `vercel.json` pela região mais próxima dele (ex.: `sa-east-1` São Paulo → `gru1`,
+> `us-east-1` → `iad1`).
 
 > **Sem Resend** o app funciona: ninguém precisa confirmar e-mail, mas "esqueci minha senha" não envia link.
 > Com Resend (grátis até 3.000 e-mails/mês) as duas coisas funcionam.
@@ -163,4 +170,6 @@ quiser.
 | Fotos não aparecem / erro ao enviar | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` ou o bucket `uploads` (03_storage.sql) |
 | Não consigo virar admin | `ADMIN_EMAILS` diferente do e-mail da conta, ou falta rodar o 05_admin.sql |
 | Moderador não vê "Moderação" | Papel não foi trocado em Admin → Usuários, ou `MODERATORS_ENABLED=false` |
+| App lento | Região da Vercel longe da região do banco: ajuste `regions` no `vercel.json` (ver passo 4) |
+| Erro na Comunidade depois de atualizar | Faltou rodar o `06_comunidade_por_organizacao.sql` |
 | Banco "pausado" | O plano grátis do Supabase pausa após 7 dias sem uso: entre no painel e clique em **Restore** |

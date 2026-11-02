@@ -1,6 +1,7 @@
 import "server-only";
 import { isSeedEmail, seedAccountsAllowed } from "@/lib/staff-config";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db } from "@/db";
@@ -47,7 +48,14 @@ export async function destroySession() {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function getCurrentUser(): Promise<SessionUser | null> {
+/**
+ * The signed-in user. Memoized per request with React cache(): the layout and the page both ask for
+ * it, but the session is read from the database only once per render (server actions are not
+ * memoized, so they always see fresh data).
+ */
+export const getCurrentUser = cache(readCurrentUser);
+
+async function readCurrentUser(): Promise<SessionUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   // Avoid a database error (invalid uuid) when the cookie was tampered with.

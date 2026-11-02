@@ -88,7 +88,7 @@ Também conferir:
 - [ ] Abaixo da foto aparece o aviso "Fotos copiadas da internet são detectadas e analisadas pela equipe".
 - [ ] Relato com **menos de 50 caracteres** → o contador "Faltam N caracteres" impede o envio.
 - [ ] Missão **local** (ex.: Praia de Boa Viagem) longe do local → o app mostra a distância. **Usar o local da missão** libera o envio (a moderação vê o selo "Local da missão") (no app real, é preciso estar a até 150 m).
-- [ ] Em **Minhas Submissões**, abrir a comprovação rejeitada automaticamente › **Contestar** › escrever o motivo › *Enviar contestação* → status "Contestação em análise". Tentar contestar de novo → "Você já contestou esta decisão".
+- [ ] Em **Meus envios**, abrir a comprovação rejeitada automaticamente › **Contestar** › escrever o motivo › *Enviar contestação* → status "Contestação em análise". Tentar contestar de novo → "Você já contestou esta decisão".
 - [ ] As **Notificações** mostram cada aprovação/rejeição com o motivo, e *Marcar todas como lidas* zera o contador.
 
 ### 3.3.1 IA de verdade com a sua chave do Gemini (opcional)

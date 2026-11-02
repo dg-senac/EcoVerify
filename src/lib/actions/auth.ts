@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect, RedirectType } from "next/navigation";
 import { parseDeclaredWallet } from "@/lib/wallet-optional";
 import { PAYMENTS_ENABLED } from "@/lib/features";
 import { eq } from "drizzle-orm";
@@ -73,7 +73,8 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
 
   const promoted = await promoteOwnerIfNeeded(user);
   await createSession(user.id);
-  redirect(safeNextPath(formData.get("next")) ?? (promoted ? "/admin" : homeFor(user.role, moderatorsEnabled())));
+  // replace: the Android back button must not return to the login screen.
+  redirect(safeNextPath(formData.get("next")) ?? (promoted ? "/admin" : homeFor(user.role, moderatorsEnabled())), RedirectType.replace);
 }
 
 export async function registerAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -131,11 +132,11 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
   await createSession(user.id);
   // A failure to send must not block the sign-up: the user can resend from Settings.
   await sendVerificationEmail(user).catch((error) => console.error("[email] verification", error));
-  redirect(safeNextPath(formData.get("next")) ?? (PAYMENTS_ENABLED ? "/wallet-setup" : "/missions"));
+  redirect(safeNextPath(formData.get("next")) ?? (PAYMENTS_ENABLED ? "/wallet-setup" : "/missions"), RedirectType.replace);
 }
 
 export async function logoutAction() {
   "use server";
   await destroySession();
-  redirect("/login");
+  redirect("/login", RedirectType.replace);
 }

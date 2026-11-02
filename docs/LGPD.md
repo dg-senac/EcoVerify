@@ -53,7 +53,7 @@ Resumo técnico do que o EcoVerify faz para cumprir a LGPD (Lei 13.709/2018) e p
 
 O último administrador não consegue excluir a própria conta (precisa promover outra pessoa antes). Contas excluídas somem do ranking, da lista de usuários do admin e não podem ser reativadas.
 
-**Revisão de decisões automatizadas (art. 20)**: rejeições feitas pela verificação automática podem ser contestadas em *Minhas Submissões*; a contestação vai para uma pessoa da moderação. Detalhes em [VERIFICACAO_IA.md](VERIFICACAO_IA.md).
+**Revisão de decisões automatizadas (art. 20)**: rejeições feitas pela verificação automática podem ser contestadas em *Meus envios*; a contestação vai para uma pessoa da moderação. Detalhes em [VERIFICACAO_IA.md](VERIFICACAO_IA.md).
 
 **Página pública de Transparência** (`/transparencia`): mostra só agregados (ações, pessoas, cidades, pontos, FONE) e os últimos pagamentos com data, valor, **endereço abreviado** e link da transação, que já são públicos na blockchain. Nunca nome, e-mail, foto ou localização. Patrocinadores aparecem com nome e orçamento (são pessoas jurídicas que aceitaram aparecer).
 

@@ -143,9 +143,9 @@ export function chatModText(lang: Lang) {
       "Audio y video solo para quienes declararon tener 18 años o más (en Perfil).",
     ),
     safetyNote: T(
-      "Chat público e moderado: não compartilhe telefone, e-mail, endereço ou links. Denuncie o que for estranho.",
-      "Public, moderated chat: don't share phone numbers, e-mails, addresses or links. Report anything odd.",
-      "Chat público y moderado: no compartas teléfono, correo, dirección ni enlaces. Denuncia lo extraño.",
+      "Chat moderado, visível para todos os membros: não compartilhe telefone, e-mail, endereço ou links. Denuncie o que for estranho.",
+      "Moderated chat, seen by every member: don't share phone numbers, e-mails, addresses or links. Report anything odd.",
+      "Chat moderado, visible para todos los miembros: no compartas teléfono, correo, dirección ni enlaces. Denuncia lo extraño.",
     ),
     errors: {
       contact_info: T(

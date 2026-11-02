@@ -6,9 +6,9 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { chatBlocks, communityChat, messageFavorites, messageReports, notifications, users } from "@/db/schema";
+import { chatBlocks, communityChat, messageFavorites, messageReports, notifications, organizationMembers, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { isAllowedMediaUrl } from "@/lib/community";
+import { isAllowedMediaUrl, isCommunityMember, messageCommunityFor } from "@/lib/community";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   CHAT_REPORT_DETAIL_MAX,
@@ -35,6 +35,10 @@ export async function sendMessageAction(_prev: ActionState, formData: FormData):
   if (!rateLimit(`chat:${user.id}`, 20, 60 * 1000)) {
     return { error: "too_many_messages" };
   }
+
+  // Each organization has its own chat: only its members can write there.
+  const organizationId = String(formData.get("organizationId") ?? "").trim();
+  if (!(await isCommunityMember(user.id, organizationId))) return { error: "not_member" };
 
   const message = String(formData.get("message") ?? "").trim();
   const messageType = String(formData.get("messageType") ?? "text") as MessageType;
@@ -74,7 +78,8 @@ export async function sendMessageAction(_prev: ActionState, formData: FormData):
         deleteForEveryone: communityChat.deleteForEveryone,
       })
       .from(communityChat)
-      .where(eq(communityChat.id, replyToIdRaw))
+      // Replies only quote messages of the same organization's chat.
+      .where(and(eq(communityChat.id, replyToIdRaw), eq(communityChat.organizationId, organizationId)))
       .limit(1);
     if (original && !original.deleteForEveryone) {
       replyToId = original.id;
@@ -92,18 +97,20 @@ export async function sendMessageAction(_prev: ActionState, formData: FormData):
       replyToId,
       replyToMessage,
       userId: user.id,
+      organizationId,
       aiStatus: checkImage ? "checking" : null,
     })
     .returning({ id: communityChat.id });
   // Others only see the image after the AI checks it (an inappropriate one is hidden + staff alert).
   if (checkImage && created && mediaUrl) after(() => checkChatImage(created.id, mediaUrl));
 
-  // Notify other participants (citizens and moderators) with a single query (previously one INSERT per user per message).
+  // Notify the other members of this organization with a single query.
   // Users that already have an unread community notification don't get another one.
   await db.execute(sql`
     insert into ${notifications} (user_id, type, title, message)
     select u.id, 'system', ${COMMUNITY_NOTIFICATION_TITLE}, 'Há novas mensagens no chat da comunidade.'
     from ${users} u
+    join ${organizationMembers} om on om.user_id = u.id and om.organization_id = ${organizationId}
     where u.role <> 'admin'
       and u.is_banned = false
       and u.notifications_enabled = true
@@ -228,6 +235,8 @@ export async function toggleFavoriteAction(_prev: ActionState, formData: FormDat
   if (!messageId) {
     return { error: "invalid" };
   }
+  // Only messages of a community the user belongs to.
+  if (!(await messageCommunityFor(user.id, messageId))) return { error: "not_found" };
 
   const existingFavorite = await db
     .select()
@@ -272,6 +281,7 @@ export async function reportMessageAction(_prev: ActionState, formData: FormData
     return { error: "invalid" };
   }
   if (!rateLimit(`chat-report:${user.id}`, 10, 60 * 60 * 1000)) return { error: "too_many_messages" };
+  if (!(await messageCommunityFor(user.id, messageId))) return { error: "not_found" };
 
   const [target] = await db
     .select({ userId: communityChat.userId, hiddenAt: communityChat.hiddenAt })

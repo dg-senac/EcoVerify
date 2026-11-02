@@ -84,6 +84,7 @@ CREATE TABLE "community_chat" (
 	"reply_to_id" uuid,
 	"reply_to_message" text,
 	"user_id" uuid NOT NULL,
+	"organization_id" uuid,
 	"edited_at" timestamp with time zone,
 	"deleted_at" timestamp with time zone,
 	"deleted_by" uuid,
@@ -488,6 +489,7 @@ ALTER TABLE "collection_points" ADD CONSTRAINT "collection_points_organization_i
 ALTER TABLE "collection_points" ADD CONSTRAINT "collection_points_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
 ALTER TABLE "community_chat" ADD CONSTRAINT "community_chat_reply_to_id_community_chat_id_fk" FOREIGN KEY ("reply_to_id") REFERENCES "public"."community_chat"("id") ON DELETE no action ON UPDATE no action;
 ALTER TABLE "community_chat" ADD CONSTRAINT "community_chat_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "community_chat" ADD CONSTRAINT "community_chat_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "community_chat" ADD CONSTRAINT "community_chat_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
 ALTER TABLE "dump_confirmations" ADD CONSTRAINT "dump_confirmations_report_id_dump_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "public"."dump_reports"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "dump_confirmations" ADD CONSTRAINT "dump_confirmations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
@@ -544,6 +546,7 @@ CREATE UNIQUE INDEX "auth_tokens_hash_unique" ON "auth_tokens" USING btree ("tok
 CREATE INDEX "auth_tokens_user_idx" ON "auth_tokens" USING btree ("user_id","purpose");
 CREATE UNIQUE INDEX "collection_points_token_unique" ON "collection_points" USING btree ("token");
 CREATE INDEX "community_chat_created_idx" ON "community_chat" USING btree ("created_at");
+CREATE INDEX "community_chat_org_created_idx" ON "community_chat" USING btree ("organization_id","created_at");
 CREATE UNIQUE INDEX "dump_confirmations_once" ON "dump_confirmations" USING btree ("report_id","user_id");
 CREATE INDEX "dump_reports_status_idx" ON "dump_reports" USING btree ("status");
 CREATE INDEX "dump_reports_user_idx" ON "dump_reports" USING btree ("user_id");

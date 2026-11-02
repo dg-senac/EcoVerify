@@ -22,6 +22,7 @@ export function AppShell({
   lang,
   unreadCount,
   moderatorsEnabled = false,
+  hasCommunity = false,
   children,
 }: {
   user: ShellUser;
@@ -29,12 +30,14 @@ export function AppShell({
   unreadCount: number;
   /** Moderators only see Moderation when the platform turned the role on (lib/staff-config.ts). */
   moderatorsEnabled?: boolean;
+  /** In at least one organization: shows the Community tab (each organization has its own chat). */
+  hasCommunity?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const items = navItemsFor(user.role, moderatorsEnabled);
+  const items = navItemsFor(user.role, moderatorsEnabled, hasCommunity);
   const { primary: primaryMobile, more: moreItems } = mobileNav(items);
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");

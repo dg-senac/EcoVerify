@@ -525,6 +525,11 @@ export const communityChat = pgTable("community_chat", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  /**
+   * The organization whose members share this chat (each organization has its own community).
+   * Old messages from the former global chat have no organization and are no longer shown.
+   */
+  organizationId: uuid("organization_id").references((): AnyPgColumn => organizations.id, { onDelete: "cascade" }),
   editedAt: timestamp("edited_at", { withTimezone: true }),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   deletedBy: uuid("deleted_by").references(() => users.id),
@@ -537,6 +542,7 @@ export const communityChat = pgTable("community_chat", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("community_chat_created_idx").on(table.createdAt),
+  index("community_chat_org_created_idx").on(table.organizationId, table.createdAt),
 ]);
 
 export const messageFavorites = pgTable("message_favorites", {

@@ -71,37 +71,47 @@ export default async function MissionsPage() {
   citizenOnly(user.role);
   const lang = user.language;
 
-  const userSubmissions = await db
-    .select({ missionId: submissions.missionId })
-    .from(submissions)
-    // Rejected submissions don't block the mission: the user can try again.
-    .where(and(eq(submissions.userId, user.id), inArray(submissions.status, ["pending", "approved"])));
+  // Independent reads run in parallel (each one is a round trip to the database).
+  const [userSubmissions, orgIds, region, [quizToday]] = await Promise.all([
+    db
+      .select({ missionId: submissions.missionId })
+      .from(submissions)
+      // Rejected submissions don't block the mission: the user can try again.
+      .where(and(eq(submissions.userId, user.id), inArray(submissions.status, ["pending", "approved"]))),
+    myOrganizationIds(user.id),
+    getRegion(),
+    db
+      .select({ points: quizAttempts.points, finishedAt: quizAttempts.finishedAt })
+      .from(quizAttempts)
+      .where(and(eq(quizAttempts.userId, user.id), eq(quizAttempts.day, quizDay())))
+      .limit(1),
+  ]);
 
   const completedMissionIds = userSubmissions.map((s) => s.missionId);
 
   const notDone = completedMissionIds.length > 0 ? not(inArray(missions.id, completedMissionIds)) : undefined;
-  // Public missions only; organization missions are listed separately for their members.
-  const activeMissions = await db
-    .select()
-    .from(missions)
-    .where(and(eq(missions.isActive, true), isNull(missions.organizationId), notDone));
-
-  const orgIds = await myOrganizationIds(user.id);
-  const orgMissionRows = orgIds.length
-    ? await db
-        .select({ mission: missions, orgName: organizations.name, orgSlug: organizations.slug })
-        .from(missions)
-        .innerJoin(organizations, eq(organizations.id, missions.organizationId))
-        .where(
-          and(
-            eq(missions.isActive, true),
-            inArray(missions.organizationId, orgIds),
-            notDone,
-            // Finished events leave the list (the organization still sees them in its Events tab).
-            sql`(${missions.endsAt} is null or ${missions.endsAt} > now() - make_interval(hours => ${EVENT_GRACE_HOURS}))`,
-          ),
-        )
-    : [];
+  const [activeMissions, orgMissionRows] = await Promise.all([
+    // Public missions only; organization missions are listed separately for their members.
+    db
+      .select()
+      .from(missions)
+      .where(and(eq(missions.isActive, true), isNull(missions.organizationId), notDone)),
+    orgIds.length
+      ? db
+          .select({ mission: missions, orgName: organizations.name, orgSlug: organizations.slug })
+          .from(missions)
+          .innerJoin(organizations, eq(organizations.id, missions.organizationId))
+          .where(
+            and(
+              eq(missions.isActive, true),
+              inArray(missions.organizationId, orgIds),
+              notDone,
+              // Finished events leave the list (the organization still sees them in its Events tab).
+              sql`(${missions.endsAt} is null or ${missions.endsAt} > now() - make_interval(hours => ${EVENT_GRACE_HOURS}))`,
+            ),
+          )
+      : Promise.resolve([]),
+  ]);
   const orgText = ORG_TEXT[lang];
   const orgSection =
     orgMissionRows.length > 0 ? (
@@ -129,12 +139,6 @@ export default async function MissionsPage() {
     for (const sponsor of await sponsorBalances()) sponsorLeft.set(sponsor.id, centsToFone(sponsor.remainingCents));
   }
 
-  const region = await getRegion();
-  const [quizToday] = await db
-    .select({ points: quizAttempts.points, finishedAt: quizAttempts.finishedAt })
-    .from(quizAttempts)
-    .where(and(eq(quizAttempts.userId, user.id), eq(quizAttempts.day, quizDay())))
-    .limit(1);
   const quizDone = quizToday?.finishedAt ? quizToday.points : null;
   const extras = (
     <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="mission-extras">
@@ -212,26 +216,22 @@ export default async function MissionsPage() {
 
   // Count all local missions of the region (including ones this user already did) to decide
   // whether it needs automatic supply.
-  const regionalTotal = groupMissionsByRegion(
-    (await db.select().from(missions).where(and(eq(missions.isActive, true), eq(missions.scope, "local"), isNull(missions.organizationId)))),
-    region,
-  ).nearby.length;
+  const [allLocal, [{ value: requestCount }], [mine]] = await Promise.all([
+    db.select().from(missions).where(and(eq(missions.isActive, true), eq(missions.scope, "local"), isNull(missions.organizationId))),
+    db.select({ value: count() }).from(missionRequests).where(eq(missionRequests.ibgeCode, region.ibge)),
+    db
+      .select({ id: missionRequests.id })
+      .from(missionRequests)
+      .where(and(eq(missionRequests.ibgeCode, region.ibge), eq(missionRequests.userId, user.id)))
+      .limit(1),
+  ]);
+  const regionalTotal = groupMissionsByRegion(allLocal, region).nearby.length;
   let seeding = false;
   if (regionalTotal < MIN_LOCAL_MISSIONS && osmAutoMissionsEnabled()) {
     const state = await regionSeedState(region.ibge);
     seeding = state.running || state.due;
     if (state.due) after(() => seedRegionFromOsm(region));
   }
-
-  const [{ value: requestCount }] = await db
-    .select({ value: count() })
-    .from(missionRequests)
-    .where(eq(missionRequests.ibgeCode, region.ibge));
-  const [mine] = await db
-    .select({ id: missionRequests.id })
-    .from(missionRequests)
-    .where(and(eq(missionRequests.ibgeCode, region.ibge), eq(missionRequests.userId, user.id)))
-    .limit(1);
 
   const wantMore = (
     <div className="flex flex-wrap items-center gap-3">

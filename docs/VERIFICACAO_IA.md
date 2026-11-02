@@ -55,7 +55,7 @@ Com `GOOGLE_VISION_API_KEY`, cada comprovação também passa pelo **Web Detecti
 
 ## Contestação (LGPD, art. 20)
 
-Rejeições automáticas mostram **Contestar** em *Minhas Submissões* (mensagem de 10 a 500 caracteres, uma vez por comprovação). A comprovação volta para *pendente*, aparece primeiro na moderação com a mensagem e só uma pessoa decide. A métrica "Contestações (revertidas)" na aba IA mostra quantas a moderação aprovou.
+Rejeições automáticas mostram **Contestar** em *Meus envios* (mensagem de 10 a 500 caracteres, uma vez por comprovação). A comprovação volta para *pendente*, aparece primeiro na moderação com a mensagem e só uma pessoa decide. A métrica "Contestações (revertidas)" na aba IA mostra quantas a moderação aprovou.
 
 ## Painel admin → 🤖 IA
 

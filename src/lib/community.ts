@@ -1,12 +1,68 @@
 import "server-only";
-import { and, desc, eq, isNull, notInArray, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, notInArray, or, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { chatBlocks, communityChat, messageFavorites, users } from "@/db/schema";
+import { chatBlocks, communityChat, messageFavorites, organizationMembers, organizations, users } from "@/db/schema";
 
 const MESSAGE_LIMIT = 50;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Latest community messages (oldest → newest for display) plus the user's favorites, blocks and
+ * The Community is the chat of an organization: only its members read and write there. A person in
+ * no organization has no community (the tab is hidden and the page invites them to join or create one).
+ */
+export async function communitiesOf(userId: string) {
+  return db
+    .select({ id: organizations.id, name: organizations.name, slug: organizations.slug, brandColor: organizations.brandColor })
+    .from(organizationMembers)
+    .innerJoin(organizations, eq(organizations.id, organizationMembers.organizationId))
+    .where(eq(organizationMembers.userId, userId))
+    .orderBy(asc(organizations.name));
+}
+
+export type Community = Awaited<ReturnType<typeof communitiesOf>>[number];
+
+/** True when the user belongs to at least one organization (shows the Community tab). */
+export async function hasCommunity(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: organizationMembers.id })
+    .from(organizationMembers)
+    .where(eq(organizationMembers.userId, userId))
+    .limit(1);
+  return !!row;
+}
+
+/** Is the user a member of this organization (so they can use its chat)? */
+export async function isCommunityMember(userId: string, organizationId: string): Promise<boolean> {
+  if (!UUID_PATTERN.test(organizationId)) return false;
+  const [row] = await db
+    .select({ id: organizationMembers.id })
+    .from(organizationMembers)
+    .where(and(eq(organizationMembers.userId, userId), eq(organizationMembers.organizationId, organizationId)))
+    .limit(1);
+  return !!row;
+}
+
+/**
+ * The organization of a chat message, only when the user is a member of it (null otherwise, also for
+ * old messages of the former global chat). Used before favoriting or reporting a message.
+ */
+export async function messageCommunityFor(userId: string, messageId: string): Promise<string | null> {
+  if (!UUID_PATTERN.test(messageId)) return null;
+  const [row] = await db
+    .select({ organizationId: communityChat.organizationId })
+    .from(communityChat)
+    .innerJoin(
+      organizationMembers,
+      and(eq(organizationMembers.organizationId, communityChat.organizationId), eq(organizationMembers.userId, userId)),
+    )
+    .where(eq(communityChat.id, messageId))
+    .limit(1);
+  return row?.organizationId ?? null;
+}
+
+
+/**
+ * Latest messages of one organization's community (oldest → newest for display) plus the user's favorites, blocks and
  * mute. Everything sensitive is decided here, so it never reaches the browser:
  *
  * - content of messages deleted "for everyone" is stripped;
@@ -14,7 +70,7 @@ const MESSAGE_LIMIT = 50;
  * - messages of people the user blocked are left out;
  * - an image still being checked by the AI is only shown to its author.
  */
-export async function fetchCommunityMessages(userId: string) {
+export async function fetchCommunityMessages(userId: string, organizationId: string) {
   const [blocked, [me]] = await Promise.all([
     db
       .select({ id: chatBlocks.blockedId, name: users.name })
@@ -24,7 +80,7 @@ export async function fetchCommunityMessages(userId: string) {
     db.select({ chatMutedUntil: users.chatMutedUntil, adultDeclaredAt: users.adultDeclaredAt }).from(users).where(eq(users.id, userId)),
   ]);
 
-  const filters: SQL[] = [or(isNull(communityChat.hiddenAt), eq(communityChat.userId, userId))!];
+  const filters: SQL[] = [eq(communityChat.organizationId, organizationId), or(isNull(communityChat.hiddenAt), eq(communityChat.userId, userId))!];
   if (blocked.length > 0) filters.push(notInArray(communityChat.userId, blocked.map((b) => b.id)));
 
   const latest = await db
@@ -58,12 +114,16 @@ export async function fetchCommunityMessages(userId: string) {
     return base;
   });
 
-  const favorites = await db
-    .select({ messageId: messageFavorites.messageId })
-    .from(messageFavorites)
-    .where(eq(messageFavorites.userId, userId));
+  const ids = messages.map((message) => message.id);
+  const favorites = ids.length
+    ? await db
+        .select({ messageId: messageFavorites.messageId })
+        .from(messageFavorites)
+        .where(and(eq(messageFavorites.userId, userId), inArray(messageFavorites.messageId, ids)))
+    : [];
 
   return {
+    organizationId,
     messages,
     favoriteIds: favorites.map((favorite) => favorite.messageId),
     blocked: blocked.map((b) => ({ id: b.id, name: b.name })),
